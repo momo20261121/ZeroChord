@@ -1,17 +1,15 @@
 #pragma once
-#include "instrument.hpp"
+#include "settings_editor.hpp"
 #include <string>
 namespace zc {
-class UI {
-public:
-    explicit UI(Instrument& instrument):instrument_(instrument) {}
-    bool settingsOpen=false;
-    void key(char key,bool down);
+class UI : public SettingsEditor {
+  public:
+    explicit UI(Instrument &instrument) : SettingsEditor(instrument) {}
     void draw();
-private:
-    Instrument& instrument_;
-    int selection_=0;
+
+  private:
     std::string previous_;
-    void adjust(int direction);
+    void drawPicker();
+    void drawCombinations();
 };
-}
+} // namespace zc

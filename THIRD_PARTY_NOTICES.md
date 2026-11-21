@@ -8,14 +8,21 @@ in [third_party/licenses](third_party/licenses).
 | [LVGL](https://github.com/lvgl/lvgl) | 9.5.0 | MIT | Native 320 x 170 interface |
 | [SDL](https://github.com/libsdl-org/SDL) | 2.32.10 | zlib | Desktop preview only |
 | [TinySoundFont](https://github.com/schellingb/TinySoundFont) | 853a0a171759f1ddba0de1442133a75912bbeffa | MIT | SoundFont renderer |
+| [toml++](https://github.com/marzer/tomlplusplus) | 3.4.0 | MIT | Preset configuration parser |
 | [miniaudio](https://github.com/mackron/miniaudio) | 0.11.25 | MIT-0 option | Audio output |
+| [Montserrat](https://github.com/JulietaUla/Montserrat) | LVGL bundled glyphs | SIL OFL 1.1 | Display font |
+| [Font Awesome 5](https://github.com/FortAwesome/Font-Awesome/tree/5.x) | LVGL bundled glyphs | SIL OFL 1.1 (font) | Symbols embedded in LVGL fonts |
 | [minichord firmware](https://github.com/BenjaminPoilve/minichord) | Reference, not linked | BSD-3-Clause | Combination chord and note-lifetime design reference |
 | [CardputerZero Piano](https://github.com/CardputerZero/Piano) | Reference, not linked | MIT | Audio/backend architecture reference |
 
 ZeroChord implements its own music state machine and platform layer. It does
 not include minichord's Teensy firmware or Omnichord assets. Minichord firmware
-copyright: 2024 Benjamin Poilvé. Piano source copyright: 2026 @MrFatTiger.
+copyright: 2024 Benjamin Poilvé. Piano source copyright: 2026 M5Stack CardputerZero Community.
 Reference licenses are retained conservatively for future adaptations.
+
+Font Awesome Free font glyphs: copyright Fonticons, Inc.
+The full SIL OFL 1.1 text is included in `Montserrat-OFL.txt`, alongside the
+Font Awesome project's license/attribution notice in `FontAwesome5.txt`.
 
 ## Runtime sound bank
 

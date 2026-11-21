@@ -144,5 +144,17 @@ General MIDI collection without a product need. Verify memory and CPU costs on
 the actual device before fixing the voice count or effects budget.
 
 When adopting code or assets, pin the exact source revision/version, preserve its
-license and attribution, and record any modifications and asset checksums. This
-research does not select ZeroChord's own application license yet.
+license and attribution, and record any modifications and asset checksums. ZeroChord's original application source is MIT licensed.
+
+## Playback articulation in the prototype
+
+The selected TimGM6mb Warm Pad has a 606 ms amplitude attack and 2.57 s release.
+Those envelopes hide short arpeggio triggers, blending them into a steady pad.
+Finite backing notes cap attack at 5 ms, decay over 220 ms to 8% sustain,
+and cap release at 30 ms; sustained Pad
+keeps the bank's original envelope. This changes each new voice's envelope,
+without modifying shared SF2 regions or changing the selected instrument.
+The adapter uses TinySoundFont internals at the pinned revision above; retest
+its envelope setup when updating that dependency. Automated audio tests check
+prompt attacks and quiet gaps for all four presets, plus the full Dream
+Pad → Chord → Arp control path.

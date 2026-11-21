@@ -34,6 +34,9 @@ def main():
     for filename in ('miniaudio.h', 'LICENSE'):
         download('https://raw.githubusercontent.com/mackron/miniaudio/0.11.25/' + filename,
                  DEPS / 'miniaudio' / filename)
+    for filename in ('toml.hpp', 'LICENSE'):
+        download('https://raw.githubusercontent.com/marzer/tomlplusplus/v3.4.0/' + filename,
+                 DEPS / 'tomlplusplus' / filename)
     print('Dependencies ready under', DEPS)
 
 
