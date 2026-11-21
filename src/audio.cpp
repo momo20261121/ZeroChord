@@ -44,7 +44,7 @@ Audio::Audio(const std::string& path):impl_(new Impl(path)) {
 }
 Audio::~Audio()=default;
 void Audio::send(const Command& c) {
-    auto& s=*impl_; auto w=s.write.load(std::memory_order_relaxed),next=(w+1)%s.queue.size();
+    auto& s=*impl_; unsigned w=s.write.load(std::memory_order_relaxed),next=unsigned((w+1)%s.queue.size());
     if(next==s.read.load(std::memory_order_acquire)) { s.overflowCount++; s.emergency=true; return; }
     s.queue[w]=c; s.write.store(unsigned(next),std::memory_order_release);
 }

@@ -17,6 +17,7 @@ struct Renderer::Impl {
     uint64_t frame=0;
     std::vector<float> delay;
     size_t delayPos=0;
+    bool muted=true;
     explicit Impl(int r):rate(r),delay(size_t(r*0.23)*2,0.f) {}
     ~Impl() { if(synth) tsf_close(synth); }
 };
@@ -32,7 +33,7 @@ void Renderer::send(const Command& c) {
     auto& s=*impl_;
     if(c.type==CommandType::Panic) {
         for(int i=0;i<64;i++) { tsf_channel_sounds_off_all(s.synth,i); s.voices[i]={}; }
-        std::fill(s.delay.begin(),s.delay.end(),0.f); return;
+        s.muted=true; std::fill(s.delay.begin(),s.delay.end(),0.f); return;
     }
     if(c.type==CommandType::Configure) { s.settings=c.settings; return; }
     if(c.type==CommandType::Off) {
@@ -40,6 +41,7 @@ void Renderer::send(const Command& c) {
         return;
     }
     int slot=0;
+    s.muted=false;
     for(int i=1;i<64;i++) if(s.voices[i].age<s.voices[slot].age) slot=i;
     tsf_channel_sounds_off_all(s.synth,slot);
     const auto& preset=presets[s.settings.preset];
@@ -56,6 +58,7 @@ void Renderer::render(float* stereo,int frames) {
         tsf_render_float(s.synth,stereo+start*2,n,0); s.frame+=n;
     }
     const float wet=s.settings.echo/100.f;
+    if(s.muted) { std::fill(stereo,stereo+frames*2,0.f); return; }
     for(int i=0;i<frames*2;i++) {
         float dry=stereo[i],echo=s.delay[s.delayPos];
         s.delay[s.delayPos]=dry+echo*0.25f;
