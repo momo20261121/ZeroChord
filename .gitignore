@@ -1,0 +1,11 @@
+.DS_Store
+build/
+dist/
+.tools/
+.venv/
+__pycache__/
+*.py[cod]
+*.deb
+.env
+.env.*
+!.env.example

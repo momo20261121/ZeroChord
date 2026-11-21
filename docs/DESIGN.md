@@ -1,0 +1,162 @@
+# ZeroChord design
+
+Updated: 2026-11-21.
+
+This is a living discussion record, not an implementation specification. Agreed
+controls are separated from recommendations and behavior still to be decided.
+
+## Intent
+
+Make a small, immediate chord-and-harp instrument for CardputerZero. Preserve
+minichord's relationship between chord selection and harmonically related harp
+notes, while adapting the controls to the physical keyboard. Prioritize the
+experience of playing over the number of features.
+
+Playing model: play it like minichord. Physical posture is not a separate product
+choice to resolve; adapt the controls to CardputerZero and validate them on device.
+
+Sound direction: use openly licensed sound sources. Minichord and Omnichord guide
+the musical interaction; an exact reproduction of their timbres is not required.
+CardputerZero Piano is a reference for sound-bank playback and platform support.
+See [audio sourcing and reuse research](AUDIO_AND_REUSE.md).
+
+## Agreed chord layout
+
+The seven columns follow II, III, IV, V, VI, VII, I. Key 8 is the tonic column,
+not a separate upper-octave tonic chord. The selected key and scale determine
+the root pitch classes. The three rows independently determine chord quality.
+
+In C major:
+
+| Row | II: D | III: E | IV: F | V: G | VI: A | VII: B | I: C |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Major | 2: D | 3: E | 4: F | 5: G | 6: A | 7: B | 8: C |
+| Minor | Q: Dm | W: Em | E: Fm | R: Gm | T: Am | Y: Bm | U: Cm |
+| Dominant seventh | A: D7 | S: E7 | D: F7 | F: G7 | G: A7 | H: B7 | J: C7 |
+
+Letter names refer to physical keys and do not require Shift. The scale supplies
+roots, not automatic diatonic chord qualities: D major, F minor, and C7 remain
+available in C major. Dominant seventh is distinct from major seventh.
+
+Example: 8, 5, T, 4 plays I, V, vi, IV. In C major this is C, G, Am, F;
+in G major it is G, D, Em, C.
+
+## Agreed minichord combination logic
+
+Within one root column, use minichord's chord-quality combinations:
+
+| Pressed rows | Result | C-major setting, first column |
+| --- | --- | --- |
+| Major + seventh | Major seventh | 2 + A: Dmaj7 |
+| Minor + seventh | Minor seventh | Q + A: Dm7 |
+| Major + minor | Diminished triad | 2 + Q: Ddim |
+| All three | Augmented triad | 2 + Q + A: Daug |
+
+Follow the reference's press-driven harmony changes: releasing part of a
+combination must not select an unintended simpler chord. This does not imply
+that sound sustains indefinitely with chord hold disabled; note release and
+harmonic selection are separate behaviors.
+
+Minichord also supports cross-column root borrowing, often producing slash
+chords. Preserve this as the reference direction, but define base-chord
+precedence, bass voicing, and interaction with hold before implementing it.
+Do not silently interpret different columns as stacked independent chords.
+
+## Control map
+
+The chord grid, minichord combinations, preset/strum swap, and directional
+consistency are confirmed. Other controls below retain the previously proposed
+mapping as a working baseline; exact musical behavior remains open.
+
+| Key | Function |
+| --- | --- |
+| 2–8 / Q–U / A–J | Chord grid above |
+| 1 held with a chord selection | Raise the selected root by one semitone |
+| Z X C V B N M | Seven ascending harp notes from the current chord |
+| K | Descending strum: high to low, equivalent direction to M toward Z |
+| L | Ascending strum: low to high, equivalent direction to Z toward M |
+| 9 | Previous preset |
+| 0 | Next preset |
+| I | Toggle chord hold |
+| O | Toggle arpeggiator |
+| P | Tap tempo |
+| Space | Stop all sound; detailed reset behavior to be specified |
+| Tab | Open/close settings |
+| Esc | Back/close the current panel; long press returns home |
+
+Direction convention: left means lower/previous; right means higher/next.
+K is down, L is up. Up and down describe pitch movement, not a guitar-hand gesture.
+
+The sharp modifier changes the root by a semitone; it is not a global change of
+the configured key. Specify whether modifier changes alone retrigger anything
+before implementation. Preserve normal system Fn shortcuts. In performance
+mode F/Z/X/C are musical keys; in settings they may serve as navigation keys.
+
+## Proposed interface
+
+One main performance screen at 320 x 170, with the current chord prominent,
+degree/root mapping, selected key and scale, hold/arpeggiator status, and harp
+activity. Prefer useful playing feedback over decorative animation.
+
+Tab opens settings for key, scale, sound, chord/harp balance, effects, and
+arpeggiator tempo/pattern. Keep frequent performance controls directly accessible.
+
+## Working defaults for the first musical prototype
+
+These are implementation starting points to validate through playing, rather
+than additional product questions that must block progress.
+
+1. **Chord hold and note lifetime.** Recommended starting point: selecting a chord
+   sounds it immediately; hold defaults on so both hands can move to the harp.
+   Existing harp notes keep their pitch and decay naturally when the chord changes;
+   new presses follow the new chord. Space stops voices and the arpeggiator and
+   clears the active chord latch without changing sound or key settings.
+2. **Harp and strum behavior.** Define the seven pitches, octave/register, whether
+   seventh chords change their spacing, and whether K/L perform one sweep per
+   press or repeat while held. Recommended starting point: one sweep per press,
+   with adjustable sweep time. K/L should traverse the same seven pitches as
+   Z–M, in reverse/forward order respectively.
+3. **Sounds.** Audition openly licensed sounds for a sustained chord part and a
+   plucked harp part. Treat a preset as a pairing of both parts with their balance
+   and effects. A warm sustained chord plus a bright plucked harp is a suggested
+   first pairing; individual sound assets have not been chosen or bundled yet.
+4. **Initial scale scope.** Major only for the first prototype is recommended.
+   If natural minor or other scales are included, define root intervals and
+   degree labels explicitly; the rows must continue to choose chord quality.
+
+## Decisions that can follow the first prototype
+
+- Exact chord voicings, bass range, inversions, and transitions between chords.
+- Cross-column borrowing details and acceptable timing for rolled combinations.
+- Arpeggiator patterns, beat-synchronized versus immediate chord changes, and
+  whether the arpeggiator sounds alongside a sustained chord.
+- Preset switching behavior, saved settings, startup state, and effect controls.
+- Visual identity, icon, language support, implementation backend, and license.
+- Whether drums, recording, looping, or MIDI belong in a later release.
+
+## Prototype validation
+
+Before treating the layout as final, test actual keyboard press/release events,
+three-key combinations, sharp plus combinations, cross-column combinations, and
+harp playing while chord keys are held. Check ghosting, missed releases, key
+repeat, modifier processing, and collisions with system shortcuts.
+
+Measure responsiveness from input to sound on the device and check that display
+updates do not disrupt audio. Judge musical feel through headphones as well as
+the built-in speaker. CPU and audio specifications establish plausibility, not
+measured performance.
+
+Current milestone: agree on the playing experience and controls, then validate
+them with a small musical prototype.
+
+## References
+
+- [Minichord user manual](https://minichord.com/user_manual/)
+- [Minichord source and licensing information](https://minichord.com/source/)
+- [OM-108 owner's guide](https://www.omnichord-heaven.com/downloads/manuals/OM-108_Owners_Guide.html)
+- [CardputerZero keyboard specification](https://cardputer.cc/#/documents/cp0-keys)
+- [CardputerZero development guidelines](https://cardputer.cc/#/documents/cp0-dev)
+- [CardputerZero hardware](https://docs.m5stack.com/en/CardputerZero)
+- [Peripheral development guide](https://github.com/CardputerZero/Template/wiki/Peripheral-Development-Guide)
+- [CardputerZero Piano](https://github.com/CardputerZero/Piano)
+- [Minichord source repository](https://github.com/BenjaminPoilve/minichord)

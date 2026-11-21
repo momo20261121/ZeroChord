@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=ZeroChord
+Exec=bin/run-zerochord
+Icon=share/images/zerochord.png
+Terminal=false
+Type=Application
