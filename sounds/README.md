@@ -58,4 +58,4 @@ checksum-verified [FluidR3 piano pack](fluid-grand/SOURCES.md). Copy the resulti
 appears in Keys for Front, Chord and Pad, alongside the original Piano. Its source
 is 32 kHz; its name identifies the bank rather than claiming Hi-fi quality.
 License and provenance travel with the pack. This optional download is not
-bundled into the existing 1.0.0 release.
+bundled into the installed package.

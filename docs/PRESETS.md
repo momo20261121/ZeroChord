@@ -129,8 +129,8 @@ all layers and queued front strums while preserving settings.
 ## Factory starting points
 
 Dream remains first. Presets use the current licensed bank, with no automatic
-Lo-fi/Hi-fi labels or claimed sample upgrades. A detailed Piano variant will
-require a separately selected and licensed bank.
+Lo-fi/Hi-fi labels or claimed sample upgrades. An optional, separately licensed Grand Piano
+(FluidR3) pack is described in the [sound pack guide](../sounds/README.md).
 
 | Preset | Front | Chord / Arp | Pad | Initial backing | BPM |
 | --- | --- | --- | --- | --- | --- |

@@ -17,4 +17,4 @@ The download is kept project-local and is not committed to Git.
 
 Sample rates describe the source, not a quality score. Compare this variant at
 matched volume with the built-in Piano before deciding which you prefer. The
-7.5 MiB pack fits the existing per-pack limit; it is not bundled in the 1.0.0 deb.
+7.5 MiB pack fits the existing per-pack limit; it is not bundled in the installed package.

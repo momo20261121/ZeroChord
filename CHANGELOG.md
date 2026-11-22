@@ -1,8 +1,8 @@
 # Release notes
 
-## 1.1.0 (in development)
+## 1.1.0 — 2026-11-22
 
-- Add an About settings tab with the running version and GitHub QR code.
+- Add an About settings tab with the running version, a GitHub QR code and a pointer to the user guide and details in the repository.
 
 - Add an optional pinned, MIT-licensed Grand Piano (FluidR3) pack and an offline
   matched-level audio comparison tool with native-renderer reference checks.

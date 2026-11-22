@@ -7,7 +7,7 @@ parts have separate sounds and envelopes.
 ## Start playing
 
 Open ZeroChord from APPLaunch. Startup is silent. The initial preset is Dream,
-with a soft Pad backing and a bright front sound in the key of C.
+with Chord, Pad and Arp backing layers and a bright front sound in the key of C.
 
 Press **8**, then play **Z X C V B N M**. Try **8 → 5 → T → 4** for C, G, Am, F.
 Press **Space** to stop everything. Hold **Esc** for about a second to exit.
@@ -151,6 +151,13 @@ its own Octave and absolute Root. Follow All/Follow Key removes an override.
 Root, octave and combination mappings remain the same when switching presets.
 Front Scale notes have their own major/minor setting under Front notes → All.
 
+### About
+
+Tab → **About** (after Style and App) shows the running version, a note that the
+user guide and more details are in the repository, and a QR code for the GitHub
+source and documentation. The code stays black on white in either theme and works
+offline; your phone needs network access to open the page. Esc returns to playing.
+
 ## Add your own sounds
 
 Copy named SoundFont packs into `ZeroChord/sounds/` on the TF card, or
@@ -158,6 +165,8 @@ Copy named SoundFont packs into `ZeroChord/sounds/` on the TF card, or
 built-in sound set. Front, Chord and Pad can each choose an imported sound.
 See [the sound pack guide](../sounds/README.md) for the manifest and size limits.
 Use sound files whose license permits your intended use.
+An optional, checksum-verified Grand Piano (FluidR3) pack can be fetched with
+`scripts/fetch_piano_pack.py`; it is not part of the installed package.
 
 ## Troubleshooting
 
@@ -175,11 +184,3 @@ Use sound files whose license permits your intended use.
 The [preset guide](PRESETS.md) describes editable files and advanced behavior.
 For development and verification, see [building](DEVELOPMENT.md) and
 [testing](TESTING.md).
-
-
-## About ZeroChord
-
-Open Tab, then use ←/→ (Z/C) to select **About** after Style and App.
-It shows the running app version and a QR code for the GitHub source and
-documentation. The code stays black on white in either theme and works offline;
-your phone needs network access to open the page. Esc returns to playing.

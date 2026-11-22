@@ -1,6 +1,8 @@
 # ZeroChord design
 
-Updated: 2026-11-21.
+Updated: 2026-11-21. This is a dated design record from the 0.1.0 prototype; it is not
+kept in step with later releases. For current behavior see the [user guide](USER_GUIDE.md)
+and [release notes](../CHANGELOG.md).
 
 This is a living design record. The 0.1.0 prototype implements the agreed
 controls and the working defaults described below. See the final section for

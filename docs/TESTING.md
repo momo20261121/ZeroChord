@@ -1,6 +1,29 @@
 # Testing ZeroChord
 
-## 1.1.0 backing layers and preset tuning
+## Current status — 1.1.0 release candidate (2026-11-22)
+
+- **Local:** all six desktop suites, all six ASan/UBSan suites (macOS leak
+  detection off) and 26 real-app keyboard/save/restart flows pass. The sanitizer run
+  preceded the final About-tab text edit, which changes one UI label only; the
+  desktop suites and flows were rerun after it.
+- **Package:** `dist/zerochord_1.1.0_arm64.deb` is cross-built on the Mac. The privacy
+  scan reports no FAIL; its one WARN is the intentional public project URL in the About QR.
+- **Device:** the package was installed on the CardputerZero and `scripts/test_installed.py`
+  passed (installed version, `dpkg --verify`, launcher entry, evdev input, 415,200
+  recorded audio frames with peak 9,116 and no queue overflows, framebuffer readback,
+  persisted Chord-only layer/pattern/EQ/tempo, clean exit). The installed executable's
+  SHA-256 matches the local build.
+- **Script fix:** the 1.0.0 installed-app script used stale popup keys and expected a
+  non-default pattern; it now selects Chord only and the next pattern. The desktop app
+  produced identical results, so this was a script issue, not an app bug.
+- **Not validated:** physical keyboard feel, speaker listening, the optional Grand Piano
+  pack on the device, and the other hardware scripts (`scripts/device_input_test.py`).
+  The About screen was inspected in the 320×170 desktop render, not on the device display.
+
+Sections below are dated iteration records, newest first; their counts describe
+those versions.
+
+## 1.1.0 backing layers and preset tuning (iteration record)
 
 All six local suites pass, including all eight layer combinations, checkbox
 apply/cancel/default, app and preset round-trips, current-preset restore,
@@ -9,12 +32,8 @@ clipping checks. The real app passes 20 isolated keyboard/save/restart flows,
 including O and Style checkbox paths using printed F/X arrows, none/all
 selections and cancellation. The 320×170 popup and multi-layer status are
 visually checked locally. Cross-compilation runs on the development Mac.
-Device validation for this iteration is one preview deployment/launch, with no
-repeated device suite. Musical feel and speaker tone still need listening.
-
-Earlier sections below record previous iterations; their run counts describe
-those versions. Hardware scripts have updated controls but have not been rerun
-as part of this change.
+This iteration's own device check was one preview deployment/launch; the release
+candidate's device results are in the status section above.
 
 ## Global EQ and sustained chord pattern
 

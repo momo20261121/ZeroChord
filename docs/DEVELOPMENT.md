@@ -78,19 +78,24 @@ The packaging command requires `ZEROCHORD_MAINTAINER` to contain a public
 into the resulting public Debian package, so never supply secrets there.
 Required third-party copyright and license notices remain intact.
 
-## Named sounds and front notes
+## Releasing
 
-The sound picker offers fourteen named sounds in Keys, Plucked, Strings, and Pads.
-←/→ changes category; ↑/↓ auditions sounds; Enter saves; Esc cancels.
-Older saved sounds remain available without expanding the built-in selection.
-Pad, Chord/Arp, and Front can each use built-in or imported sounds.
+Run the `/publish` workflow (`.claude/skills/publish/SKILL.md`). It uses these tools:
 
-Put `.sf2` files or named packs in `~/ZeroChord/sounds/` on the TF card and restart.
-See [custom sound packs](../sounds/README.md) for locations, naming, and limits.
-In **App → Front notes**, choose Chord notes or Scale notes on the All tab,
-configure K/L as Strum or Octave shift, and set each key’s note and actual octave.
-←/→ navigates All and Z–M tabs. See [front-note controls](FRONT_NOTES.md).
+- `scripts/privacy_check.py [--deb PACKAGE]` scans publishable files, commit
+  metadata since the last tag and the package for private values from `.env`, Git
+  configuration and the local account. Add extra terms with `ZEROCHORD_PRIVATE_TERMS`
+  (comma-separated) in `.env`. FAIL blocks a release; WARN needs a human decision.
+- `scripts/package.py` builds `dist/zerochord_<version>_arm64.deb`.
+- `scripts/install_release_device.sh push|install|test` copies the package to the
+  device, installs it (the device's sudo password is typed on a terminal) and runs
+  `scripts/test_installed.py` against the installed app.
+- `scripts/install_git_guard.sh` installs a local pre-push hook that refuses `dev`.
 
+## Sounds and front notes
+
+User-facing behavior is documented in the [user guide](USER_GUIDE.md),
+[front notes](FRONT_NOTES.md) and [custom sound packs](../sounds/README.md).
 
 ### Controlled sound comparison
 

@@ -50,8 +50,9 @@ void UI::drawAbout() {
     label(10, 55, 188, "ZeroChord", text, &lv_font_montserrat_14);
     label(10, 77, 188, "Version " ZEROCHORD_VERSION, gold, &lv_font_montserrat_12);
     label(10, 97, 188, "Pocket chord instrument", muted);
-    label(10, 120, 190, "github.com/", cyan);
-    label(10, 134, 194, "momo20261121/ZeroChord", cyan);
+    label(10, 113, 190, "User guide and details at:", muted);
+    label(10, 127, 190, "github.com/", cyan);
+    label(10, 140, 194, "momo20261121/ZeroChord", cyan);
     constexpr char url[] = "https://github.com/momo20261121/ZeroChord";
     auto *qr = lv_qrcode_create(lv_screen_active());
     lv_obj_set_pos(qr, 208, 48);
