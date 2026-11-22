@@ -25,7 +25,7 @@ with tarfile.open(output, 'w:gz') as archive:
         path = root / name
         if path.exists():
             archive.add(path, arcname=name)
-    for name in ['TinySoundFont', 'miniaudio']:
+    for name in ['TinySoundFont', 'miniaudio', 'tomlplusplus']:
         archive.add(root / '.tools/deps' / name, arcname='.tools/deps/' + name)
     lvgl = root / '.tools/deps/lvgl'
     for name in ['CMakeLists.txt', 'lvgl.h', 'lvgl_private.h', 'lv_version.h', 'lv_version.h.in', 'lvgl.pc.in', 'LICENCE.txt', 'COPYRIGHTS.md', 'src', 'env_support/cmake']:

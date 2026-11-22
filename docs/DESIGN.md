@@ -2,8 +2,9 @@
 
 Updated: 2026-11-21.
 
-This is a living discussion record, not an implementation specification. Agreed
-controls are separated from recommendations and behavior still to be decided.
+This is a living design record. The 0.1.0 prototype implements the agreed
+controls and the working defaults described below. See the final section for
+the concrete first-version behavior and remaining hands-on decisions.
 
 ## Intent
 
@@ -78,8 +79,8 @@ mapping as a working baseline; exact musical behavior remains open.
 | 9 | Previous preset |
 | 0 | Next preset |
 | I | Toggle chord hold |
-| O | Toggle arpeggiator |
-| P | Tap tempo |
+| O | Cycle Pad → Chord → Arp → Front only |
+| P | Enter tempo (40–240 BPM) |
 | Space | Stop all sound; detailed reset behavior to be specified |
 | Tab | Open/close settings |
 | Esc | Back/close the current panel; long press returns home |
@@ -95,7 +96,7 @@ mode F/Z/X/C are musical keys; in settings they may serve as navigation keys.
 ## Proposed interface
 
 One main performance screen at 320 x 170, with the current chord prominent,
-degree/root mapping, selected key and scale, hold/arpeggiator status, and harp
+degree/root mapping, selected key and scale, hold/playback mode, and harp
 activity. Prefer useful playing feedback over decorative animation.
 
 Tab opens settings for key, scale, sound, chord/harp balance, effects, and
@@ -146,8 +147,76 @@ updates do not disrupt audio. Judge musical feel through headphones as well as
 the built-in speaker. CPU and audio specifications establish plausibility, not
 measured performance.
 
-Current milestone: agree on the playing experience and controls, then validate
-them with a small musical prototype.
+Current milestone: validate the playable prototype on the actual device.
+
+## Implemented 0.1.0 behavior
+
+- Major and natural minor both select roots. Chord rows remain explicit quality
+  choices. Settings choose any of the 12 tonics.
+- Hold defaults on. With hold off, releasing every chord key stops the chord and
+  arp generation; existing one-shot harp notes finish their decay. Releasing
+  part of a chord combination never changes the selected harmony.
+- The first held column supplies the base chord. A newly pressed other column
+  supplies slash bass, voiced below the root. If several other columns are held,
+  the most recently pressed one wins. Releasing a bass key does not change the
+  selected harmony until the next chord press. Rows in the borrowed column do
+  not select another independent chord.
+- Sharp is sampled on chord presses. Pressing/releasing 1 alone does not
+  retrigger or transpose an existing chord.
+- Chord notes use root/third/fifth/octave for triads and root/third/fifth/seventh
+  for seventh chords. Diminished and augmented use their respective thirds and
+  fifths. Harp notes start one octave above the chord root, repeating three-note
+  triads or four-note sevenths to produce seven strictly ascending pitches.
+  Slash bass changes the chord bass, while the harp follows the base harmony.
+- Harp voices have independent trigger handles, retain pitch across chord
+  changes, and receive note-off after 1.6 seconds plus their bank-defined release.
+  K/L perform a single sweep; a new sweep replaces unfinished sweep events.
+  A new chord cancels the unfinished sweep so it cannot play stale harmony.
+- O cycles Pad → Chord → Arp → Front only and immediately reapplies the selected harmony.
+  Pad sustains its original sound-bank envelope. Chord strikes four notes
+  simultaneously; Manual hit plays once per press. Optional Every beat, Offbeat,
+  Syncopated, and Waltz patterns repeat accompaniment. K/L remain foreground
+  sweeps and use their own sweep timing.
+- Arp patterns include Up/Down/Up-down, Alternating bass, Pop, R&B, Rock, Waltz,
+  and Bossa. A sixteenth-note clock schedules accents, note groups and gates.
+  Chord changes retain phase; pattern edits wait until the current bar boundary.
+  Mode/preset changes begin a new phrase. Waltz uses 3/4; other rhythms use 4/4.
+- Pad motion choices modulate only backing gain: Steady, Slow swell, Breathe,
+  Pulse. Foreground voices retain independent timing and gain.
+- Finite backing notes cap attack at 5 ms, decay over 220 ms to 8% sustain,
+  and cap release at 30 ms. This gives clear hits using the backing timbre.
+  Sustained Pad retains its bank envelope. Mode changes release backing voices
+  without silencing foreground notes. Panic removes all old synth voices and echo.
+- Style presets include BPM, mode, patterns, and independent sounds. Each has
+  editable TOML defaults plus a remembered working snapshot. Individual fields
+  and entire presets can be restored; save-as creates a new user default.
+  App-wide theme, master/backing/front volume, echo, sweep, key/scale, Hold and chord mappings survive
+  preset switches/restores.
+  See [preset behavior and format](PRESETS.md).
+- Space clears voices, pending events and the active latch, preserving settings.
+- Entering/leaving settings stops performance sound. Settings save on clean
+  exit. Startup has no active chord and produces no sound.
+- Combination customization preserves minichord defaults while adding no3, sus2,
+  and sus4. Four shared combined-press mappings have independent per-degree
+  overrides; single-button rows remain major/minor/7. Key/scale changes keep the
+  mappings attached to their degrees. no3 uses root/fifth octaves, with a two-note
+  harp cycle; suspended chords replace the third with a second/fourth.
+- Tab → App → Chord config opens a dedicated editor. 1 selects All; 2–8 select
+  II–VII then I. A visible scope strip and Shared/Inherited/Custom labels show the
+  target and mapping source. ↑/↓ navigates; Enter opens a scrolling
+  choice list, Enter commits, Esc cancels. Esc returns one level; Tab closes setup.
+  F/X and Z/C remain alternative navigation keys. Number shortcuts are ignored
+  while a picker is open to prevent changing its target accidentally.
+- Sound and chord choices audition bounded chord/harp voices without mutating
+  saved settings. Confirm applies the value; cancel, Tab, long Esc, and signal
+  exit discard an unconfirmed choice. ←/→ switches Style/App tabs; settings change through Enter editors. Per-degree Follow All removes one override; confirmed degree
+  reset restores its four app-default mappings. Confirmed shared reset restores the
+  app-default mappings and overrides, preserving unrelated settings.
+- The initial UI is English. Internationalization, recordings, drums, MIDI,
+  smoother chord voice-leading, and custom rhythm-step editing are future work.
+
+These choices make the first version concrete; they remain adjustable after
+physical keyboard and listening tests.
 
 ## References
 
