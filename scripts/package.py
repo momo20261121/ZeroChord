@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import io
+import os
 from pathlib import Path
 import re
 import shutil
@@ -27,7 +28,13 @@ if header[:6] != b'\x7fELF\x02\x01' or struct.unpack_from('<H', header, 18)[0] !
 icon = root/'assets/share/images/zerochord.png'
 if icon.read_bytes()[:8] != b'\x89PNG\r\n\x1a\n':
     raise SystemExit('Missing PNG app icon')
-maintainer = 'ZeroChord contributors <maintainers@example.invalid>'
+maintainer = os.environ.get('ZEROCHORD_MAINTAINER', '').strip()
+if not re.fullmatch(r'[^<>\r\n]+ <[^<>\s]+@[^<>\s]+>', maintainer):
+    raise SystemExit('Set ZEROCHORD_MAINTAINER to a public "Name <email>"; see .env.example')
+homepage = os.environ.get('ZEROCHORD_HOMEPAGE', '').strip()
+if homepage and (not homepage.startswith(('https://', 'http://')) or '\n' in homepage or '\r' in homepage):
+    raise SystemExit('ZEROCHORD_HOMEPAGE must be a single public HTTP(S) URL')
+homepage_field = f'Homepage: {homepage}\n' if homepage else ''
 stage = args.stage.resolve()
 # Only replace the generated package staging directory, never project sources.
 if stage == root or root not in stage.parents or 'build' not in stage.relative_to(root).parts:
@@ -71,8 +78,7 @@ Architecture: arm64
 Maintainer: {maintainer}
 Section: sound
 Priority: optional
-Homepage: https://example.invalid/ZeroChord
-Installed-Size: {(installed_size+1023)//1024}
+{homepage_field}Installed-Size: {(installed_size+1023)//1024}
 Depends: libc6 (>= 2.36), libpulse0, timgm6mb-soundfont
 Description: Pocket chord and harp instrument for CardputerZero
  Play chords, front notes, strums and arpeggios on the CardputerZero keyboard.

@@ -65,4 +65,4 @@ Inspired by [minichord](https://minichord.com/) and Suzuki Omnichord.
 ZeroChord's source and original icon are [MIT licensed](LICENSE).
 The runtime sound bank has its own license and is supplied separately; see
 [third-party notices](THIRD_PARTY_NOTICES.md).
-Source: [ZeroChord contributors/ZeroChord](https://example.invalid/ZeroChord).
+Source code is included in this repository.

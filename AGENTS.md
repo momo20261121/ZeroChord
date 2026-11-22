@@ -12,6 +12,15 @@ scope; preserve previously agreed behavior unless the request changes it.
   branch. There is no permanent `dev` branch.
 - Do not rewrite existing release history or push without authorization.
 
+## Privacy
+
+- Keep device hosts, usernames, paths and credentials in ignored local
+  environment files; track only placeholder examples.
+- Read public package identity from `ZEROCHORD_MAINTAINER` and optional
+  `ZEROCHORD_HOMEPAGE`, never from hard-coded personal values.
+- Use the project contributor identity for commits unless explicitly requested
+  otherwise. Preserve required third-party license attribution.
+
 ## Scope and stopping rule
 
 - State a brief acceptance target, then implement it. Do not turn a small change
