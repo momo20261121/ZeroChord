@@ -228,6 +228,7 @@ void UI::draw() {
         signature << ',' << s.frontSource[n] << ',' << s.frontOffset[n] << ',' << s.frontOctave[n]
                   << ',' << s.frontDegree[n] << ',' << s.scaleOctave[n];
     signature << ',' << s.chordOctave;
+    for (int gain : s.eqDb) signature << ',' << gain;
     for (int octave : s.degreeChordOctave) signature << ',' << octave;
     for (int root : s.degreeChordRoot) signature << ',' << root;
     signature << ',' << envelopePart_ << ',' << envelopeField_;

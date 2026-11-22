@@ -5,9 +5,12 @@ scope; preserve previously agreed behavior unless the request changes it.
 
 ## Branches
 
-- Use `dev` for ongoing development and commits.
-- Keep `main` for releases. Move development changes into `main` only as part of
-  an explicitly requested release; do not push without authorization.
+- Keep `main` for tested releases; tag each release as `v<version>`.
+- Use short-lived `feature/<name>` or `fix/<name>` branches for development.
+  Create one before changing application code while on `main`.
+- Merge a completed release into `main`, then delete its merged development
+  branch. There is no permanent `dev` branch.
+- Do not rewrite existing release history or push without authorization.
 
 ## Scope and stopping rule
 

@@ -79,4 +79,10 @@ run('envelope-physical', ['TAB']+['x']*7+['ENTER','ENTER']+['x']*6+['ENTER','c',
 run('picker-cancel-physical', ['TAB']+['x']*7+['ENTER','ENTER']+['x']*6+['ESC'], {'envelope00':-1})
 run('light-volume-editor', ['TAB','c','x','x','ENTER'], {'theme':1,'chordVolume':80}, 'theme 1\n')
 run('long-escape-saves', ['TAB','c','x','x','ENTER','x','ENTER'], {'chordVolume':85}, hold_escape=True)
-print('PASS: 12 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')
+run('eq-physical-edit-cancel', ['TAB','c']+['x']*5+['ENTER']+['x']*6+
+    ['ENTER','x','ENTER']+['f']*3+['ENTER','x','ENTER','x','x','ESC'],
+    {'eqLowDb':6,'eqMidDb':-3,'eqHighDb':0})
+run('eq-physical-restore', ['TAB','c']+['x']*5+['BACKSPACE'],
+    {'eqLowDb':0,'eqMidDb':-3,'eqHighDb':2}, 'eqLowDb 6\neqMidDb -3\neqHighDb 2\ntheme 1\n')
+run('sustained-chord-physical', ['TAB']+['x']*4+['ENTER','x','ENTER'], {'chordPattern':5})
+print('PASS: 15 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')

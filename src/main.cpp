@@ -54,8 +54,11 @@ int main(int argc, char **argv) {
                 script = value();
             else if (arg == "--quit-after-ms")
                 quitAfter = std::stoull(value());
-            else if (arg == "--help") {
-                std::cout << "ZeroChord 0.1.0\nOptions: --soundfont PATH --headless --no-audio "
+            else if (arg == "--version") {
+                std::cout << "ZeroChord " ZEROCHORD_VERSION "\n";
+                return 0;
+            } else if (arg == "--help") {
+                std::cout << "ZeroChord " ZEROCHORD_VERSION "\nOptions: --version --soundfont PATH --headless --no-audio "
                              "--no-save --script PATH --capture PPM --quit-after-ms N\n";
                 return 0;
             } else

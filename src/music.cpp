@@ -154,10 +154,11 @@ void Settings::clamp() {
     chordProgram = std::clamp(chordProgram, -1, 127);
     harpProgram = std::clamp(harpProgram, -1, 127);
     padProgram = std::clamp(padProgram, -1, 127);
-    chordPattern = std::clamp(chordPattern, 0, 4);
+    chordPattern = std::clamp(chordPattern, 0, 5);
     padMotion = std::clamp(padMotion, 0, 3);
     hold = !!hold;
     masterVolume = std::clamp(masterVolume, 0, 100);
+    for (auto &gain : eqDb) gain = std::clamp(gain, -12, 12);
     theme = std::clamp(theme, 0, 1);
     chordVolume = std::clamp(chordVolume, 0, 100);
     harpVolume = std::clamp(harpVolume, 0, 100);

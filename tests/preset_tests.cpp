@@ -53,6 +53,7 @@ int main() {
         legacy.combinations[0] = int(Quality::No3);
         legacy.degreeCombinations[3][3] = int(Quality::Sus4);
         legacy.masterVolume = 47;
+        legacy.eqDb = {6, -2, 3};
         legacy.theme = 1;
         PresetLibrary lib;
         lib.load(dir.string(), legacy);
@@ -63,6 +64,7 @@ int main() {
         lib.select(legacy, 4);
         CHECK(legacy.bpm == 112 && legacy.tonic == 2 && legacy.mode == PlaybackMode::Arp);
         CHECK(legacy.masterVolume == 47 && legacy.theme == 1);
+        CHECK((legacy.eqDb == std::array<int, 3>{6, -2, 3}));
         legacy.bpm = 123;
         legacy.chordProgram = 2;
         legacy.chordVolume = 76;
@@ -81,6 +83,7 @@ int main() {
         PresetLibrary reloaded;
         reloaded.load(dir.string(), loaded);
         CHECK(samePresetSettings(legacy, loaded) && loaded.masterVolume == 47 && loaded.theme == 1);
+        CHECK(loaded.eqDb == legacy.eqDb);
         reloaded.select(loaded, 1);
         CHECK(samePresetSettings(dream, loaded));
         reloaded.restore(loaded);
@@ -89,12 +92,13 @@ int main() {
               loaded.combinations[0] == int(Quality::No3) &&
               loaded.degreeCombinations[3][3] == int(Quality::Sus4));
         CHECK(loaded.masterVolume == 47 && loaded.theme == 1);
+        CHECK(loaded.eqDb == legacy.eqDb);
         CHECK(loaded.chordVolume == 76 && loaded.harpVolume == 61 && loaded.echo == 27 &&
               loaded.strumMs == 330);
         loaded.padProgram = 10;
         loaded.bpm = 135;
         loaded.mode = PlaybackMode::FrontOnly;
-        loaded.chordPattern = 3;
+        loaded.chordPattern = 5; // New stable ID also round-trips through preset TOML.
         loaded.padMotion = 2;
         loaded.hold = 0;
         loaded.echo = 31;

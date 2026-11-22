@@ -30,11 +30,11 @@ int SettingsEditor::envelopeValue(const Settings &s) const {
 }
 bool SettingsEditor::appField(int index) {
     return index == 0 || index == 1 || (index >= 3 && index <= 7) || index == 15 || index == 17 ||
-           index == 18 || index == 22;
+           index == 18 || index == 22 || (index >= 26 && index <= 28);
 }
 const std::vector<int> &SettingsEditor::rows() const {
     static const std::vector<int> style{2, 8, 10, 9, 11, 12, 14, 23, 13, 24, 21, 25, 19, 20};
-    static const std::vector<int> app{18, 17, 4, 5, 6, 15, 22, 3};
+    static const std::vector<int> app{18, 17, 4, 5, 6, 26, 27, 28, 15, 22, 3};
     return tab_ == Tab::Style ? style : app;
 }
 int SettingsEditor::rowIndex() const {
@@ -64,7 +64,8 @@ const char *SettingsEditor::settingName(int index) {
                                   "Save as new preset",
                                   "Restore preset...",
                                   "Pad sound",
-                                  "Front notes", "Front envelope", "Chord envelope", "Pad envelope"};
+                                  "Front notes", "Front envelope", "Chord envelope", "Pad envelope",
+                                  "EQ Low", "EQ Mid", "EQ High"};
     return names[index];
 }
 const char *SettingsEditor::combinationName(int index) {
@@ -173,6 +174,7 @@ std::string SettingsEditor::frontValueName(const Settings &s, int field) const {
     return "";
 }
 int SettingsEditor::valueFor(const Settings &s, int index) const {
+    if (index >= 26 && index <= 28) return s.eqDb[index - 26];
     if (index == 13 || index == 14 || index == 21) {
         int program = index == 14 ? s.harpProgram : (index == 21 ? s.padProgram : s.chordProgram);
         if (program < 0)
@@ -232,7 +234,7 @@ int SettingsEditor::defaultValue() const {
     return valueFor(copy, selection_);
 }
 bool SettingsEditor::fieldModified(int index) const {
-    if (index >= 23)
+    if (index >= 23 && index <= 25)
         return instrument_.settings.envelopes[index - 23] !=
                instrument_.library.current(instrument_.settings).sound.envelopes[index - 23];
     if (index == 2)
@@ -272,6 +274,10 @@ bool SettingsEditor::fieldModified(int index) const {
 }
 std::string SettingsEditor::settingValue(int index) const {
     const auto &s = instrument_.settings;
+    if (index >= 26 && index <= 28) {
+        int gain = s.eqDb[index - 26];
+        return (gain > 0 ? "+" : "") + std::to_string(gain) + " dB";
+    }
     switch (index) {
     case 0:
         return noteName(s.tonic);
@@ -322,6 +328,10 @@ std::string SettingsEditor::settingValue(int index) const {
     }
 }
 void SettingsEditor::assign(Settings &s, int index, int value) {
+    if (index >= 26 && index <= 28) {
+        s.eqDb[index - 26] = value;
+        return;
+    }
     if (index == 13 || index == 14 || index == 21) {
         auto &id = index == 14 ? s.frontSound : (index == 21 ? s.padSound : s.chordSound);
         auto &program = index == 14 ? s.harpProgram : (index == 21 ? s.padProgram : s.chordProgram);
@@ -553,8 +563,12 @@ void SettingsEditor::buildChoices() {
                     : selection_ == 12 ? PlaybackMode::Pad
                                        : PlaybackMode::Arp;
         const auto &list = patterns(mode);
-        for (int n = 0; n < int(list.size()); n++)
-            choices_.push_back({n, list[n].name, list[n].description});
+        auto add = [&](int n) { choices_.push_back({n, list[n].name, list[n].description}); };
+        for (int n = 0; n < int(list.size()); n++) {
+            if (mode == PlaybackMode::Chord && n == sustainedChordPattern) continue;
+            add(n);
+            if (mode == PlaybackMode::Chord && n == 0) add(sustainedChordPattern);
+        }
     } else if (selection_ == 10)
         choices_ = {{0, "Pad", "Sustained backing chord"},
                     {1, "Chord", "All notes together; clear attack"},
@@ -588,6 +602,14 @@ void SettingsEditor::buildChoices() {
     else {
         int low = 0, high = selection_ == 6 ? 60 : 100, step = 5;
         std::string unit = "%";
+        if (selection_ >= 26 && selection_ <= 28) {
+            static const char *descriptions[]{"Bass shelf at 250 Hz", "Broad mid band at 1 kHz",
+                                               "Treble shelf at 4 kHz"};
+            for (int gain = -12; gain <= 12; gain++)
+                choices_.push_back({gain, (gain > 0 ? "+" : "") + std::to_string(gain) + " dB",
+                                     descriptions[selection_ - 26]});
+            return;
+        }
         if (selection_ == 7) {
             low = 60;
             high = 600;
@@ -647,6 +669,10 @@ void SettingsEditor::preview() {
             sound.preset = choices_[choice_].value;
         } else
             assign(sound, selection_, choices_[choice_].value);
+        if (selection_ >= 26 && selection_ <= 28) {
+            sound.mode = PlaybackMode::Chord;
+            sound.chordPattern = sustainedChordPattern;
+        }
         if (selection_ == 4 && sound.mode == PlaybackMode::FrontOnly)
             sound.mode = PlaybackMode::Chord;
         if (selection_ == 21)
@@ -785,7 +811,7 @@ void SettingsEditor::applyChoice(int value) {
 }
 void SettingsEditor::restoreField() {
     if ((page_ == Page::Envelope && envelopeField_ == 4) ||
-        (page_ == Page::Setup && selection_ >= 23) ||
+        (page_ == Page::Setup && selection_ >= 23 && selection_ <= 25) ||
         (page_ == Page::Setup && (selection_ == 2 || selection_ == 3 || selection_ == 19 ||
                                   selection_ == 20 || selection_ == 22)) ||
         (page_ == Page::Combinations && combination_ == 4) ||
@@ -991,7 +1017,7 @@ void SettingsEditor::key(char key, bool down) {
         instrument_.panic();
     }
     if (key == '\n') {
-        if (page_ == Page::Setup && selection_ >= 23) {
+        if (page_ == Page::Setup && selection_ >= 23 && selection_ <= 25) {
             envelopePart_ = selection_ - 23;
             envelopeField_ = 0;
             page_ = Page::Envelope;

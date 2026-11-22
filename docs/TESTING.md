@@ -1,5 +1,22 @@
 # Testing ZeroChord
 
+## Global EQ and sustained chord pattern
+
+All six desktop suites and all six ASan/UBSan suites pass locally (macOS leak
+sanitizer disabled). Tone tests at 44.1/48 kHz measure the Low/Mid/High bands at
+−12, −6, 0, +6 and +12 dB, neutral bypass and stereo independence. Real SoundFont
+rendering verifies EQ processes the full dry/echo mix, Master mute still works,
+and panic clears filter tails. Sustained Chord tests cover a prompt attack,
+audible held body after two seconds, release with Hold Off, latch with Hold On,
+chord replacement, panic, and preset pattern round-trip. Existing pattern IDs
+and defaults are retained; EQ survives style changes, restore and reload.
+
+The real app passes 15 isolated save/restart flows using printed F/X/Z/C keys,
+including EQ edit/cancel/restore and choosing Sustained. Dark/light EQ layouts
+are inspected at 320×170. Only the local ARM cross-build and one deployment/launch
+check follow these local checks; no second full test suite runs on the device.
+Speaker bass response and preferred EQ amounts remain listening judgments.
+
 ## Menu navigation audit — 2026-11-21
 
 Physical printed arrows F/X/Z/C and dedicated arrow events now use the same

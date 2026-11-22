@@ -29,6 +29,9 @@ template <class F> void fields(Settings &s, F field) {
     }
     field("hold", s.hold);
     field("masterVolume", s.masterVolume);
+    field("eqLowDb", s.eqDb[0]);
+    field("eqMidDb", s.eqDb[1]);
+    field("eqHighDb", s.eqDb[2]);
     field("theme", s.theme);
     field("chordProgram", s.chordProgram);
     field("padProgram", s.padProgram);

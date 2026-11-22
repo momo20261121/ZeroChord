@@ -65,6 +65,7 @@ struct Settings : PerformanceSettings {
     int hold = 1;
     int chordVolume = 80, harpVolume = 100, echo = 15, strumMs = 210;
     int masterVolume = 100, theme = 0;
+    std::array<int, 3> eqDb{}; // App-wide Low / Mid / High gain, in dB.
     int chordOctave = 3;
     std::array<int, 7> degreeChordRoot{-1, -1, -1, -1, -1, -1, -1}; // -1 follows Key; otherwise absolute pitch class.
     std::array<int, 7> degreeChordOctave{-2, -2, -2, -2, -2, -2, -2}; // -2 inherits All.

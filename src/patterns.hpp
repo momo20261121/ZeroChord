@@ -2,6 +2,7 @@
 #include "music.hpp"
 #include <vector>
 namespace zc {
+constexpr int sustainedChordPattern = 5; // Append to preserve saved numeric pattern IDs.
 struct PatternStep {
     int tick, notes;
     float gate, accent;

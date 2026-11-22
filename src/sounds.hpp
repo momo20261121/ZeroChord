@@ -36,5 +36,5 @@ struct SoundFontPreset {
 std::vector<SoundFontPreset> soundfontPresets(tsf *synth);
 void soundfontPanic(tsf *synth);
 void soundfontEnvelope(tsf *synth, int channel, int pitch, int rate, const Envelope &settings);
-void soundfontArticulate(tsf *synth, int channel, int pitch, int rate);
+void soundfontArticulate(tsf *synth, int channel, int pitch, int rate, bool sustained = false);
 } // namespace zc

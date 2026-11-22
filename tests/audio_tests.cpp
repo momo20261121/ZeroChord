@@ -1,4 +1,6 @@
 #include "renderer.hpp"
+#include "equalizer.hpp"
+#include "patterns.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -14,6 +16,63 @@ int main(int argc, char **argv) {
     if (argc != 2)
         return 2;
     try {
+        // Measure EQ response with tones; test boost/cut at two output rates,
+        // exact neutral bypass and independent left/right filter state.
+        for (int rate : {44100, 48000}) {
+            auto response = [&](int band, int gain, double hz) {
+                Equalizer eq;
+                std::array<int, 3> gains{}; gains[band] = gain;
+                eq.configure(gains, rate);
+                double input = 0, output = 0;
+                for (int n = 0; n < rate; n++) {
+                    float x = float(.1 * std::sin(6.283185307179586 * hz * n / rate));
+                    float y = eq.process(x, 0);
+                    if (gain == 0 && y != x) throw std::runtime_error("neutral EQ changed samples");
+                    if (!std::isfinite(y) || eq.process(0, 1) != 0)
+                        throw std::runtime_error("EQ unstable or stereo crosstalk");
+                    if (n > rate / 2) { input += x * x; output += y * y; }
+                }
+                return 10 * std::log10(output / input);
+            };
+            for (int band = 0; band < 3; band++) {
+                const double hz[]{60, 1000, 12000};
+                for (int gain : {-12, -6, 0, 6, 12})
+                    if (std::abs(response(band, gain, hz[band]) - gain) > .25)
+                        throw std::runtime_error("EQ gain differs from its dB label");
+                if (band != 1 && std::abs(response(band, 12, hz[2 - band])) > .1)
+                    throw std::runtime_error("shelf EQ changed the opposite band");
+            }
+        }
+        // EQ must be wired after echo on the complete mix, before master volume.
+        {
+            Renderer flat(argv[1]), shaped(argv[1]);
+            Command config{CommandType::Configure}; config.settings.echo = 40;
+            flat.send(config);
+            config.settings.eqDb = {6, -3, 2}; shaped.send(config);
+            for (auto *voice : {&flat, &shaped}) {
+                voice->send({CommandType::On, 1, 48, 300, Part::Chord});
+                voice->send({CommandType::On, 2, 72, 200, Part::Harp});
+            }
+            std::vector<float> dry(96000), actual(96000);
+            flat.render(dry.data(), 48000); shaped.render(actual.data(), 48000);
+            Equalizer expected; expected.configure(config.settings.eqDb, 48000);
+            double difference = 0;
+            for (size_t n = 0; n < actual.size(); n++) {
+                float value = std::clamp(expected.process(dry[n], int(n % 2)), -1.f, 1.f);
+                if (!std::isfinite(actual[n]) || std::abs(actual[n] - value) > .000001f)
+                    throw std::runtime_error("EQ did not process the complete dry/wet stereo mix");
+                difference += std::abs(actual[n] - dry[n]);
+            }
+            if (difference < .01) throw std::runtime_error("EQ has no audible signal effect");
+            shaped.send(Command{}); shaped.render(actual.data(), 48000);
+            for (float value : actual)
+                if (value != 0) throw std::runtime_error("panic left EQ ringing");
+            config.settings.masterVolume = 0; shaped.send(config);
+            shaped.send({CommandType::On, 3, 48, 0, Part::Chord});
+            shaped.render(actual.data(), 48000);
+            for (float value : actual)
+                if (value != 0) throw std::runtime_error("EQ bypassed master mute");
+        }
         Renderer r(argv[1]);
         std::vector<float> samples(48000 * 2);
         float peak = 0;
@@ -312,6 +371,33 @@ int main(int argc, char **argv) {
             player.panic(); slow.render(samples.data(), 480);
             for (int n = 0; n < 960; n++)
                 if (samples[n] != 0) throw std::runtime_error("panic did not stop a long front envelope");
+        }
+        // Sustained chord has a prompt attack and audible late body, unlike a
+        // one-time hit, while foreground and the separate Pad route remain intact.
+        for (int program : {16, 89}) {
+            Renderer backing(argv[1]); DirectSink direct(backing); Instrument player(direct);
+            player.settings.mode = PlaybackMode::Chord;
+            player.settings.chordPattern = sustainedChordPattern;
+            player.settings.chordProgram = program;
+            player.settings.echo = 0; player.settings.hold = 0;
+            player.settings.combinationMs = 0;
+            player.configure(); player.key('8', true, 1);
+            double attack = 0, late = 0;
+            for (int ms = 0; ms < 2400; ms += 10) {
+                player.tick(ms + 1); backing.render(samples.data(), 480);
+                for (int n = 0; n < 960; n++) {
+                    if (!std::isfinite(samples[n])) throw std::runtime_error("sustained nonfinite audio");
+                    if (ms < 50) attack += samples[n] * samples[n];
+                    if (ms >= 2000) late += samples[n] * samples[n];
+                }
+            }
+            if (attack < .0001 || late < .0001)
+                throw std::runtime_error("sustained chord lacks attack or held body");
+            player.key('8', false, 2401);
+            backing.render(samples.data(), 48000);
+            double tail = 0;
+            for (int n = 48000; n < 96000; n++) tail += samples[n] * samples[n];
+            if (tail > .00000001) throw std::runtime_error("sustained chord ignored release");
         }
         if (peak >= 0.99f)
             throw std::runtime_error("preset clipping");

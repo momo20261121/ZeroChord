@@ -225,7 +225,9 @@ int main() {
                                 [](const auto &c) { return c.type == CommandType::On; }) > 0);
             for (const auto &c : modes.events)
                 if (c.type == CommandType::On)
-                    CHECK(c.durationMs > 0 && c.gain > 0 && c.gain <= 1);
+                    CHECK((c.durationMs > 0 || (mode == PlaybackMode::Chord &&
+                                               pattern == sustainedChordPattern)) &&
+                          c.gain > 0 && c.gain <= 1);
         }
     player.panic();
     player.settings.mode = PlaybackMode::Pad;
@@ -362,6 +364,32 @@ int main() {
     grouped.tick(2335);
     CHECK(groupedEvents.events.size() == 1 &&
           groupedEvents.events[0].pitch == chordNotes(grouped.chord)[1]);
+    // Sustained makes one simultaneous attack, no timed repeats, and respects Hold.
+    for (bool hold : {false, true}) {
+        Capture captured;
+        Instrument sustained(captured);
+        sustained.settings.mode = PlaybackMode::Chord;
+        sustained.settings.chordPattern = sustainedChordPattern;
+        sustained.settings.hold = hold;
+        sustained.settings.combinationMs = 0;
+        sustained.key('8', true, 1);
+        CHECK(captured.events.size() == 4);
+        for (const auto &c : captured.events) CHECK(c.durationMs == 0 && c.part == Part::Chord);
+        captured.events.clear();
+        sustained.tick(5000);
+        CHECK(captured.events.empty());
+        sustained.key('8', false, 5001);
+        CHECK(sustained.active == hold);
+        CHECK(captured.events.empty() == hold);
+        if (hold) {
+            sustained.key('2', true, 5002);
+            CHECK(std::count_if(captured.events.begin(), captured.events.end(), [](const auto &c) {
+                return c.type == CommandType::Off;
+            }) == 4);
+        }
+        sustained.panic();
+        CHECK(!sustained.active);
+    }
     std::cout << "PASS: harmony, combinations, harp direction, hold, simultaneous chords, "
                  "patterns, phase and bounded scheduling\n";
 }

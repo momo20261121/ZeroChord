@@ -52,6 +52,8 @@ void Instrument::soundChord() {
         hit(15, 0);
     else if (settings.mode == PlaybackMode::Chord && settings.chordPattern == 0)
         hit(15, 400);
+    else if (settings.mode == PlaybackMode::Chord && settings.chordPattern == sustainedChordPattern)
+        hit(15, 0);
 }
 void Instrument::select(int column, uint64_t now) {
     if (baseColumn_ < 0 || !mask(baseColumn_))

@@ -4,7 +4,7 @@ A style preset stores the playback mode, independent Pad, Chord/Arp, and Front
 sounds, their independent envelopes, all three patterns, and BPM. The selected chord and currently pressed
 keys are performance state. Startup is silent.
 
-**App** settings are Theme, Master volume, Backing volume, Front volume, Echo,
+**App** settings are Theme, Master volume, Backing volume, Front volume, Echo, Low/Mid/High EQ,
 Hold, Chord config (Key, absolute roots, shared/per-degree octaves, combinations and recognition timing),
 and front-note modes, scale, mappings, actual octaves, K/L actions and strum times. They keep
 their values when selecting, saving, or restoring a style preset. Existing app
@@ -12,6 +12,15 @@ values are preserved when upgrading. Preset level has been removed.
 
 Output level is `master volume × backing/front volume`. Master volume scales
 both the direct sound and echo.
+
+The app-wide three-band EQ shapes the entire Front/Chord/Pad mix including
+echo, before Master volume and the output clamp. Each band ranges from −12 to
++12 dB in 1 dB steps, initially 0 dB (exact bypass). Low is a 250 Hz shelf,
+Mid is a broad 1 kHz peak (Q ≈ 0.707), High is a 4 kHz shelf, using
+[RBJ biquad formulas](https://www.w3.org/TR/audio-eq-cookbook/).
+Enter auditions, Enter saves, Esc cancels, and Backspace restores the selected
+band to 0 dB. EQ survives preset switching and restoration. Existing settings
+load flat; saved EQ values live only in the app settings, never preset TOML.
 
 ## On the instrument
 
@@ -24,7 +33,7 @@ both the direct sound and echo.
   run for up to eight seconds; Space stops them.
 - **Backspace:** restore the highlighted musical setting to the selected preset's
   default. In an open choice list, Backspace highlights the default; Enter still
-  confirms it. App fields restore their app defaults: Dark, 100% master, 80% backing, 100% front, 15% echo, 210 ms front strums, 30 ms combination window, C major, Hold On,
+  confirms it. App fields restore their app defaults: Dark, 100% master, 80% backing, 100% front, 15% echo, flat EQ, 210 ms front strums, 30 ms combination window, C major, Hold On,
   and minichord chord mappings with inherited per-degree overrides.
 - **Save as new preset:** confirm to create User001, User002, etc. Its current
   musical settings become its defaults. Rename it by editing its TOML `name`.
@@ -88,7 +97,13 @@ bars), Breathe (two beats), and Pulse (one beat). Motion changes backing volume;
 foreground Z–M and K/L retain their own sound and articulation.
 
 **Chord** plays all four chord notes simultaneously with a quick attack and
-falling envelope. Manual hit plays once per chord-button press. Every beat,
+falling envelope. Manual hit plays once per chord-button press. Sustained starts
+all notes together with a quick attack, then holds their level: Hold Off stops
+the chord on release, Hold On keeps it until the next chord or Space. It uses
+Chord sound and Chord envelope; custom ADSR values override the default clear
+attack and 65% held level. One-shot samples still end with their recording.
+The saved pattern ID is `sustained`; older pattern IDs retain their meanings.
+Every beat,
 Offbeat, Syncopated, and Waltz add repeating accompaniment. Hold retains the
 harmony; it does not repeat Manual hit.
 

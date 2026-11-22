@@ -94,7 +94,7 @@ int main() {
     const auto original = instrument.settings;
     press(editor, 20);
     CHECK(editor.tab() == SettingsEditor::Tab::App && editor.selected() == 18);
-    CHECK((editor.rows() == std::vector<int>{18, 17, 4, 5, 6, 15, 22, 3}));
+    CHECK((editor.rows() == std::vector<int>{18, 17, 4, 5, 6, 26, 27, 28, 15, 22, 3}));
     for (int field : {4, 5, 6}) {
         row(editor, field);
         press(editor, '\n');
@@ -266,12 +266,16 @@ int main() {
     auto path = (dir / "settings.conf").string();
     instrument.settings.combinations[3] = int(Quality::Sus4);
     instrument.settings.degreeCombinations[6][0] = int(Quality::No3);
+    instrument.settings.eqDb = {6, -3, 2};
     saveSettings(instrument.settings, path);
     Settings loaded;
     loadSettings(loaded, path);
     CHECK(loaded.combinations == instrument.settings.combinations);
     CHECK(loaded.degreeCombinations == instrument.settings.degreeCombinations);
     CHECK(loaded.preset == 2 && loaded.tonic == 4);
+    CHECK(loaded.eqDb == instrument.settings.eqDb);
+    loaded.eqDb = {-99, 0, 99}; loaded.clamp();
+    CHECK((loaded.eqDb == std::array<int, 3>{-12, 0, 12}));
     {
         std::ofstream out(path);
         out << "tonic 7\npreset 1\nbad data\ncombo3 999\ndegree6combo3 -9\nscale 1\n";
@@ -279,6 +283,7 @@ int main() {
     Settings legacy;
     loadSettings(legacy, path);
     CHECK(legacy.tonic == 7 && legacy.preset == 1 && legacy.scale == 1);
+    CHECK((legacy.eqDb == std::array<int, 3>{0, 0, 0}));
     CHECK(legacy.combinations == defaults.combinations &&
           legacy.degreeCombinations == defaults.degreeCombinations);
     // Audit every page/picker with both desktop arrow events and the physical
@@ -354,7 +359,7 @@ int main() {
             const auto list = menu.visibleRows();
             for (size_t n = 0; n < list.size(); n++) {
                 CHECK(menu.selected() == list[n]);
-                if (menu.selected() >= 23) {
+                if (menu.selected() >= 23 && menu.selected() <= 25) {
                     const int envelopeRow = menu.selected();
                     press(menu, '\n');
                     CHECK(menu.page() == SettingsEditor::Page::Envelope &&

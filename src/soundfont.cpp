@@ -45,7 +45,7 @@ void soundfontEnvelope(tsf *synth, int channel, int pitch, int rate, const Envel
                                  TSF_TRUE, float(rate));
     }
 }
-void soundfontArticulate(tsf *synth, int channel, int pitch, int rate) {
+void soundfontArticulate(tsf *synth, int channel, int pitch, int rate, bool sustained) {
     for (int n = 0; n < synth->voiceNum; n++) {
         auto &voice = synth->voices[n];
         if (voice.playingPreset < 0 || voice.playingChannel != channel ||
@@ -57,9 +57,9 @@ void soundfontArticulate(tsf *synth, int channel, int pitch, int rate) {
         envelope.hold = 0;
         envelope.keynumToHold = 0;
         envelope.decay = 0.22f;
-        envelope.sustain = 0.08f;
+        envelope.sustain = sustained ? 0.65f : 0.08f;
         envelope.keynumToDecay = 0;
-        envelope.release = std::min(envelope.release, 0.03f);
+        envelope.release = std::min(envelope.release, sustained ? 0.08f : 0.03f);
         tsf_voice_envelope_setup(&voice.ampenv, &envelope, pitch, voice.ampenv.midiVelocity,
                                  TSF_TRUE, float(rate));
     }

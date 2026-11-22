@@ -11,7 +11,7 @@ class SettingsEditor {
         int value;
         std::string name, description;
     };
-    static constexpr int settingCount = 26;
+    static constexpr int settingCount = 29;
     explicit SettingsEditor(Instrument &instrument) : instrument_(instrument) {}
     bool settingsOpen = false;
     void key(char key, bool down);

@@ -1,4 +1,6 @@
 #include "renderer.hpp"
+#include "equalizer.hpp"
+#include "patterns.hpp"
 #include "sounds.hpp"
 #include <algorithm>
 #include <array>
@@ -14,6 +16,7 @@ struct Renderer::Impl {
     std::map<std::string, tsf *> synths;
     int rate;
     Settings settings;
+    Equalizer equalizer;
     struct Voice {
         uint32_t id = 0;
         int pitch = 0;
@@ -74,11 +77,13 @@ void Renderer::send(const Command &c) {
             soundfontPanic(bank);
         s.muted = true;
         std::fill(s.delay.begin(), s.delay.end(), 0.f);
+        s.equalizer.reset();
         return;
     }
     if (c.type == CommandType::Configure) {
         s.settings = c.settings;
         s.settings.clamp();
+        s.equalizer.configure(s.settings.eqDb, s.rate);
         s.chordGain = 1.f;
         return;
     }
@@ -154,12 +159,14 @@ void Renderer::send(const Command &c) {
         (c.part == Part::Chord ? s.settings.chordVolume * s.chordGain : s.settings.harpVolume) /
             100.f * c.gain);
     tsf_channel_note_on(synth, slot, c.pitch, c.part == Part::Chord ? 0.68f : 0.9f);
-    if (c.part == Part::Chord && c.durationMs > 0) {
+    const bool sustained = s.settings.mode == PlaybackMode::Chord &&
+                           s.settings.chordPattern == sustainedChordPattern;
+    if (c.part == Part::Chord && (c.durationMs > 0 || sustained)) {
         // Timed chord notes need articulation even when their preset is a pad.
         // Dream's bank envelope has a 606 ms attack and 2.57 s release, longer
         // than an arp step. Change only the new voices, never shared SF2 regions.
         // This adapter uses the envelope API internal to the pinned TSF version.
-        soundfontArticulate(synth, slot, c.pitch, s.rate);
+        soundfontArticulate(synth, slot, c.pitch, s.rate, sustained && c.durationMs == 0);
     }
     int envelopePart = c.part == Part::Harp ? 0 : (s.settings.mode == PlaybackMode::Pad ? 2 : 1);
     soundfontEnvelope(synth, slot, c.pitch, s.rate, s.settings.envelopes[envelopePart]);
@@ -192,7 +199,8 @@ void Renderer::render(float *stereo, int frames) {
         float dry = stereo[i], echo = s.delay[s.delayPos];
         s.delay[s.delayPos] = dry + echo * 0.25f;
         s.delayPos = (s.delayPos + 1) % s.delay.size();
-        stereo[i] = std::clamp((dry + echo * wet) * (s.settings.masterVolume / 100.f), -1.f, 1.f);
+        float shaped = s.equalizer.process(dry + echo * wet, i % 2);
+        stereo[i] = std::clamp(shaped * (s.settings.masterVolume / 100.f), -1.f, 1.f);
     }
 }
 } // namespace zc

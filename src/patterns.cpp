@@ -31,7 +31,8 @@ const std::vector<Pattern> &patterns(PlaybackMode mode) {
          "Waltz",
          "Bass, chord, chord in 3/4",
          12,
-         {{0, 1, 2, 1}, {4, 14, 1.5f, .8f}, {8, 14, 1.5f, .85f}}}};
+         {{0, 1, 2, 1}, {4, 14, 1.5f, .8f}, {8, 14, 1.5f, .85f}}},
+        {"sustained", "Sustained", "Hold the chord; Hold keeps it after release", 16, {}}};
     static const std::vector<Pattern> arps = {
         {"up",
          "Up",
