@@ -90,6 +90,9 @@ Run the `/publish` workflow (`.claude/skills/publish/SKILL.md`). It uses these t
 - `scripts/install_release_device.sh push|install|test` copies the package to the
   device, installs it (the device's sudo password is typed on a terminal) and runs
   `scripts/test_installed.py` against the installed app.
+- `ZEROCHORD_GH_USER` in `.env` names the GitHub account for releases; the workflow passes
+  its token per command (`GH_TOKEN=$(gh auth token --user ...)`), so other projects keep
+  their own `gh` account. Git pushes use SSH and are separate.
 - `scripts/install_git_guard.sh` installs a local pre-push hook that refuses `dev`.
 
 ## Sounds and front notes
