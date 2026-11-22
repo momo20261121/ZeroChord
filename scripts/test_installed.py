@@ -11,16 +11,18 @@ import os
 from pathlib import Path
 import struct
 import subprocess
+import sys
 import time
 
 root = Path(__file__).resolve().parents[1]
+version = sys.argv[1] if len(sys.argv) > 1 else (root/'VERSION.txt').read_text().strip()
 out = root/'build/installed-acceptance'
 out.mkdir(parents=True, exist_ok=True)
 app = Path('/usr/share/APPLaunch')
 binary = app/'bin/M5CardputerZero-ZeroChord'
 wrapper = app/'bin/run-zerochord'
-assert subprocess.check_output(['dpkg-query','-W','-f=${Version} ${Status}','zerochord'], text=True) == '1.0.0 install ok installed'
-assert subprocess.check_output([str(wrapper),'--version'], text=True).strip() == 'ZeroChord 1.0.0'
+assert subprocess.check_output(['dpkg-query','-W','-f=${Version} ${Status}','zerochord'], text=True) == version+' install ok installed'
+assert subprocess.check_output([str(wrapper),'--version'], text=True).strip() == 'ZeroChord '+version
 assert subprocess.check_output(['dpkg','--verify','zerochord'], text=True) == ''
 metadata = dict(line.split('=',1) for line in (app/'applications/zerochord.desktop').read_text().splitlines() if '=' in line)
 assert metadata['Name'] == 'ZeroChord' and metadata['Exec'] == 'bin/run-zerochord'
@@ -93,10 +95,11 @@ try:
         tap(9) # 8: chord
         for code in [44,45,46,47,48,49,50,38]: tap(code) # Z-M and L
         time.sleep(.3)
-        tap(24) # O: Chord
+        tap(24) # O: backing-layers popup; all layers start on
+        tap(45); tap(28); tap(45); tap(28); tap(45); tap(28) # clear Pad and Arp, Apply: Chord only
         tap(15) # Tab: Style
         for _ in range(4): tap(45) # X -> Chord pattern
-        tap(28); tap(45); tap(28) # Enter, Sustained, Enter
+        tap(28); tap(45); tap(28) # Enter, next item after the default Sustained, Enter
         tap(1) # Esc: performance
         tap(9); time.sleep(.9)
         # App EQ: printed C/X arrows, preview/save and isolated persistence.
@@ -113,7 +116,7 @@ try:
         emit(1,True); time.sleep(.95); emit(1,False)
         assert process.wait(timeout=5)==0
     settings=dict(line.split(maxsplit=1) for line in (config/'zerochord/settings.conf').read_text().splitlines())
-    assert settings['eqLowDb']=='3' and settings['chordPattern']=='5' and settings['bpm']=='137', settings
+    assert settings['eqLowDb']=='3' and settings['mode']=='1' and settings['chordPattern']=='1' and settings['bpm']=='137', settings
     internal=(out/'app.ppm').read_bytes().split(b'\n',3)[3]
     assert len(kernel)==len(internal) and max(abs(a-b) for a,b in zip(kernel,internal))<=8
     log=(out/'installed.log').read_text()
@@ -124,10 +127,10 @@ try:
     assert len(values)>48000 and max(abs(v) for v in values)>100
     subprocess.run([str(wrapper),'--no-save','--quit-after-ms','300'],cwd='/usr/share/APPLaunch',
                    env=environment,check=True,timeout=6,stdout=subprocess.DEVNULL)
-    result={'version':'1.0.0','status':'passed','installed_wrapper':str(wrapper),
+    result={'version':version,'status':'passed','installed_wrapper':str(wrapper),
             'audio_frames':len(values)//2,'audio_peak':max(abs(v) for v in values),
             'input':'temporary evdev keyboard; printed Z/C/F/X navigation',
-            'settings':'isolated; EQ, sustained pattern and tempo saved/reloaded',
+            'settings':'isolated; Chord-only layer, chord pattern, EQ and tempo saved/reloaded',
             'framebuffer':'320x170 kernel readback matches app capture within RGB565 quantization',
             'exit':'long Esc exits cleanly; launcher restored in finally',
             'limits':'Digital audio and injected keys; physical feel and listening remain manual.'}

@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <vector>
 namespace zc {
-enum class Part { Chord, Harp };
+enum class Part { Chord, Harp, Pad, Arp };
 enum class CommandType { On, Off, Panic, Configure, StopChord, ChordGain };
 struct Command {
     CommandType type = CommandType::Panic;
@@ -31,11 +31,13 @@ class Instrument {
     int harpFlash = -1;
     uint64_t harpFlashUntil = 0;
     std::array<int, 2> frontOctaveShift{}; // Live playing register, not saved key mappings.
+    int semitoneShift() const { return pressed_['1'] ? 1 : 0; }
     std::array<int, 7> playingFrontNotes() const;
     void key(char key, bool down, uint64_t now);
     void tick(uint64_t now);
     void panic();
     void configure();
+    void setBackingMode(PlaybackMode mode);
     void clearKeys();
     void auditionFront(const Settings &settings, int key);
     void audition(const Chord &chord, const Settings &settings, bool loop = false);
@@ -47,11 +49,13 @@ class Instrument {
     bool selectedSharp_ = false;
     bool chordPending_ = false, chordStarting_ = false;
     uint64_t chordDue_ = 0;
-    int baseColumn_ = -1, playingPattern_ = 0;
+    int baseColumn_ = -1;
+    std::array<int, 2> playingPatterns_{};
     uint32_t nextId_ = 0;
     uint64_t lastTick_ = 0, now_ = 0;
     double phase_ = 0;
-    int64_t nextTick_ = 0, patternStart_ = 0;
+    int64_t nextTick_ = 0;
+    std::array<int64_t, 2> patternStarts_{};
     float lastGain_ = -1;
     uint64_t lastGainAt_ = 0;
     Settings previewSettings_;
@@ -70,7 +74,7 @@ class Instrument {
     void stopChord();
     void resetTransport();
     void runTick(uint64_t now);
-    void hit(unsigned mask, int duration, float accent = 1.f);
+    void hit(unsigned mask, int duration, float accent = 1.f, Part part = Part::Chord, bool bass = false);
     void pluck(int pitch, int index, uint64_t now);
     unsigned mask(int column) const;
     bool anyChordKey() const;

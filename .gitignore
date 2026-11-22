@@ -9,3 +9,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Optional checksum-verified sample download
+sounds/fluid-grand/piano.sf2
+.claude/settings.local.json

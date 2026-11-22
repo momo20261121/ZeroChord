@@ -5,10 +5,15 @@ Run commands from the project root. User controls are in the [user guide](USER_G
 ## Branches and releases
 
 `main` contains tested releases, identified by `v<version>` tags (starting with
-`v1.0.0`). Create a short-lived `feature/<name>` or `fix/<name>` branch before
-developing changes. Merge it into `main` when the next release is ready, then
-delete the merged branch. There is no permanent `dev` branch. Preserve existing
-history; pushing branches or tags requires explicit authorization.
+`v1.0.0`). Use `dev` for the next release (currently 1.1.0) and merge into `main`
+when the release is tested and ready. Preserve existing
+history. `dev` stays local and is never pushed (`scripts/install_git_guard.sh`
+installs a pre-push hook enforcing this); pushing `main` or a release tag requires
+explicit authorization.
+
+The `/publish` workflow (`.claude/skills/publish/SKILL.md`) runs a release: version choice,
+`scripts/privacy_check.py`, packaging, `scripts/install_release_device.sh` (install and
+installed-app test on the Cardputer), a report for approval, docs, and the merge into `main`.
 
 ## Build locally
 
@@ -75,7 +80,7 @@ Required third-party copyright and license notices remain intact.
 
 ## Named sounds and front notes
 
-The sound picker offers ten named sounds in Keys, Plucked, Strings, and Pads.
+The sound picker offers fourteen named sounds in Keys, Plucked, Strings, and Pads.
 ←/→ changes category; ↑/↓ auditions sounds; Enter saves; Esc cancels.
 Older saved sounds remain available without expanding the built-in selection.
 Pad, Chord/Arp, and Front can each use built-in or imported sounds.
@@ -85,3 +90,18 @@ See [custom sound packs](../sounds/README.md) for locations, naming, and limits.
 In **App → Front notes**, choose Chord notes or Scale notes on the All tab,
 configure K/L as Strum or Octave shift, and set each key’s note and actual octave.
 ←/→ navigates All and Z–M tabs. See [front-note controls](FRONT_NOTES.md).
+
+
+### Controlled sound comparison
+
+Fetch the optional licensed Piano with `python scripts/fetch_piano_pack.py`.
+Build `zerochord-compare` in the desktop build, then run:
+
+```sh
+build/desktop/zerochord-compare .tools/soundfonts/TimGM6mb.sf2 \
+  sounds/fluid-grand/piano.sf2 build/audio-comparison
+```
+
+This checks the dry native renderer reference and creates matched-RMS WAVs.
+See [audio notes](AUDIO_AND_REUSE.md#controlled-piano-and-renderer-comparison)
+for what this comparison establishes and its limits.

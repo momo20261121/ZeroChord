@@ -35,7 +35,8 @@ bool SettingsEditor::appField(int index) {
 const std::vector<int> &SettingsEditor::rows() const {
     static const std::vector<int> style{2, 8, 10, 9, 11, 12, 14, 23, 13, 24, 21, 25, 19, 20};
     static const std::vector<int> app{18, 17, 4, 5, 6, 26, 27, 28, 15, 22, 3};
-    return tab_ == Tab::Style ? style : app;
+    static const std::vector<int> about;
+    return tab_ == Tab::About ? about : tab_ == Tab::Style ? style : app;
 }
 int SettingsEditor::rowIndex() const {
     const auto &list = rows();
@@ -52,7 +53,7 @@ const char *SettingsEditor::settingName(int index) {
                                   "Strum time",
                                   "Tempo",
                                   "Arp pattern",
-                                  "Mode",
+                                  "Backing layers",
                                   "Chord pattern",
                                   "Pad motion",
                                   "Chord sound",
@@ -297,8 +298,11 @@ std::string SettingsEditor::settingValue(int index) const {
         return std::to_string(s.bpm) + " BPM";
     case 9:
         return patterns(PlaybackMode::Arp)[s.pattern].name;
-    case 10:
-        return modeName(s.mode);
+    case 10: {
+        unsigned layers = backingLayers(s.mode);
+        int count = int(bool(layers & 1)) + int(bool(layers & 2)) + int(bool(layers & 4));
+        return count > 1 ? std::to_string(count) + " layers" : modeName(s.mode);
+    }
     case 21:
     case 13:
     case 14: {
@@ -565,6 +569,7 @@ void SettingsEditor::buildChoices() {
         const auto &list = patterns(mode);
         auto add = [&](int n) { choices_.push_back({n, list[n].name, list[n].description}); };
         for (int n = 0; n < int(list.size()); n++) {
+            if (mode == PlaybackMode::Arp && n >= 6 && s.pattern != n) continue;
             if (mode == PlaybackMode::Chord && n == sustainedChordPattern) continue;
             add(n);
             if (mode == PlaybackMode::Chord && n == 0) add(sustainedChordPattern);
@@ -579,7 +584,8 @@ void SettingsEditor::buildChoices() {
             if (sound.category == soundCategory_)
                 choices_.push_back(
                     {sound.choice, sound.name,
-                     sound.bank.empty() ? "Built-in sound" : "Sound pack: " + sound.bank});
+                     soundLibrary().sampleRateLabel(sound.choice) +
+                         (sound.bank.empty() ? " / Built-in" : " / " + sound.bank)});
         if (soundCategory_ == "Saved") {
             for (const auto &source : {s, instrument_.library.current(s).sound}) {
                 int value = valueFor(source, selection_);
@@ -587,7 +593,7 @@ void SettingsEditor::buildChoices() {
                     std::none_of(choices_.begin(), choices_.end(),
                                  [&](const Choice &c) { return c.value == value; }))
                     choices_.push_back(
-                        {value, soundLibrary().name(value, ""), "Retained from an older preset"});
+                        {value, soundLibrary().name(value, ""), soundLibrary().sampleRateLabel(value)});
             }
         }
     } else if (selection_ == 15)
@@ -702,6 +708,11 @@ void SettingsEditor::preview() {
     c.root = sound.chordRoot(c.column);
     instrument_.audition(c, sound, page_ == Page::Setup);
 }
+void SettingsEditor::openBacking() {
+    backing_ = true;
+    pendingLayers_ = backingLayers(instrument_.settings.mode);
+    backingRow_ = 0;
+}
 void SettingsEditor::openTempo() {
     tempo_ = true;
     tempoReplace_ = true;
@@ -709,6 +720,10 @@ void SettingsEditor::openTempo() {
     tempoError_.clear();
 }
 void SettingsEditor::openPicker() {
+    if (page_ == Page::Setup && selection_ == 10) {
+        openBacking();
+        return;
+    }
     if (page_ == Page::Setup && selection_ == 8) {
         openTempo();
         return;
@@ -854,6 +869,7 @@ void SettingsEditor::restoreField() {
 }
 void SettingsEditor::cancelPending() {
     tempo_ = false;
+    backing_ = false;
     tempoError_.clear();
     if (picker_) {
         picker_ = false;
@@ -869,6 +885,21 @@ void SettingsEditor::key(char key, bool down) {
         settingsOpen = !settingsOpen;
         page_ = Page::Setup;
         instrument_.panic();
+        return;
+    }
+    if (backing_) {
+        int direction = key == 17 || key == 'f' ? -1 : key == 18 || key == 'x' ? 1 : 0;
+        if (direction) backingRow_ = (backingRow_ + direction + 4) % 4;
+        if (key == 27) backing_ = false;
+        else if (key == '\b' || key == 'r')
+            pendingLayers_ = backingLayers(instrument_.library.current(instrument_.settings).sound.mode);
+        else if (key == '\n') {
+            if (backingRow_ < 3) pendingLayers_ ^= 1u << backingRow_;
+            else {
+                instrument_.setBackingMode(modeForLayers(pendingLayers_));
+                backing_ = false;
+            }
+        } else if (key == ' ') instrument_.panic();
         return;
     }
     if (tempo_) {
@@ -898,6 +929,7 @@ void SettingsEditor::key(char key, bool down) {
     }
     if (!settingsOpen) {
         if (key == 'p') openTempo();
+        if (key == 'o') openBacking();
         return;
     }
     status_.clear();
@@ -919,6 +951,15 @@ void SettingsEditor::key(char key, bool down) {
     // identically to dedicated arrow events on every page and in every picker.
     int direction = key == 17 || key == 'f' ? -1 : key == 18 || key == 'x' ? 1 : 0;
     int adjustment = key == 19 || key == 'z' ? -1 : key == 20 || key == 'c' ? 1 : 0;
+    if (page_ == Page::Setup && !picker_ && adjustment) {
+        if (tab_ != Tab::About) tabRows_[int(tab_)] = rowIndex();
+        tab_ = Tab((int(tab_) + adjustment + 3) % 3);
+        selection_ = rows().empty() ? -1 : rows()[tabRows_[int(tab_)]];
+        instrument_.panic();
+        return;
+    }
+    // About is informational: no hidden row, picker or restore action.
+    if (page_ == Page::Setup && tab_ == Tab::About) return;
     if (key == '\b') {
         restoreField();
         return;
@@ -1008,12 +1049,6 @@ void SettingsEditor::key(char key, bool down) {
             auto row = std::find(list.begin(), list.end(), combination_) - list.begin();
             combination_ = list[(row + direction + int(list.size())) % int(list.size())];
         }
-        instrument_.panic();
-    }
-    if (adjustment && page_ == Page::Setup) {
-        tabRows_[int(tab_)] = rowIndex();
-        tab_ = tab_ == Tab::Style ? Tab::App : Tab::Style;
-        selection_ = rows()[tabRows_[int(tab_)]];
         instrument_.panic();
     }
     if (key == '\n') {

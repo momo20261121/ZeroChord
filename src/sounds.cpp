@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <set>
+#include <sstream>
+#include <iomanip>
 #include <stdexcept>
 #include <toml.hpp>
 #include <tsf.h>
@@ -25,8 +27,12 @@ SoundLibrary::SoundLibrary() {
                {"electric-piano", "Electric Piano", "Keys", "", 4, 0, 4},
                {"organ", "Organ", "Keys", "", 16, 0, 16},
                {"vibraphone", "Vibraphone", "Keys", "", 11, 0, 11},
+               {"celesta", "Celesta", "Keys", "", 8, 0, 8},
                {"harp", "Harp", "Plucked", "", 46, 0, 46},
                {"nylon-guitar", "Nylon Guitar", "Plucked", "", 24, 0, 24},
+               {"steel-string-guitar", "Steel-string Guitar", "Plucked", "", 25, 0, 25},
+               {"clean-electric-guitar", "Clean Electric Guitar", "Plucked", "", 27, 0, 27},
+               {"overdriven-guitar", "Overdriven Guitar", "Plucked", "", 29, 0, 29},
                {"music-box", "Music Box", "Plucked", "", 10, 0, 10},
                {"strings", "Strings", "Strings", "", 48, 0, 48},
                {"warm-pad", "Warm Pad", "Pads", "", 89, 0, 89},
@@ -63,6 +69,27 @@ std::string SoundLibrary::name(int program, const std::string &id) const {
         if (auto *n = tsf_bank_get_presetname(banks[0].data.get(), 0, program); n && *n)
             return n;
     return "Saved sound " + std::to_string(program + 1);
+}
+std::string SoundLibrary::sampleRateLabel(int value) const {
+    const auto *sound = choice(value);
+    const std::string bankId = sound ? sound->bank : "";
+    auto bank = std::find_if(banks.begin(), banks.end(),
+                             [&](const Bank &b) { return b.id == bankId; });
+    if (bank == banks.end()) return "Source rate unavailable";
+    auto rates = soundfontSampleRates(bank->data.get(), sound ? sound->bankNumber : 0,
+                                      sound ? sound->program : value);
+    if (rates.empty()) return "Source rate unavailable";
+    auto khz = [](int hz) {
+        std::ostringstream out;
+        out << std::fixed << std::setprecision(3) << hz / 1000.;
+        std::string result = out.str();
+        while (result.back() == '0') result.pop_back();
+        if (result.back() == '.') result.pop_back();
+        return result;
+    };
+    return "Source " + khz(rates.front()) +
+           (rates.size() > 1 ? "-" + khz(rates.back()) : "") + " kHz" +
+           (rates.size() > 1 ? " (mixed)" : "");
 }
 std::vector<std::string> SoundLibrary::categories() const {
     std::vector<std::string> result{"Keys", "Plucked", "Strings", "Pads"};

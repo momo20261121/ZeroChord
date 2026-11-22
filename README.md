@@ -5,7 +5,7 @@
 **A pocket chord-and-harp instrument for CardputerZero. Version 1.0.0.**
 
 Play a chord with one hand and pick or strum its notes with the other.
-Choose a soft Pad, a clear Chord, a rhythmic Arp, or Front only. Nine editable
+Combine a soft Pad, a clear Chord, and a rhythmic Arp, or play Front only. Nine editable
 presets give you a starting point; sounds, envelopes and tempo are adjustable.
 
 ![ZeroChord performance screen](docs/images/release-performance.png)
@@ -29,7 +29,7 @@ needed to play once installed.
 1. Press **8** for a C major chord. The app starts silently until you play.
 2. Play **Z X C V B N M** to pick its notes. **L** strums up; **K** strums down.
 3. Try **8 → 5 → T → 4** for C → G → Am → F in the default key of C.
-4. Press **O** to cycle Pad → Chord → Arp → Front only. **I** toggles Hold.
+4. Press **O** to choose backing layers: ↑/↓ selects a row, Enter toggles its checkbox; select Apply to save. Clear all for Front only. **I** toggles Hold.
 5. Press **Space** to stop sound. Hold **Esc** to return to the launcher.
 
 ## Essential controls
@@ -41,7 +41,7 @@ needed to play once installed.
 | K / L | Down/up strum, or octave down/up when configured |
 | 9 / 0 | Previous/next preset |
 | 1 + chord | Sharpen that chord root |
-| I / O / P | Hold / backing mode / type a tempo |
+| I / O / P | Hold / backing layers / type a tempo |
 | Tab | Settings |
 | Z / C | Previous/next settings tab (printed ←/→) |
 | F / X | Previous/next row or choice (printed ↑/↓) |

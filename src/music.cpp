@@ -113,9 +113,22 @@ const char *degreeName(int column) {
     static const char *names[] = {"II", "III", "IV", "V", "VI", "VII", "I"};
     return names[column];
 }
+unsigned backingLayers(PlaybackMode mode) {
+    static constexpr unsigned masks[]{2, 1, 4, 0, 3, 5, 6, 7};
+    return masks[std::clamp(int(mode), 0, 7)];
+}
+PlaybackMode modeForLayers(unsigned layers) {
+    for (int n = 0; n < 8; ++n)
+        if (backingLayers(PlaybackMode(n)) == (layers & 7u)) return PlaybackMode(n);
+    return PlaybackMode::FrontOnly;
+}
+bool layerEnabled(PlaybackMode selection, PlaybackMode layer) {
+    return (backingLayers(selection) & backingLayers(layer)) != 0;
+}
 const char *modeName(PlaybackMode mode) {
-    static const char *names[] = {"Pad", "Chord", "Arp", "Front only"};
-    return names[int(mode)];
+    static const char *names[] = {"Pad", "Chord", "Arp", "Front only", "Chord + Pad",
+                                 "Chord + Arp", "Pad + Arp", "Chord + Pad + Arp"};
+    return names[std::clamp(int(mode), 0, 7)];
 }
 bool PerformanceSettings::operator==(const PerformanceSettings &b) const {
     return std::tie(mode, chordProgram, harpProgram, padProgram, chordSound, padSound, frontSound,
@@ -150,11 +163,11 @@ void Settings::clamp() {
     tonic = std::clamp(tonic, 0, 11);
     scale = std::clamp(scale, 0, 1);
     preset = std::clamp(preset, 0, 127);
-    mode = PlaybackMode(std::clamp(int(mode), 0, 3));
+    mode = PlaybackMode(std::clamp(int(mode), 0, 7));
     chordProgram = std::clamp(chordProgram, -1, 127);
     harpProgram = std::clamp(harpProgram, -1, 127);
     padProgram = std::clamp(padProgram, -1, 127);
-    chordPattern = std::clamp(chordPattern, 0, 5);
+    chordPattern = std::clamp(chordPattern, 0, 7);
     padMotion = std::clamp(padMotion, 0, 3);
     hold = !!hold;
     masterVolume = std::clamp(masterVolume, 0, 100);

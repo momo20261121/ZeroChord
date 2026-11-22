@@ -40,6 +40,10 @@ add_test(NAME physical_key_scenarios COMMAND scenario_tests)
 add_executable(zerochord-render tools/render_demo.cpp)
 target_link_libraries(zerochord-render PRIVATE zerochord_renderer)
 
+add_executable(zerochord-compare tools/compare_audio.cpp)
+target_link_libraries(zerochord-compare PRIVATE zerochord_renderer)
+target_include_directories(zerochord-compare SYSTEM PRIVATE "${ZEROCHORD_DEPS}/TinySoundFont")
+
 if(ZEROCHORD_GUI)
     set(LV_BUILD_CONF_PATH "${CMAKE_SOURCE_DIR}/lv_conf.h" CACHE STRING "" FORCE)
     set(CONFIG_LV_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)

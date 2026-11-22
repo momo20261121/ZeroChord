@@ -35,6 +35,16 @@ def tap(code):
     emit(code, False)
     time.sleep(.08)
 
+def set_backing(current, desired, open_popup=True):
+    """Apply checkbox masks (Chord=1, Pad=2, Arp=4) via the real modal."""
+    if open_popup:
+        tap(24)
+    for bit in (1, 2, 4):
+        if bool(current & bit) != bool(desired & bit):
+            tap(28)
+        tap(108)
+    tap(28)
+
 def recorded_energy(duration):
     """Measure the live output monitor, after allowing its buffer to settle."""
     start = (output/'output.s16le').stat().st_size
@@ -117,11 +127,11 @@ try:
         time.sleep(1.2)
         pad = recorded_energy(.6)
         framebuffer_capture(output/'pad-fb.ppm')
-        tap(24)  # O: Chord, four simultaneous notes immediately
+        set_backing(2, 1)  # Pad -> Chord, four simultaneous notes
         time.sleep(1.5)
         chord_tail = recorded_energy(.4)
         framebuffer_capture(output/'chord-fb.ppm')
-        tap(24)  # O: Arp, repeated distinct notes
+        set_backing(1, 4)  # Chord -> Arp
         time.sleep(.3)
         arp = recorded_energy(1.5)
         framebuffer_capture(output/'arp-fb.ppm')
@@ -130,9 +140,9 @@ try:
               ', Arp min/max='+str(round(min(arp), 2))+'/'+str(round(max(arp), 2)))
         assert max(pad) > 1, 'Pad output was silent'
         assert max(chord_tail) < max(pad)*.0001, 'Manual chord kept sustaining or repeating'
-        assert max(arp) > 1 and min(arp) < max(arp)*.001, 'Arp output has no quiet gaps'
-        tap(24)  # O: Front only
-        tap(24)  # O: back to Pad
+        assert max(arp) > 1 and min(arp) > 1, 'Flowing Arp output has silent gaps'
+        set_backing(4, 0)  # Arp -> Front only
+        set_backing(0, 2)  # Front only -> Pad
         emit(9, True)  # 8: C
         emit(36, True)  # J: Cmaj7
         time.sleep(.1)
@@ -141,8 +151,8 @@ try:
         tap(38)  # L ascending
         time.sleep(.4)
         tap(37)  # K descending
-        tap(24)  # O: Chord
-        tap(24)  # O: Arp
+        set_backing(2, 1)  # Pad -> Chord
+        set_backing(1, 4)  # Chord -> Arp
         time.sleep(.5)
         tap(57)  # Space panic
         tap(15)  # Tab settings
@@ -225,9 +235,9 @@ try:
         tap(28); tap(2); tap(11); tap(6); tap(28) # Type BPM 105
         tap(28); tap(19); tap(1) # R selects default; cancel retains 105
         tap(108) # Mode
-        tap(28); tap(108); tap(28) # Pad -> Chord
+        tap(28); set_backing(2, 1, open_popup=False) # Pad -> Chord
         for _ in range(2): tap(108) # Mode -> Arp pattern -> Chord pattern
-        tap(28); tap(108); tap(28) # Every beat
+        tap(28); tap(108); tap(108); tap(28) # Manual -> Sustained -> Every beat
         tap(108) # Pad motion
         tap(28); tap(108); tap(108); tap(28) # Breathe
         tap(106) # App, combinations (remembered row)
@@ -244,7 +254,7 @@ try:
         tap(9)
         time.sleep(.8)
         framebuffer_capture(output/'preset-performance-fb.ppm')
-        tap(24) # Customize Mode before restore
+        set_backing(1, 0) # Customize layers before restore
         tap(15); tap(108) # Style, Restore preset
         tap(28); tap(108); tap(28)
         framebuffer_capture(output/'preset-restore-fb.ppm')

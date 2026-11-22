@@ -174,7 +174,7 @@ PresetDefinition readPreset(const std::string &path) {
     if (t.contains("mode")) {
         auto value = t["mode"].value<std::string>();
         bool found = false;
-        for (int n = 0; n < 4; n++)
+        for (int n = 0; n < 8; n++)
             if (value && *value == modeName(PlaybackMode(n))) {
                 p.sound.mode = PlaybackMode(n);
                 found = true;
@@ -233,7 +233,9 @@ PresetDefinition readPreset(const std::string &path) {
     materialize(p.sound);
     return p;
 }
-PresetLibrary::PresetLibrary() {
+namespace {
+std::vector<PresetDefinition> factoryPresets(bool legacy, bool previousTuning = false) {
+    std::vector<PresetDefinition> entries;
     const char *ids[] = {"harp", "dream", "keys", "organ"};
     for (int n = 0; n < 4; n++) {
         Settings s;
@@ -258,7 +260,40 @@ PresetLibrary::PresetLibrary() {
         s.padMotion = padMotions[n];
         entries.push_back({ids2[n], names[n], s, true});
     }
+    if (!legacy) {
+        // Stable IDs and indices; deliberately distinct, playable musical starting points.
+        const int front[]{46,10,0,16,25,4,29,8,11};
+        const int chord[]{24,88,0,16,4,4,27,0,24};
+        const int pad[]{48,89,89,89,89,89,16,48,89};
+        const int bpm[]{96,80,100,100,112,82,120,96,128};
+        const int chordPattern[]{5,5,5,5,1,3,6,4,7};
+        const PlaybackMode modes[]{PlaybackMode::Pad, PlaybackMode::Pad, PlaybackMode::Chord,
+            PlaybackMode::Chord, PlaybackMode::Arp, PlaybackMode::Chord, PlaybackMode::Chord,
+            PlaybackMode::Chord, PlaybackMode::Chord};
+        for (int n = 0; n < 9; ++n) {
+            auto &s = entries[n].sound;
+            s.harpProgram = front[n]; s.chordProgram = chord[n]; s.padProgram = pad[n];
+            s.bpm = bpm[n]; s.mode = modes[n]; s.chordPattern = chordPattern[n];
+            if (previousTuning && n < 3) s.chordPattern = 0;
+            if (!previousTuning && n == 1) s.mode = PlaybackMode::All;
+            s.pattern = n == 5 ? 5 : n == 4 ? 4 : 0;
+            s.padMotion = n == 1 ? 1 : 0;
+            // Acoustic attacks and decays come from the sample, including key-dependent timing.
+            s.envelopes[0].values = {-1,-1,-1, n == 1 || n == 7 || n == 8 ? 320 : 180};
+            s.envelopes[1].values = {5,-1,-1,100};
+            s.envelopes[2].values = pad[n] == 48 ? std::array<int,4>{150,600,75,400}
+                : pad[n] == 16 ? std::array<int,4>{80,300,75,250}
+                              : std::array<int,4>{300,800,75,550};
+        }
+        entries[1].sound.envelopes[1].values = {8,400,35,200};
+        entries[3].sound.envelopes[0].values = {5,100,85,90};
+        entries[3].sound.envelopes[1].values = {5,100,85,100};
+        entries[6].sound.envelopes[1].values = {3,160,45,65};
+    }
+    return entries;
 }
+} // namespace
+PresetLibrary::PresetLibrary() : entries(factoryPresets(false)) {}
 const PresetDefinition &PresetLibrary::current(const Settings &s) const {
     return entries.at(std::clamp(s.preset, 0, int(entries.size()) - 1));
 }
@@ -293,6 +328,8 @@ void PresetLibrary::load(const std::string &dir, Settings &s, bool canWrite) {
     directory = dir;
     writable = canWrite;
     auto warn = [&](const std::exception &e) { warning += std::string(e.what()) + "\n"; };
+    const auto previousFactory = factoryPresets(true);
+    const auto previousTuning = factoryPresets(false, true);
     for (auto &p : entries) {
         fs::path path = fs::path(dir) / "presets" / "factory" / (p.id + ".toml");
         try {
@@ -300,10 +337,15 @@ void PresetLibrary::load(const std::string &dir, Settings &s, bool canWrite) {
                 auto loaded = readPreset(path.string());
                 if (loaded.id != p.id)
                     throw std::runtime_error("Factory preset id changed");
-                if (p.id == "dream" && oldStockDream(loaded.sound)) {
-                    loaded.sound.chordProgram = 88;
-                    if (writable)
-                        writePreset(loaded, path.string());
+                auto old = std::find_if(previousFactory.begin(), previousFactory.end(),
+                                        [&](const auto &x) { return x.id == p.id; });
+                auto previous = std::find_if(previousTuning.begin(), previousTuning.end(),
+                                             [&](const auto &x) { return x.id == p.id; });
+                if (samePresetSettings(loaded.sound, previous->sound) ||
+                    samePresetSettings(loaded.sound, old->sound) ||
+                    (p.id == "dream" && oldStockDream(loaded.sound))) {
+                    loaded.sound = p.sound;
+                    if (writable) writePreset(loaded, path.string());
                 }
                 p = loaded;
             } else if (writable)
@@ -343,9 +385,15 @@ void PresetLibrary::load(const std::string &dir, Settings &s, bool canWrite) {
                     auto w = readPreset(path.string());
                     if (w.id != p.id)
                         throw std::runtime_error("Working preset id mismatch");
-                    if (p.id == "dream" && oldStockDream(w.sound) &&
-                        p.sound.chordProgram == 88 && p.sound.padProgram == 89)
-                        w.sound.chordProgram = 88;
+                    auto old = std::find_if(previousFactory.begin(), previousFactory.end(),
+                                            [&](const auto &x) { return x.id == p.id; });
+                    auto previous = std::find_if(previousTuning.begin(), previousTuning.end(),
+                                                 [&](const auto &x) { return x.id == p.id; });
+                    if (old != previousFactory.end() &&
+                        (samePresetSettings(w.sound, previous->sound) ||
+                         samePresetSettings(w.sound, old->sound) ||
+                         (p.id == "dream" && oldStockDream(w.sound))))
+                        w.sound = p.sound;
                     working[p.id] = w.sound;
                 }
             } catch (const std::exception &e) {

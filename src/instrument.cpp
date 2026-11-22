@@ -24,14 +24,14 @@ void Instrument::stopChord() {
         sink_.send(Command{CommandType::Off, id});
     chordVoices_.clear();
 }
-void Instrument::hit(unsigned mask, int duration, float accent) {
+void Instrument::hit(unsigned mask, int duration, float accent, Part part, bool bass) {
     auto notes = chordNotes(chord);
     for (int n = 0; n < 4; n++)
         if (mask & (1u << n)) {
             auto id = ++nextId_;
             if (!duration)
                 chordVoices_.push_back(id);
-            Command c{CommandType::On, id, notes[n], duration, Part::Chord};
+            Command c{CommandType::On, id, std::max(0, notes[n] - (bass ? 12 : 0)), duration, part};
             c.gain = accent;
             sink_.send(c);
         }
@@ -39,21 +39,21 @@ void Instrument::hit(unsigned mask, int duration, float accent) {
 void Instrument::resetTransport() {
     phase_ = 0;
     nextTick_ = 0;
-    patternStart_ = 0;
+    patternStarts_.fill(0);
     lastTick_ = now_;
-    playingPattern_ = patternIndex(settings);
+    playingPatterns_ = {settings.chordPattern, settings.pattern};
     lastGain_ = 1;
 }
 void Instrument::soundChord() {
     stopChord();
     if (!active)
         return;
-    if (settings.mode == PlaybackMode::Pad)
-        hit(15, 0);
-    else if (settings.mode == PlaybackMode::Chord && settings.chordPattern == 0)
-        hit(15, 400);
-    else if (settings.mode == PlaybackMode::Chord && settings.chordPattern == sustainedChordPattern)
-        hit(15, 0);
+    if (layerEnabled(settings.mode, PlaybackMode::Pad))
+        hit(15, 0, 1.f, Part::Pad);
+    if (layerEnabled(settings.mode, PlaybackMode::Chord)) {
+        if (settings.chordPattern == 0) hit(15, 400);
+        else if (settings.chordPattern == sustainedChordPattern) hit(15, 0);
+    }
 }
 void Instrument::select(int column, uint64_t now) {
     if (baseColumn_ < 0 || !mask(baseColumn_))
@@ -103,6 +103,8 @@ void Instrument::key(char key, bool down, uint64_t now) {
         return;
     commitChord(now);
     pressed_[k] = down;
+    if (key == '1')
+        return;
     int col = columnFor(key);
     if (!down) {
         if (col >= 0 && !anyChordKey()) {
@@ -152,17 +154,6 @@ void Instrument::key(char key, bool down, uint64_t now) {
             pending_.clear();
         }
     }
-    if (key == 'o') {
-        chordPending_ = false;
-        sink_.send(Command{CommandType::StopChord});
-        settings.mode = PlaybackMode((int(settings.mode) + 1) % 4);
-        Command config{CommandType::Configure};
-        config.settings = settings;
-        sink_.send(config);
-        pending_.clear();
-        resetTransport();
-        soundChord();
-    }
     if (key == '9' || key == '0') {
         Settings previous = settings;
         const auto order = library.order();
@@ -198,38 +189,44 @@ void Instrument::runTick(uint64_t now) {
         } else
             ++it;
     }
-    if (active && settings.mode != PlaybackMode::FrontOnly)
+    if (active && backingLayers(settings.mode))
         phase_ += double(now - lastTick_) * settings.bpm / 15000.;
-    if (active && !chordPending_ && settings.mode != PlaybackMode::FrontOnly) {
-        const auto &list = patterns(settings.mode);
-        playingPattern_ = std::clamp(playingPattern_, 0, int(list.size()) - 1);
+    if (active && !chordPending_ && backingLayers(settings.mode)) {
         if (nextTick_ + 32 < phase_)
             nextTick_ = int64_t(phase_); // Do not flood audio after a stall.
         while (nextTick_ <= phase_) {
-            if ((nextTick_ - patternStart_) % list[playingPattern_].ticks == 0 &&
-                playingPattern_ != patternIndex(settings)) {
-                playingPattern_ = patternIndex(settings);
-                patternStart_ = nextTick_;
+            for (int layer = 0; layer < 2; ++layer) {
+                auto mode = layer == 0 ? PlaybackMode::Chord : PlaybackMode::Arp;
+                if (!layerEnabled(settings.mode, mode)) continue;
+                const auto &list = patterns(mode);
+                int &playing = playingPatterns_[layer];
+                playing = std::clamp(playing, 0, int(list.size()) - 1);
+                int desired = layer == 0 ? settings.chordPattern : settings.pattern;
+                auto &start = patternStarts_[layer];
+                if ((nextTick_ - start) % list[playing].ticks == 0 && playing != desired) {
+                    playing = desired;
+                    start = nextTick_;
+                }
+                const auto &p = list[playing];
+                int at = int((nextTick_ - start) % p.ticks);
+                for (const auto &step : p.steps)
+                    if (step.tick == at)
+                        hit(unsigned(step.notes), std::max(20, int(step.gate * 15000 / settings.bpm)),
+                            step.accent, layer == 0 ? Part::Chord : Part::Arp, step.bass);
             }
-            const auto &p = list[playingPattern_];
-            int at = int((nextTick_ - patternStart_) % p.ticks);
-            for (const auto &step : p.steps)
-                if (step.tick == at)
-                    hit(unsigned(step.notes), std::max(20, int(step.gate * 15000 / settings.bpm)),
-                        step.accent);
             ++nextTick_;
         }
-        if (settings.mode == PlaybackMode::Pad) {
+        if (layerEnabled(settings.mode, PlaybackMode::Pad)) {
             constexpr double pi = 3.141592653589793;
             float gain = 1;
-            if (playingPattern_ == 1)
+            if (settings.padMotion == 1)
                 gain = float(.7 + .3 * std::sin(2 * pi * phase_ / 64 - pi / 2));
-            if (playingPattern_ == 2)
+            if (settings.padMotion == 2)
                 gain = float(.65 + .35 * std::sin(2 * pi * phase_ / 8 - pi / 2));
-            if (playingPattern_ == 3)
+            if (settings.padMotion == 3)
                 gain = float(.3 + .7 * std::exp(-std::fmod(phase_, 4.) * 1.2));
             if (now >= lastGainAt_ + 20 && std::abs(gain - lastGain_) > .015f) {
-                Command c{CommandType::ChordGain};
+                Command c{CommandType::ChordGain}; // Pad motion never modulates Chord or Arp.
                 c.gain = gain;
                 sink_.send(c);
                 lastGain_ = gain;
@@ -278,6 +275,17 @@ void Instrument::panic() {
     clearKeys();
     harpFlash = -1;
 }
+void Instrument::setBackingMode(PlaybackMode mode) {
+    chordPending_ = false;
+    stopChord();
+    sink_.send(Command{CommandType::StopChord});
+    settings.mode = mode;
+    Command c{CommandType::Configure};
+    c.settings = settings;
+    sink_.send(c);
+    resetTransport();
+    soundChord();
+}
 void Instrument::configure() {
     chordPending_ = false;
     settings.clamp();
@@ -294,7 +302,7 @@ void Instrument::configure() {
 std::array<int, 7> Instrument::playingFrontNotes() const {
     auto notes = frontNotes(chord, settings);
     for (auto &note : notes)
-        note = std::clamp(note + 12 * frontOctaveShift[settings.frontMode], 0, 127);
+        note = std::clamp(note + 12 * frontOctaveShift[settings.frontMode] + semitoneShift(), 0, 127);
     return notes;
 }
 void Instrument::auditionFront(const Settings &s, int key) {

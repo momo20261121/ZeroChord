@@ -1,5 +1,21 @@
 # Testing ZeroChord
 
+## 1.1.0 backing layers and preset tuning
+
+All six local suites pass, including all eight layer combinations, checkbox
+apply/cancel/default, app and preset round-trips, current-preset restore,
+independent Front/Chord/Arp/Pad rendering, Pad-only motion, panic and normal-level
+clipping checks. The real app passes 20 isolated keyboard/save/restart flows,
+including O and Style checkbox paths using printed F/X arrows, none/all
+selections and cancellation. The 320×170 popup and multi-layer status are
+visually checked locally. Cross-compilation runs on the development Mac.
+Device validation for this iteration is one preview deployment/launch, with no
+repeated device suite. Musical feel and speaker tone still need listening.
+
+Earlier sections below record previous iterations; their run counts describe
+those versions. Hardware scripts have updated controls but have not been rerun
+as part of this change.
+
 ## Global EQ and sustained chord pattern
 
 All six desktop suites and all six ASan/UBSan suites pass locally (macOS leak
@@ -134,9 +150,9 @@ per-preset working copies and stable selection, all musical defaults, individual
 Backspace reset and picker cancel, app-wide volume/theme preservation, save-as,
 edited factory defaults, and no-save behavior.
 
-Audio regressions additionally verify simultaneous hits have a falling envelope,
-master × preset gain scales direct sound and echo, and pad motion preserves the
-foreground. Panic must discard previous voices before the next note unmutes output.
+Audio regressions additionally verify prompt chord attacks, finite gates,
+flowing arp continuity, master gain on direct sound and echo, and Pad motion
+preserving Front, Chord and Arp. Panic must discard previous voices before the next note unmutes output.
 
 AddressSanitizer and UndefinedBehaviorSanitizer can be enabled on the standalone
 engine build:

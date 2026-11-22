@@ -9,8 +9,10 @@ class UI : public SettingsEditor {
 
   private:
     std::string previous_;
+    void drawAbout();
     void drawPicker();
     void drawTempo();
+    void drawBacking();
     void drawEnvelope();
     void drawCombinations();
     void drawFrontNotes();

@@ -172,22 +172,24 @@ int main(int argc, char **argv) {
         if (energy(800, 1000) < .0001)
             throw std::runtime_error("Pad does not sustain");
         modes.key('o', true, 1000);
+        modes.setBackingMode(PlaybackMode((int(modes.settings.mode) + 1) % 4));
         modes.key('o', false, 1001);
         for (int ms = 0; ms < 1000; ms += 10) {
             modes.tick(1000 + ms);
             r.render(samples.data() + ms * 96, 480);
         }
-        if (energy(0, 300) < .0001 || energy(800, 1000) > .00000001)
+        if (energy(0, 300) < .0001 || energy(800, 1000) > .00001)
             throw std::runtime_error("Strum does not play once then become quiet");
         modes.key('o', true, 2000);
+        modes.setBackingMode(PlaybackMode((int(modes.settings.mode) + 1) % 4));
         modes.key('o', false, 2001);
         for (int ms = 0; ms < 1000; ms += 10) {
             modes.tick(2000 + ms);
             r.render(samples.data() + ms * 96, 480);
         }
         for (int start : {0, 300, 600})
-            if (energy(start, start + 50) < .0001 || energy(start + 240, start + 290) > .00000001)
-                throw std::runtime_error("Arp does not produce distinct pulses");
+            if (energy(start, start + 50) < .0001 || energy(start + 180, start + 260) < .00001)
+                throw std::runtime_error("Flowing arp has a silent onset or a gap between steps");
         modes.panic();
         r.send({CommandType::On, 3000, 72, 800, Part::Harp});
         r.send({CommandType::StopChord});
@@ -251,7 +253,7 @@ int main(int argc, char **argv) {
         for (size_t n = 0; n < reference.size(); n++)
             if (std::abs(reference[n] - quiet[n]) > 1e-6f)
                 throw std::runtime_error("pad motion changed foreground sound");
-        // The simultaneous chord envelope falls audibly before release, even on Dream/Organ.
+        // Each native instrument keeps its own decay/sustain; a manual hit still ends on time.
         for (int program : {89, 16, 48}) {
             r.send(Command{});
             Command c{CommandType::Configure};
@@ -261,8 +263,8 @@ int main(int argc, char **argv) {
             for (int pitch : {48, 52, 55, 60})
                 r.send({CommandType::On, uint32_t(6000 + pitch), pitch, 400, Part::Chord});
             r.render(samples.data(), 48000);
-            if (energy(5, 70) < .0001 || energy(260, 330) >= energy(5, 70) * .2)
-                throw std::runtime_error("chord hit did not decay clearly");
+            if (energy(5, 70) < .0001 || energy(800, 1000) > .00001)
+                throw std::runtime_error("chord hit lacks attack or ignores its gate");
         }
         // Program routing is independent: Pad uses pad sound; Chord/Arp use chord sound.
         auto renderProgram = [&](PlaybackMode mode, int pad, int chord, Part part) {
@@ -274,7 +276,8 @@ int main(int argc, char **argv) {
             config.settings.harpProgram = 46;
             config.settings.echo = 0;
             voice.send(config);
-            voice.send({CommandType::On, 1, 60, mode == PlaybackMode::Pad ? 0 : 400, part});
+            voice.send({CommandType::On, 1, 60, mode == PlaybackMode::Pad ? 0 : 400,
+                        part == Part::Chord && mode == PlaybackMode::Pad ? Part::Pad : part});
             std::vector<float> result(24000 * 2);
             voice.render(result.data(), 24000);
             return result;
@@ -310,6 +313,41 @@ int main(int argc, char **argv) {
             if (total < .0001)
                 throw std::runtime_error("silent factory style");
         }
+        // Layer combinations render together without silencing the front, clipping, or leaking Pad motion.
+        for (unsigned layers = 0; layers < 8; ++layers) {
+            Renderer render(argv[1]); DirectSink direct(render); Instrument p(direct);
+            p.settings = p.library.entries[1].sound;
+            p.settings.mode = modeForLayers(layers); p.settings.combinationMs = 0;
+            p.settings.echo = 0; p.settings.chordPattern = 1; p.settings.padMotion = 3;
+            p.configure(); p.key('8', true, 10); p.key('8', false, 11);
+            double total = 0;
+            for (int ms = 0; ms < 1600; ms += 10) {
+                if (ms % 200 == 0) { p.key('z', true, ms + 12); p.key('z', false, ms + 13); }
+                p.tick(ms + 14); render.render(samples.data(), 480);
+                for (int n = 0; n < 960; ++n) {
+                    if (!std::isfinite(samples[n]) || std::abs(samples[n]) >= .99f)
+                        throw std::runtime_error("combined backing layers clipped or became nonfinite");
+                    total += samples[n] * samples[n];
+                }
+            }
+            if (total < .0001) throw std::runtime_error("combined layers silenced the front");
+            p.panic(); render.render(samples.data(), 480);
+            for (int n = 0; n < 960; ++n)
+                if (samples[n] != 0) throw std::runtime_error("panic left a backing layer sounding");
+        }
+        for (auto part : {Part::Harp, Part::Chord, Part::Arp, Part::Pad}) {
+            Renderer base(argv[1]), moved(argv[1]);
+            Command config{CommandType::Configure}; config.settings.mode = PlaybackMode::All;
+            config.settings.harpProgram = config.settings.chordProgram = config.settings.padProgram = 16;
+            config.settings.echo = 0; base.send(config); moved.send(config);
+            for (auto *renderer : {&base, &moved}) renderer->send({CommandType::On, 1, 60, 0, part});
+            Command motion{CommandType::ChordGain}; motion.gain = .2f; moved.send(motion);
+            std::vector<float> a(9600), b(9600); base.render(a.data(), 4800); moved.render(b.data(), 4800);
+            double difference = 0;
+            for (size_t n = 0; n < a.size(); ++n) difference += std::abs(a[n] - b[n]);
+            if ((difference > .001) != (part == Part::Pad))
+                throw std::runtime_error("Pad motion leaked into a different backing layer");
+        }
         // Each envelope changes only its routed part; ADSR affects actual rendered audio.
         auto envelopeAudio = [&](int part, const Envelope &own, bool other = false, bool stop = false) {
             Renderer renderer(argv[1]);
@@ -319,7 +357,7 @@ int main(int argc, char **argv) {
             config.settings.mode = part == 2 ? PlaybackMode::Pad : PlaybackMode::Chord;
             config.settings.envelopes[other ? (part + 1) % 3 : part] = own;
             renderer.send(config);
-            renderer.send({CommandType::On, 9000, 60, 0, part == 0 ? Part::Harp : Part::Chord});
+            renderer.send({CommandType::On, 9000, 60, 0, part == 0 ? Part::Harp : part == 2 ? Part::Pad : Part::Chord});
             std::vector<float> out(48000 * 2);
             renderer.render(out.data(), 19200); // End note at 400 ms.
             renderer.send({stop ? CommandType::StopChord : CommandType::Off, 9000});

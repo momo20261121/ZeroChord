@@ -14,8 +14,13 @@ note without saving until Enter.
 - **Front mode — Chord notes:** keys follow the selected chord's root and quality.
   Defaults preserve the original minichord-inspired seven-note layout.
 - **Front mode — Scale notes:** Z–M play I–VII of Chord config → All → Key and the front Scale setting, starting
-  at octave 4. They work without selecting a backing chord. Selecting/sharpening
-  a backing chord does not transpose these scale notes.
+  at octave 4. They work without selecting a backing chord. Selecting a backing
+  chord does not transpose these scale notes; holding **1** raises newly played
+  scale notes by one semitone, including custom notes and octaves.
+- **1 in Chord notes:** holding 1 raises new front notes one semitone above the
+  selected chord's notes, including when that chord was already sharp. The
+  backing chord stays unchanged. Ringing notes and queued strums keep their
+  original pitches.
 - **K/L action:** Strum or Octave shift, remembered separately for each front
   mode. Chord notes defaults to Strum; Scale notes defaults to Octave shift.
 - **Strum time:** 60–600 ms from first to last note, shown when Strum is selected.

@@ -41,7 +41,11 @@ struct Preset {
     int chordProgram, harpProgram, padProgram = -1;
 };
 extern const std::array<Preset, 4> presets;
-enum class PlaybackMode { Pad, Chord, Arp, FrontOnly };
+// Preserve the four original persisted values; append combinations.
+enum class PlaybackMode { Pad, Chord, Arp, FrontOnly, ChordPad, ChordArp, PadArp, All };
+unsigned backingLayers(PlaybackMode mode); // Chord=1, Pad=2, Arp=4.
+PlaybackMode modeForLayers(unsigned layers);
+bool layerEnabled(PlaybackMode selection, PlaybackMode layer);
 const char *modeName(PlaybackMode mode);
 struct Envelope {
     // Attack/decay/release in milliseconds, sustain in percent; -1 keeps the sound default.

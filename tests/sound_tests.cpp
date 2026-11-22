@@ -39,8 +39,8 @@ void choose(SettingsEditor &e, int value) {
     throw std::runtime_error("Missing choice");
 }
 void row(SettingsEditor &e, int value) {
-    if ((e.tab() == SettingsEditor::Tab::App) != SettingsEditor::appField(value))
-        press(e, 20);
+    const auto target = SettingsEditor::appField(value) ? SettingsEditor::Tab::App : SettingsEditor::Tab::Style;
+    for (int n = 0; e.tab() != target && n < 3; ++n) press(e, 20);
     for (int n = 0; e.selected() != value && n < SettingsEditor::settingCount; n++)
         press(e, 18);
     CHECK(e.selected() == value);
@@ -58,9 +58,11 @@ int main(int argc, char **argv) {
                 std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     try {
         auto &sounds = soundLibrary();
-        CHECK(sounds.entries.size() == 10 && sounds.categories().size() == 4);
+        CHECK(sounds.entries.size() == 14 && sounds.categories().size() == 4);
         for (const auto &sound : sounds.entries)
             CHECK(!sound.name.empty() && !sound.category.empty());
+        CHECK(sounds.sampleRateLabel(0) == "Source rate unavailable");
+        CHECK(soundfontSampleRates(nullptr, 0, 0).empty());
         auto pack = dir / "sounds/my-pack";
         fs::create_directories(pack);
         fs::create_symlink(fs::absolute(argv[1]), pack / "bank.sf2");
@@ -72,8 +74,54 @@ int main(int argc, char **argv) {
         fs::create_directories(dir / "sounds/broken");
         std::ofstream(dir / "sounds/broken/pack.toml") << "file='../outside.sf2'\n";
         sounds.load(dir.string(), argv[1]);
-        CHECK(sounds.entries.size() == 12 && sounds.find("my-pack/velvet") &&
+        CHECK(sounds.entries.size() == 16 && sounds.find("my-pack/velvet") &&
               sounds.categories().size() == 5);
+        CHECK(sounds.sampleRateLabel(0) == "Source 22.05 kHz");
+        CHECK(sounds.sampleRateLabel(48) == "Source 12 kHz");
+        CHECK(sounds.sampleRateLabel(10) == "Source 22.321 kHz");
+        CHECK(sounds.sampleRateLabel(8) == "Source 44.1 kHz");
+        CHECK(sounds.sampleRateLabel(88) == "Source 22.05-44.1 kHz (mixed)");
+        CHECK(sounds.sampleRateLabel(sounds.find("my-pack/velvet")->choice) == "Source 22.05 kHz");
+        CHECK(sounds.sampleRateLabel(sounds.find("my-pack/glass")->choice) == "Source 44.1 kHz");
+        CHECK(soundfontSampleRates(sounds.banks[0].data.get(), 999, 999).empty());
+        {
+            // New choices must exist in the actual bank, render across registers,
+            // and be selectable through the existing category picker.
+            const auto programs = soundfontPresets(sounds.banks[0].data.get());
+            Capture captured;
+            Instrument player(captured);
+            SettingsEditor menu(player);
+            press(menu, '\t');
+            row(menu, 14);
+            for (const char *id : {"steel-string-guitar", "clean-electric-guitar",
+                                   "overdriven-guitar", "celesta"}) {
+                const auto *sound = sounds.find(id);
+                CHECK(sound && std::any_of(programs.begin(), programs.end(), [&](const auto &p) {
+                    return p.bank == 0 && p.program == sound->program;
+                }));
+                press(menu, '\n');
+                choose(menu, sound->choice);
+                press(menu, '\n');
+                CHECK(player.settings.harpProgram == sound->program);
+                Renderer renderer(argv[1]);
+                Command config{CommandType::Configure};
+                config.settings.harpProgram = sound->program;
+                config.settings.echo = 0;
+                renderer.send(config);
+                for (int pitch : {48, 60, 72}) {
+                    renderer.send(Command{});
+                    renderer.send({CommandType::On, 1, pitch, 500, Part::Harp});
+                    std::vector<float> samples(48000);
+                    renderer.render(samples.data(), 24000);
+                    double energy = 0;
+                    for (float sample : samples) {
+                        CHECK(std::isfinite(sample) && std::abs(sample) < .99f);
+                        energy += sample * sample;
+                    }
+                    CHECK(energy > .001);
+                }
+            }
+        }
         CHECK(sounds.warning.find("Invalid SoundFont") != std::string::npos);
         int glass = sounds.find("my-pack/glass")->choice;
         CHECK(sounds.name(0, "my-pack/glass") == "Glass Harp");
@@ -104,7 +152,7 @@ int main(int argc, char **argv) {
                     c.settings.harpProgram = 46;
                 builtin.send(c);
                 auto on =
-                    Command{CommandType::On, 1, 60, 700, part == 2 ? Part::Harp : Part::Chord};
+                    Command{CommandType::On, 1, 60, 700, part == 2 ? Part::Harp : part == 0 ? Part::Pad : Part::Chord};
                 custom.send(on);
                 builtin.send(on);
                 std::vector<float> a(96000), b(96000);
@@ -237,9 +285,10 @@ int main(int argc, char **argv) {
         instrument.key('1', true, 9);
         instrument.key('8', true, 10);
         instrument.key('8', false, 11);
-        instrument.key('1', false, 12);
         CHECK(instrument.chord.root == 49); // Sharp chord also moves chord-based front notes.
-        auto expected = frontNotes(instrument.chord, s);
+        auto expected = instrument.playingFrontNotes();
+        auto unshifted = frontNotes(instrument.chord, s);
+        for (int n = 0; n < 7; n++) CHECK(expected[n] == unshifted[n] + 1);
         sink.events.clear();
         const char *keys = "zxcvbnm";
         for (int n = 0; n < 7; n++) {
@@ -278,6 +327,8 @@ int main(int argc, char **argv) {
         instrument.key('k', true, 2102);
         instrument.key('k', false, 2103);
         CHECK(instrument.playingFrontNotes() == expected);
+        instrument.key('1', false, 2104);
+        CHECK(instrument.chord.root == 49 && instrument.playingFrontNotes() == unshifted);
         // Scale keyboard follows the selected key, not the chord root/quality/sharp.
         s = Settings{};
         s.frontMode = 1;

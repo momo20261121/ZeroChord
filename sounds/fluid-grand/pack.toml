@@ -1,0 +1,8 @@
+file = 'piano.sf2'
+
+[[sounds]]
+id = 'grand'
+name = 'Grand Piano (FluidR3)'
+category = 'Keys'
+program = 0
+bank = 0

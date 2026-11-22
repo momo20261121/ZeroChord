@@ -27,7 +27,8 @@ struct DeviceMenu : SettingsEditor {
     using SettingsEditor::SettingsEditor;
     void tap(char k) { key(k, true); key(k, false); }
     void row(int field) {
-        if ((tab() == Tab::App) != appField(field)) tap('c');
+        const auto target = appField(field) ? Tab::App : Tab::Style;
+        for (int n = 0; tab() != target && n < 3; ++n) tap('c');
         for (int n = 0; n < settingCount && selected() != field; n++) tap('x');
         CHECK(selected() == field);
     }
@@ -41,6 +42,10 @@ struct DeviceMenu : SettingsEditor {
     }
     void valid() {
         if (tempoOpen()) { CHECK(tempoText().size() <= 3); return; }
+        if (page() == Page::Setup && tab() == Tab::About) {
+            CHECK(rows().empty() && selected() == -1 && !pickerOpen());
+            return;
+        }
         std::vector<int> list = page() == Page::Setup ? rows() : page() == Page::Combinations ? combinationRows() : page() == Page::FrontNotes ? frontRows() : std::vector<int>{0,1,2,3,4};
         CHECK(std::find(list.begin(), list.end(), selected()) != list.end());
         if (pickerOpen()) { CHECK(!choices().empty()); CHECK(highlighted() >= 0 && highlighted() < int(choices().size())); }

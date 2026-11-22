@@ -79,7 +79,7 @@ mapping as a working baseline; exact musical behavior remains open.
 | 9 | Previous preset |
 | 0 | Next preset |
 | I | Toggle chord hold |
-| O | Cycle Pad → Chord → Arp → Front only |
+| O | Checkbox popup for Chord, Pad and Arp; none means Front only |
 | P | Enter tempo (40–240 BPM) |
 | Space | Stop all sound; detailed reset behavior to be specified |
 | Tab | Open/close settings |
@@ -172,22 +172,22 @@ Current milestone: validate the playable prototype on the actual device.
   changes, and receive note-off after 1.6 seconds plus their bank-defined release.
   K/L perform a single sweep; a new sweep replaces unfinished sweep events.
   A new chord cancels the unfinished sweep so it cannot play stale harmony.
-- O cycles Pad → Chord → Arp → Front only and immediately reapplies the selected harmony.
-  Pad sustains its original sound-bank envelope. Chord strikes four notes
-  simultaneously; Manual hit plays once per press. Optional Every beat, Offbeat,
-  Syncopated, and Waltz patterns repeat accompaniment. K/L remain foreground
-  sweeps and use their own sweep timing.
-- Arp patterns include Up/Down/Up-down, Alternating bass, Pop, R&B, Rock, Waltz,
-  and Bossa. A sixteenth-note clock schedules accents, note groups and gates.
-  Chord changes retain phase; pattern edits wait until the current bar boundary.
-  Mode/preset changes begin a new phrase. Waltz uses 3/4; other rhythms use 4/4.
-- Pad motion choices modulate only backing gain: Steady, Slow swell, Breathe,
-  Pulse. Foreground voices retain independent timing and gain.
-- Finite backing notes cap attack at 5 ms, decay over 220 ms to 8% sustain,
-  and cap release at 30 ms. This gives clear hits using the backing timbre.
-  Sustained Pad retains its bank envelope. Mode changes release backing voices
-  without silencing foreground notes. Panic removes all old synth voices and echo.
-- Style presets include BPM, mode, patterns, and independent sounds. Each has
+- O and Style → Backing layers share a checkbox popup: arrows select rows,
+  Enter toggles a layer, Apply commits, Esc cancels. None means Front only.
+  Chord, Pad and Arp can run together; front notes remain independent.
+- Chord/Arp have separate pattern state on a common sixteenth-note clock.
+  Pattern edits take effect at their current pattern boundary; harmony changes
+  retain phase. Applying layers/presets starts a new phrase.
+- Chord patterns include Manual hit, Sustained, Every beat, Every eighth,
+  Offbeat, Syncopated, Bass/chord 3/4, and Bossa accompaniment. Bass events use
+  a lower octave. Arps use descriptive names; legacy saved IDs remain readable.
+- Pad motion (Steady, Slow swell, Breathe, Pulse) modulates only Pad gain.
+  All backing layers are balanced by 1/√(layer count); Front gain is independent.
+- Chord/Arp bound attack to 10 ms and release to 200 ms (250 ms for Sustained),
+  preserve native decay/sustain, then apply explicit envelope overrides.
+  Pad retains its separate envelope. Layer changes release backing without
+  silencing Front. Panic removes all synth voices and echo.
+- Style presets include BPM, enabled layers, patterns, and independent sounds. Each has
   editable TOML defaults plus a remembered working snapshot. Individual fields
   and entire presets can be restored; save-as creates a new user default.
   App-wide theme, master/backing/front volume, echo, sweep, key/scale, Hold and chord mappings survive
