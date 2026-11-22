@@ -16,16 +16,17 @@ Portal: <https://dev.cardputer.cc/#/upload>
 - Executable path: `/usr/share/APPLaunch/bin/M5CardputerZero-ZeroChord`
 - Wrapper: `/usr/share/APPLaunch/bin/run-zerochord`
 - Runtime sound bank: Debian `timgm6mb-soundfont` dependency; not bundled
-- Verified package SHA-256: `4d1284cc3ae5ebb067fd77d28318bea0b3da085fdc17bc63a201e49e32de08a3`
+- Verified package SHA-256: `0b3e6255fbbee241dc00ba21a5ff1e69febea58b8c73a571d3747e675bf9ad74`
 - Native device tests passed; launcher installation still awaits interactive sudo authentication.
 - Includes shared/per-degree chord customization (no3/sus2/sus4), scope shortcuts,
   transactional choice lists with sound auditions, and confirmed mapping resets.
   Desktop/native/sanitizer suites and on-device evdev save/reload checks passed.
 - O cycles Pad/Chord/Arp. Chord notes strike simultaneously with a falling
   envelope; style patterns, pad motion, and independent sounds are configurable.
-- Nine complete TOML presets include BPM, key/scale, mode/patterns, sounds, levels,
-  Hold, effects, sweep timing, and chord mappings. Individual defaults, remembered
-  edits, save-as, master volume, and dark/light theme are included.
+- Nine TOML style presets include BPM, mode/patterns, sounds, levels, effects,
+  and sweep timing. App settings own key/scale, Hold, and chord mappings. Individual defaults, remembered
+  edits, save-as, master volume, and dark/light theme are included. Settings use
+  Style/App tabs with Left/Right navigation and Enter editors.
 - Display recovery verified: preview wakes a sleeping backlight; kernel framebuffer
   readback matches the rendered UI within RGB565 quantization error. Physical panel
   visibility still needs confirmation on the unit.

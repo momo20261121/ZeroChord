@@ -51,6 +51,7 @@ int main(int argc, char **argv) {
         // including the new no3/sus voicings and their seven harp notes.
         DirectSink sink(r);
         Instrument instrument(sink);
+        instrument.settings.combinationMs = 0; // Rendering checks; recognition has its own tests.
         for (int preset = 0; preset < 4; preset++)
             for (int quality = 0; quality < qualityCount; quality++) {
                 instrument.panic();
@@ -95,6 +96,7 @@ int main(int argc, char **argv) {
         }
         // Run the real O control and scheduler with Dream, the reported failure.
         Instrument modes(sink);
+        modes.settings.combinationMs = 0;
         modes.settings.preset = 1;
         modes.settings.echo = 0;
         modes.settings.bpm = 100;
@@ -151,13 +153,12 @@ int main(int argc, char **argv) {
             sustainedEnergy += x * x;
         if (sustainedEnergy < 0.0001)
             throw std::runtime_error("rapid harp playing stole the held chord");
-        // Master and preset level multiply the entire output, including echoes.
+        // Master volume scales the entire output, including echoes.
         Renderer full(argv[1]), scaled(argv[1]);
         Command volume{CommandType::Configure};
         volume.settings.echo = 40;
         full.send(volume);
         volume.settings.masterVolume = 50;
-        volume.settings.presetLevel = 60;
         scaled.send(volume);
         for (auto *renderer : {&full, &scaled}) {
             renderer->send({CommandType::On, 4000, 60, 400, Part::Chord});
@@ -167,9 +168,8 @@ int main(int argc, char **argv) {
         full.render(reference.data(), 48000);
         scaled.render(quiet.data(), 48000);
         for (size_t n = 0; n < reference.size(); n++)
-            if (std::abs(quiet[n] - reference[n] * .3f) > 1e-6f)
-                throw std::runtime_error(
-                    "master/preset level did not scale dry and wet audio together");
+            if (std::abs(quiet[n] - reference[n] * .5f) > 1e-6f)
+                throw std::runtime_error("master volume did not scale dry and wet audio together");
         volume.settings.masterVolume = 0;
         scaled.send(volume);
         scaled.render(quiet.data(), 48000);
@@ -205,6 +205,31 @@ int main(int argc, char **argv) {
             if (energy(5, 70) < .0001 || energy(260, 330) >= energy(5, 70) * .2)
                 throw std::runtime_error("chord hit did not decay clearly");
         }
+        // Program routing is independent: Pad uses pad sound; Chord/Arp use chord sound.
+        auto renderProgram = [&](PlaybackMode mode, int pad, int chord, Part part) {
+            Renderer voice(argv[1]);
+            Command config{CommandType::Configure};
+            config.settings.mode = mode;
+            config.settings.padProgram = pad;
+            config.settings.chordProgram = chord;
+            config.settings.harpProgram = 46;
+            config.settings.echo = 0;
+            voice.send(config);
+            voice.send({CommandType::On, 1, 60, mode == PlaybackMode::Pad ? 0 : 400, part});
+            std::vector<float> result(24000 * 2);
+            voice.render(result.data(), 24000);
+            return result;
+        };
+        for (auto mode : {PlaybackMode::Pad, PlaybackMode::Chord, PlaybackMode::Arp}) {
+            auto base = renderProgram(mode, 10, 16, Part::Chord);
+            auto changedPad = renderProgram(mode, 46, 16, Part::Chord);
+            auto changedChord = renderProgram(mode, 10, 24, Part::Chord);
+            if ((base == changedPad) != (mode != PlaybackMode::Pad) ||
+                (base == changedChord) != (mode == PlaybackMode::Pad))
+                throw std::runtime_error("pad/chord program routing was not independent");
+            if (renderProgram(mode, 10, 16, Part::Harp) != renderProgram(mode, 46, 24, Part::Harp))
+                throw std::runtime_error("backing sound changed foreground timbre");
+        }
         // All complete factory presets produce audible, finite audio through their own patterns.
         for (int n = 0; n < int(instrument.library.entries.size()); n++) {
             instrument.panic();
@@ -225,6 +250,68 @@ int main(int argc, char **argv) {
             }
             if (total < .0001)
                 throw std::runtime_error("silent factory style");
+        }
+        // Each envelope changes only its routed part; ADSR affects actual rendered audio.
+        auto envelopeAudio = [&](int part, const Envelope &own, bool other = false, bool stop = false) {
+            Renderer renderer(argv[1]);
+            Command config{CommandType::Configure};
+            config.settings.echo = 0;
+            config.settings.harpProgram = config.settings.chordProgram = config.settings.padProgram = 16;
+            config.settings.mode = part == 2 ? PlaybackMode::Pad : PlaybackMode::Chord;
+            config.settings.envelopes[other ? (part + 1) % 3 : part] = own;
+            renderer.send(config);
+            renderer.send({CommandType::On, 9000, 60, 0, part == 0 ? Part::Harp : Part::Chord});
+            std::vector<float> out(48000 * 2);
+            renderer.render(out.data(), 19200); // End note at 400 ms.
+            renderer.send({stop ? CommandType::StopChord : CommandType::Off, 9000});
+            renderer.render(out.data() + 38400, 28800);
+            return out;
+        };
+        auto envelopeEnergy = [](const std::vector<float> &out, int begin, int end) {
+            double sum = 0;
+            for (int n = begin * 96; n < end * 96; n++) {
+                if (!std::isfinite(out[n])) throw std::runtime_error("nonfinite envelope audio");
+                sum += out[n] * out[n];
+            }
+            return sum;
+        };
+        for (int part = 0; part < 3; part++) {
+            Envelope slow; slow.values = {500, 0, 100, 500};
+            auto original = envelopeAudio(part, Envelope{});
+            if (original != envelopeAudio(part, slow, true))
+                throw std::runtime_error("envelope leaked into another part");
+            auto shaped = envelopeAudio(part, slow);
+            Envelope quick; quick.values = {0, 0, 100, 10};
+            auto fast = envelopeAudio(part, quick);
+            if (envelopeEnergy(shaped, 0, 40) >= envelopeEnergy(fast, 0, 40) * .1)
+                throw std::runtime_error("custom attack did not soften the onset");
+            Envelope release; release.values = {0, 0, 100, 500};
+            auto tail = envelopeAudio(part, release);
+            if (envelopeEnergy(tail, 430, 500) <= envelopeEnergy(fast, 430, 500) + .00001)
+                throw std::runtime_error("custom release did not retain a tail");
+            if (part == 2 && tail != envelopeAudio(part, release, false, true))
+                throw std::runtime_error("stopping backing bypassed custom pad release");
+            Envelope decay; decay.values = {0, 100, 10, 10};
+            auto faded = envelopeAudio(part, decay);
+            if (envelopeEnergy(faded, 250, 350) >= envelopeEnergy(fast, 250, 350) * .1)
+                throw std::runtime_error("decay/sustain did not lower the held level");
+        }
+        // A slow front envelope must have time to develop in actual playing, as in preview.
+        {
+            Renderer slow(argv[1]); DirectSink direct(slow); Instrument player(direct);
+            player.settings.frontMode = 1; player.settings.harpProgram = 16;
+            player.settings.echo = 0; player.settings.envelopes[0].values = {3000, 0, 100, 10};
+            player.configure(); player.key('z', true, 1); player.key('z', false, 2);
+            double lateEnergy = 0;
+            for (int ms = 0; ms < 2800; ms += 10) {
+                player.tick(ms + 3); slow.render(samples.data(), 480);
+                if (ms >= 2200)
+                    for (int n = 0; n < 960; n++) lateEnergy += samples[n] * samples[n];
+            }
+            if (lateEnergy < .0001) throw std::runtime_error("slow front attack was cut short during playing");
+            player.panic(); slow.render(samples.data(), 480);
+            for (int n = 0; n < 960; n++)
+                if (samples[n] != 0) throw std::runtime_error("panic did not stop a long front envelope");
         }
         if (peak >= 0.99f)
             throw std::runtime_error("preset clipping");

@@ -130,14 +130,21 @@ const std::vector<Pattern> &patterns(PlaybackMode mode) {
           {8, 4, 2, .9f},
           {10, 6, 1, .7f},
           {14, 12, 1, .85f}}}};
+    static const std::vector<Pattern> silent{{"none", "None", "Foreground notes only", 16, {}}};
+    if (mode == PlaybackMode::FrontOnly)
+        return silent;
     return mode == PlaybackMode::Pad ? pads : (mode == PlaybackMode::Chord ? chords : arps);
 }
 int patternIndex(const Settings &s) {
+    if (s.mode == PlaybackMode::FrontOnly)
+        return 0;
     return s.mode == PlaybackMode::Pad
                ? s.padMotion
                : (s.mode == PlaybackMode::Chord ? s.chordPattern : s.pattern);
 }
 void setPatternIndex(Settings &s, int n) {
+    if (s.mode == PlaybackMode::FrontOnly)
+        return;
     if (s.mode == PlaybackMode::Pad)
         s.padMotion = n;
     else if (s.mode == PlaybackMode::Chord)

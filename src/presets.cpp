@@ -1,5 +1,6 @@
 #include "presets.hpp"
 #include "patterns.hpp"
+#include "sounds.hpp"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -13,24 +14,36 @@ namespace zc {
 namespace fs = std::filesystem;
 namespace {
 template <class F> void fields(Settings &s, F f) {
-    f("tonic", s.tonic, 0, 11);
-    f("scale", s.scale, 0, 1);
     f("backing_sound", s.chordProgram, 0, 127);
+    f("pad_sound", s.padProgram, 0, 127);
     f("foreground_sound", s.harpProgram, 0, 127);
-    f("backing_volume", s.chordVolume, 0, 100);
-    f("foreground_volume", s.harpVolume, 0, 100);
-    f("level", s.presetLevel, 0, 100);
-    f("echo", s.echo, 0, 60);
-    f("sweep_ms", s.strumMs, 60, 600);
     f("bpm", s.bpm, 40, 240);
-    f("hold", s.hold, 0, 1);
+    static const char *parts[]{"front", "chord", "pad"};
+    static const char *controls[]{"attack_ms", "decay_ms", "sustain_percent", "release_ms"};
+    for (int part = 0; part < 3; part++)
+        for (int control = 0; control < 4; control++) {
+            auto name = std::string(parts[part]) + "_" + controls[control];
+            f(name.c_str(), s.envelopes[part].values[control], -1, control == 2 ? 100 : 5000);
+        }
 }
 void materialize(Settings &s) {
     const auto &p = presets[std::clamp(s.preset, 0, 3)];
-    if (s.chordProgram < 0)
+    if (s.chordProgram < 0) {
         s.chordProgram = p.chordProgram;
+        if (s.padProgram < 0 && p.padProgram >= 0)
+            s.padProgram = p.padProgram;
+    }
+    if (s.padProgram < 0)
+        s.padProgram = s.chordProgram;
     if (s.harpProgram < 0)
         s.harpProgram = p.harpProgram;
+}
+bool oldStockDream(const Settings &s) {
+    Settings old;
+    old.chordProgram = old.padProgram = 89;
+    old.harpProgram = 10;
+    return static_cast<const PerformanceSettings &>(s) ==
+           static_cast<const PerformanceSettings &>(old);
 }
 bool validId(const std::string &s) {
     return !s.empty() && s.size() <= 48 && std::all_of(s.begin(), s.end(), [](char c) {
@@ -57,49 +70,24 @@ bool samePresetSettings(const Settings &a, const Settings &b) {
     materialize(x);
     materialize(y);
     return static_cast<const PerformanceSettings &>(x) ==
-               static_cast<const PerformanceSettings &>(y) &&
-           x.tonic == y.tonic && x.scale == y.scale && x.hold == y.hold &&
-           x.presetLevel == y.presetLevel && x.combinations == y.combinations &&
-           x.degreeCombinations == y.degreeCombinations;
+           static_cast<const PerformanceSettings &>(y);
 }
 void applyPresetSettings(Settings &target, const Settings &source) {
-    int selected = target.preset, master = target.masterVolume, theme = target.theme;
-    target = source;
-    target.preset = selected;
-    target.masterVolume = master;
-    target.theme = theme;
+    // App controls and the learned keyboard layout survive every style operation.
+    static_cast<PerformanceSettings &>(target) = source;
 }
-std::string programName(int n) {
-    switch (n) {
-    case 0:
-        return "Acoustic piano";
-    case 4:
-        return "Electric piano";
-    case 10:
-        return "Music box";
-    case 11:
-        return "Vibraphone";
-    case 16:
-        return "Organ";
-    case 24:
-        return "Nylon guitar";
-    case 46:
-        return "Harp";
-    case 48:
-        return "Strings";
-    case 88:
-        return "New age pad";
-    case 89:
-        return "Warm pad";
-    default:
-        return "GM " + std::to_string(n + 1);
-    }
-}
+std::string programName(int n) { return soundLibrary().name(n, ""); }
 void writePreset(const PresetDefinition &p, const std::string &path) {
     Settings s = p.sound;
     materialize(s);
-    toml::table t{{"schema_version", 1}, {"id", p.id}, {"name", p.name}};
+    toml::table t{{"schema_version", 2}, {"id", p.id}, {"name", p.name}};
     fields(s, [&](const char *name, int &v, int, int) { t.insert(name, v); });
+    for (const auto &[key, value] :
+         std::vector<std::pair<const char *, std::string>>{{"pad_sound_id", s.padSound},
+                                                           {"backing_sound_id", s.chordSound},
+                                                           {"foreground_sound_id", s.frontSound}})
+        if (!value.empty())
+            t.insert(key, value);
     t.insert("mode", modeName(s.mode));
     for (auto mode : {PlaybackMode::Pad, PlaybackMode::Chord, PlaybackMode::Arp}) {
         Settings copy = s;
@@ -109,32 +97,20 @@ void writePreset(const PresetDefinition &p, const std::string &path) {
                                                : "arp_pattern",
                  patterns(mode)[patternIndex(copy)].id);
     }
-    toml::array shared;
-    for (int v : s.combinations)
-        shared.push_back(qualityName(Quality(v)));
-    t.insert("combinations", std::move(shared));
-    toml::array degrees;
-    for (const auto &row : s.degreeCombinations) {
-        toml::array values;
-        for (int v : row)
-            values.push_back(v < 0 ? "inherit" : qualityName(Quality(v)));
-        degrees.push_back(std::move(values));
-    }
-    t.insert("degree_combinations", std::move(degrees));
     atomicWrite(path, t);
 }
 PresetDefinition readPreset(const std::string &path) {
     auto t = parse(path);
-    if (t["schema_version"].value<int>() != 1)
+    if (t["schema_version"].value<int>() != 1 && t["schema_version"].value<int>() != 2)
         throw std::runtime_error("Unsupported preset version");
     PresetDefinition p;
+    p.sound.preset = 0; // Sparse files retain the original Harp fallback.
     p.id = t["id"].value_or(std::string());
     p.name = t["name"].value_or(std::string());
     if (!validId(p.id) || p.name.empty() || p.name.size() > 40 ||
         std::any_of(p.name.begin(), p.name.end(),
                     [](unsigned char c) { return c < 32 || c == 127; }))
         throw std::runtime_error("Invalid preset id/name");
-    materialize(p.sound);
     std::set<std::string> allowed{"schema_version", "id",           "name",
                                   "mode",           "pad_motion",   "chord_pattern",
                                   "arp_pattern",    "combinations", "degree_combinations"};
@@ -147,13 +123,58 @@ PresetDefinition readPreset(const std::string &path) {
             throw std::runtime_error(std::string("Invalid ") + name);
         v = int(*n);
     });
+    for (auto [key, target] : std::vector<std::pair<const char *, std::string *>>{
+             {"pad_sound_id", &p.sound.padSound},
+             {"backing_sound_id", &p.sound.chordSound},
+             {"foreground_sound_id", &p.sound.frontSound}}) {
+        allowed.insert(key);
+        if (!t.contains(key))
+            continue;
+        auto value = t[key].value<std::string>();
+        if (!value || value->size() > 100 || value->empty() ||
+            std::any_of(value->begin(), value->end(), [](unsigned char c) {
+                return !(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9') && c != '-' && c != '/';
+            }))
+            throw std::runtime_error(std::string("Invalid ") + key);
+        *target = *value;
+    }
+    // Former style controls are app-wide now. Accept old files without applying them.
+    for (const auto &[key, bounds] :
+         std::vector<std::pair<const char *, std::pair<int, int>>>{{"backing_volume", {0, 100}},
+                                                                   {"foreground_volume", {0, 100}},
+                                                                   {"level", {0, 100}},
+                                                                   {"echo", {0, 60}},
+                                                                   {"sweep_ms", {60, 600}}}) {
+        allowed.insert(key);
+        if (!t.contains(key))
+            continue;
+        auto n = t[key].value<int64_t>();
+        if (!t[key].is_integer() || !n || *n < bounds.first || *n > bounds.second)
+            throw std::runtime_error(std::string("Invalid ") + key);
+    }
+    // Read v1's former app fields for compatibility; style application ignores them.
+    for (const char *key : {"tonic", "scale", "hold"}) {
+        allowed.insert(key);
+        if (t.contains(key)) {
+            auto n = t[key].value<int64_t>();
+            int high = std::string(key) == "tonic" ? 11 : 1;
+            if (!t[key].is_integer() || !n || *n < 0 || *n > high)
+                throw std::runtime_error(std::string("Invalid ") + key);
+            if (std::string(key) == "tonic")
+                p.sound.tonic = int(*n);
+            else if (std::string(key) == "scale")
+                p.sound.scale = int(*n);
+            else
+                p.sound.hold = int(*n);
+        }
+    }
     for (const auto &[key, value] : t)
         if (!allowed.count(std::string(key.str())))
             throw std::runtime_error("Unknown preset field: " + std::string(key.str()));
     if (t.contains("mode")) {
         auto value = t["mode"].value<std::string>();
         bool found = false;
-        for (int n = 0; n < 3; n++)
+        for (int n = 0; n < 4; n++)
             if (value && *value == modeName(PlaybackMode(n))) {
                 p.sound.mode = PlaybackMode(n);
                 found = true;
@@ -209,6 +230,7 @@ PresetDefinition readPreset(const std::string &path) {
                 p.sound.degreeCombinations[col][n] = quality(*row->get(n), true);
         }
     }
+    materialize(p.sound);
     return p;
 }
 PresetLibrary::PresetLibrary() {
@@ -230,6 +252,7 @@ PresetLibrary::PresetLibrary() {
         s.pattern = n + 4;
         s.bpm = tempos[n];
         s.chordProgram = backing[n];
+        s.padProgram = backing[n];
         s.harpProgram = front[n];
         s.chordPattern = chordPatterns[n];
         s.padMotion = padMotions[n];
@@ -238,6 +261,12 @@ PresetLibrary::PresetLibrary() {
 }
 const PresetDefinition &PresetLibrary::current(const Settings &s) const {
     return entries.at(std::clamp(s.preset, 0, int(entries.size()) - 1));
+}
+std::vector<int> PresetLibrary::order() const {
+    std::vector<int> result{1, 0}; // Presentation order; persisted indices and IDs stay stable.
+    for (int n = 2; n < int(entries.size()); n++)
+        result.push_back(n);
+    return result;
 }
 Settings PresetLibrary::resolved(int index) const {
     const auto &p = entries.at(index);
@@ -271,6 +300,11 @@ void PresetLibrary::load(const std::string &dir, Settings &s, bool canWrite) {
                 auto loaded = readPreset(path.string());
                 if (loaded.id != p.id)
                     throw std::runtime_error("Factory preset id changed");
+                if (p.id == "dream" && oldStockDream(loaded.sound)) {
+                    loaded.sound.chordProgram = 88;
+                    if (writable)
+                        writePreset(loaded, path.string());
+                }
                 p = loaded;
             } else if (writable)
                 writePreset(p, path.string());
@@ -309,6 +343,9 @@ void PresetLibrary::load(const std::string &dir, Settings &s, bool canWrite) {
                     auto w = readPreset(path.string());
                     if (w.id != p.id)
                         throw std::runtime_error("Working preset id mismatch");
+                    if (p.id == "dream" && oldStockDream(w.sound) &&
+                        p.sound.chordProgram == 88 && p.sound.padProgram == 89)
+                        w.sound.chordProgram = 88;
                     working[p.id] = w.sound;
                 }
             } catch (const std::exception &e) {

@@ -56,28 +56,41 @@ void Instrument::soundChord() {
 void Instrument::select(int column, uint64_t now) {
     if (baseColumn_ < 0 || !mask(baseColumn_))
         baseColumn_ = column;
-    Chord next{rootFor(settings.tonic, settings.scale, baseColumn_) + (pressed_['1'] ? 1 : 0), -1,
+    Chord next{settings.chordRoot(baseColumn_) + (pressed_['1'] ? 1 : 0), -1,
                baseColumn_, settings.quality(mask(baseColumn_), baseColumn_)};
     if (column != baseColumn_)
-        next.bass = rootFor(settings.tonic, settings.scale, column) + (pressed_['1'] ? 1 : 0);
+        next.bass = settings.chordRoot(column) + (pressed_['1'] ? 1 : 0);
     else if (active && chord.bass >= 0)
         for (int n = 0; n < 7; n++)
             if (n != baseColumn_ && mask(n))
-                next.bass = rootFor(settings.tonic, settings.scale, n) + (pressed_['1'] ? 1 : 0);
+                next.bass = settings.chordRoot(n) + (pressed_['1'] ? 1 : 0);
     bool starting = !active;
     selectedMask_ = mask(baseColumn_);
     selectedSharp_ = pressed_['1'];
     chord = next;
     active = true;
     pending_.clear();
-    if (starting) {
+    if (!chordPending_) {
+        chordStarting_ = starting;
+        chordDue_ = now + uint64_t(settings.combinationMs);
+    }
+    chordPending_ = true;
+    commitChord(now);
+}
+void Instrument::commitChord(uint64_t now) {
+    if (!chordPending_ || now < chordDue_)
+        return;
+    chordPending_ = false;
+    if (chordStarting_) {
         now_ = now;
         resetTransport();
     }
     soundChord();
 }
 void Instrument::pluck(int pitch, int index, uint64_t now) {
-    sink_.send(Command{CommandType::On, ++nextId_, pitch, 1600, Part::Harp});
+    const auto &envelope = settings.envelopes[0].values;
+    int duration = std::max(1600, std::max(0, envelope[0]) + std::max(0, envelope[1]) + 300);
+    sink_.send(Command{CommandType::On, ++nextId_, pitch, duration, Part::Harp});
     harpFlash = index;
     harpFlashUntil = now + 140;
 }
@@ -86,12 +99,16 @@ void Instrument::key(char key, bool down, uint64_t now) {
     auto k = static_cast<unsigned char>(key);
     if (k >= 128 || pressed_[k] == down)
         return;
+    commitChord(now);
     pressed_[k] = down;
     int col = columnFor(key);
     if (!down) {
         if (col >= 0 && !anyChordKey()) {
             baseColumn_ = -1;
             if (!settings.hold) {
+                // Preserve short taps without letting a delayed chord sound after release.
+                chordDue_ = now;
+                commitChord(now);
                 stopChord();
                 sink_.send(Command{CommandType::StopChord});
                 active = false;
@@ -105,19 +122,28 @@ void Instrument::key(char key, bool down, uint64_t now) {
         return;
     }
     auto harp = std::string("zxcvbnm").find(key);
-    if (harp != std::string::npos && active)
-        pluck(harpNotes(chord)[harp], int(harp), now);
-    if ((key == 'k' || key == 'l') && active) {
+    if (harp != std::string::npos && (active || settings.frontMode == 1))
+        pluck(playingFrontNotes()[harp], int(harp), now);
+    if (key == 'k' || key == 'l') {
         pending_.clear();
-        auto notes = harpNotes(chord);
-        for (int i = 0; i < 7; i++) {
-            int n = key == 'l' ? i : 6 - i;
-            pending_.push_back({now + uint64_t(i * settings.strumMs / 6), notes[n], n});
+        auto notes = playingFrontNotes();
+        if (settings.frontAction[settings.frontMode] == 1) {
+            int step = key == 'l' ? 1 : -1;
+            auto limits = std::minmax_element(notes.begin(), notes.end());
+            if (*limits.first + step * 12 >= 0 && *limits.second + step * 12 <= 127)
+                frontOctaveShift[settings.frontMode] += step;
+        } else if (active || settings.frontMode == 1) {
+            int time = settings.frontMode ? settings.scaleStrumMs : settings.strumMs;
+            for (int i = 0; i < 7; i++) {
+                int n = key == 'l' ? i : 6 - i;
+                pending_.push_back({now + uint64_t(i * time / 6), notes[n], n});
+            }
         }
     }
     if (key == 'i') {
         settings.hold = !settings.hold;
         if (!settings.hold && !anyChordKey()) {
+            chordPending_ = false;
             stopChord();
             sink_.send(Command{CommandType::StopChord});
             active = false;
@@ -125,39 +151,39 @@ void Instrument::key(char key, bool down, uint64_t now) {
         }
     }
     if (key == 'o') {
+        chordPending_ = false;
         sink_.send(Command{CommandType::StopChord});
-        settings.mode = PlaybackMode((int(settings.mode) + 1) % 3);
+        settings.mode = PlaybackMode((int(settings.mode) + 1) % 4);
+        Command config{CommandType::Configure};
+        config.settings = settings;
+        sink_.send(config);
         pending_.clear();
         resetTransport();
         soundChord();
     }
     if (key == '9' || key == '0') {
         Settings previous = settings;
-        library.select(settings,
-                       (settings.preset + (key == '0' ? 1 : int(library.entries.size()) - 1)) %
-                           int(library.entries.size()));
+        const auto order = library.order();
+        int position = int(std::find(order.begin(), order.end(), settings.preset) - order.begin());
+        library.select(settings, order[(position + (key == '0' ? 1 : int(order.size()) - 1)) %
+                                       int(order.size())]);
         if (active) {
-            chord.root += rootFor(settings.tonic, settings.scale, chord.column) -
-                          rootFor(previous.tonic, previous.scale, chord.column);
-            // Preserve the selected fingering under the new preset's mappings.
+            chord.root += settings.chordRoot(chord.column) -
+                          previous.chordRoot(chord.column);
+            // Preserve the selected fingering and app-wide mappings.
             chord.quality = settings.quality(selectedMask_, chord.column);
             if (chord.bass >= 0) {
                 int oldBass = (chord.bass - (selectedSharp_ ? 1 : 0)) % 12;
                 for (int col = 0; col < 7; col++)
-                    if (rootFor(previous.tonic, previous.scale, col) % 12 == oldBass) {
+                    if (previous.chordRoot(col) % 12 == oldBass) {
                         chord.bass =
-                            rootFor(settings.tonic, settings.scale, col) + (selectedSharp_ ? 1 : 0);
+                            settings.chordRoot(col) + (selectedSharp_ ? 1 : 0);
                         break;
                     }
             }
         }
         resetTransport();
         configure();
-    }
-    if (key == 'p') {
-        if (lastTap_ && now > lastTap_ && now - lastTap_ >= 250 && now - lastTap_ <= 1500)
-            settings.bpm = int(60000 / (now - lastTap_));
-        lastTap_ = now;
     }
     if (key == ' ')
         panic();
@@ -170,8 +196,9 @@ void Instrument::runTick(uint64_t now) {
         } else
             ++it;
     }
-    if (active) {
+    if (active && settings.mode != PlaybackMode::FrontOnly)
         phase_ += double(now - lastTick_) * settings.bpm / 15000.;
+    if (active && !chordPending_ && settings.mode != PlaybackMode::FrontOnly) {
         const auto &list = patterns(settings.mode);
         playingPattern_ = std::clamp(playingPattern_, 0, int(list.size()) - 1);
         if (nextTick_ + 32 < phase_)
@@ -214,6 +241,7 @@ void Instrument::runTick(uint64_t now) {
 }
 void Instrument::tick(uint64_t now) {
     now_ = now;
+    commitChord(now);
     if (previewUntil_) {
         if (now >= previewUntil_) {
             configure();
@@ -239,6 +267,7 @@ void Instrument::clearKeys() {
     baseColumn_ = -1;
 }
 void Instrument::panic() {
+    chordPending_ = false;
     sink_.send(Command{});
     chordVoices_.clear();
     pending_.clear();
@@ -248,6 +277,7 @@ void Instrument::panic() {
     harpFlash = -1;
 }
 void Instrument::configure() {
+    chordPending_ = false;
     settings.clamp();
     previewUntil_ = 0;
     sink_.send(Command{});
@@ -258,6 +288,23 @@ void Instrument::configure() {
     c.settings = settings;
     sink_.send(c);
     soundChord();
+}
+std::array<int, 7> Instrument::playingFrontNotes() const {
+    auto notes = frontNotes(chord, settings);
+    for (auto &note : notes)
+        note = std::clamp(note + 12 * frontOctaveShift[settings.frontMode], 0, 127);
+    return notes;
+}
+void Instrument::auditionFront(const Settings &s, int key) {
+    panic();
+    Command config{CommandType::Configure};
+    config.settings = s;
+    sink_.send(config);
+    Chord c{s.chordRoot(6), -1, 6, Quality::Major};
+    const auto &envelope = s.envelopes[0].values;
+    int duration = std::max(900, std::max(0, envelope[0]) + std::max(0, envelope[1]) + 300);
+    sink_.send(Command{CommandType::On, ++nextId_, frontNotes(c, s)[key],
+                       duration, Part::Harp});
 }
 void Instrument::audition(const Chord &c, const Settings &s, bool loop) {
     panic();
@@ -279,7 +326,7 @@ void Instrument::audition(const Chord &c, const Settings &s, bool loop) {
         active = false;
     } else {
         hit(15, 650);
-        sink_.send(Command{CommandType::On, ++nextId_, c.root + 24, 900, Part::Harp});
+        sink_.send(Command{CommandType::On, ++nextId_, std::clamp(c.root + 24, 0, 127), 900, Part::Harp});
     }
     settings = saved;
     chord = savedChord;

@@ -31,6 +31,27 @@ int main() {
                         CHECK(harp[i] > harp[i - 1]);
                 }
         }
+    {
+        Settings s;
+        CHECK(s.chordVolume == 80 && s.harpVolume == 100);
+        for (int tonic = 0; tonic < 12; tonic++) {
+            s.tonic = tonic;
+            for (int col = 0; col < 7; col++) CHECK(s.chordRoot(col) == rootFor(tonic, 0, col));
+            s.scale = 1;
+            for (int col = 0; col < 7; col++) CHECK(s.chordRoot(col) == rootFor(tonic, 0, col));
+        }
+        s.chordOctave = -1; s.degreeChordRoot[6] = 0;
+        for (int pitch : chordNotes({s.chordRoot(6), 7, 6, Quality::Major})) CHECK(pitch >= 0 && pitch <= 127);
+        Capture notes; Instrument player(notes); player.settings = s; player.settings.combinationMs = 0;
+        player.settings.degreeChordRoot[0] = 6; player.settings.degreeChordOctave[0] = 4;
+        player.key('2', true, 100); CHECK(player.chord.root == 66);
+        player.panic(); player.key('1', true, 200); player.key('2', true, 201);
+        CHECK(player.chord.root == 67);
+        auto front = player.settings; front.frontMode = 1;
+        auto before = frontNotes(player.chord, front);
+        front.degreeChordOctave[0] = 2; front.degreeChordRoot[0] = 1;
+        CHECK(frontNotes({front.chordRoot(0), -1, 0, Quality::Major}, front) == before);
+    }
     const Quality qualities[] = {Quality::Major,    Quality::Minor,  Quality::Diminished,
                                  Quality::Seventh,  Quality::Major7, Quality::Minor7,
                                  Quality::Augmented};
@@ -38,6 +59,7 @@ int main() {
         CHECK(qualityFor(mask) == qualities[mask - 1]);
     Capture sink;
     Instrument i(sink);
+    i.settings.combinationMs = 0; // Existing performance checks exercise immediate mode.
     i.key('8', true, 1);
     CHECK(chordName(i.chord) == "C");
     auto count = sink.events.size();
@@ -122,7 +144,7 @@ int main() {
     i.key('l', false, 1402);
     i.key('l', true, 1403);
     i.key('0', true, 1404);
-    CHECK(i.settings.preset == 1);
+    CHECK(i.settings.preset == 0);
     sink.events.clear();
     i.tick(1700);
     CHECK(sink.events.empty());
@@ -130,6 +152,7 @@ int main() {
     // Chord strikes are simultaneous and finite; manual mode never repeats.
     Capture modes;
     Instrument player(modes);
+    player.settings.combinationMs = 0;
     player.settings.bpm = 100;
     player.key('8', true, 0);
     player.key('8', false, 1);
@@ -141,7 +164,8 @@ int main() {
     player.key('o', false, 11);
     CHECK(player.settings.mode == PlaybackMode::Chord);
     CHECK(modes.events.front().type == CommandType::StopChord);
-    CHECK(modes.events.size() == 9); // StopChord + old note releases + four immediate notes.
+    CHECK(modes.events[1].type == CommandType::Configure &&
+          modes.events[1].settings.mode == PlaybackMode::Chord); // Renderer switches timbre too.
     CHECK(std::count_if(modes.events.begin(), modes.events.end(), [](const auto &c) {
               return c.type == CommandType::On && c.durationMs == 400;
           }) == 4);
@@ -215,15 +239,129 @@ int main() {
     CHECK(std::count_if(modes.events.begin(), modes.events.end(), [](const auto &c) {
               return c.type == CommandType::ChordGain && c.gain < .8f;
           }) > 10);
-    // Complete preset changes revoice a held chord in the new key and mapping.
+    // Front only selects/latches harmony without scheduling any backing notes.
+    player.panic();
+    player.settings.mode = PlaybackMode::Arp;
+    player.configure();
+    player.key('8', true, 2500000);
+    player.key('8', false, 2500001);
+    player.key('o', true, 2500002);
+    player.key('o', false, 2500003);
+    CHECK(player.settings.mode == PlaybackMode::FrontOnly && player.active);
+    modes.events.clear();
+    player.key('5', true, 2500010);
+    player.key('5', false, 2500011);
+    CHECK(player.active && chordName(player.chord) == "G");
+    for (int ms = 0; ms < 2000; ms += 10)
+        player.tick(2500010 + ms);
+    CHECK(std::none_of(modes.events.begin(), modes.events.end(),
+                       [](const Command &c) { return c.type == CommandType::On; }));
+    player.key('z', true, 2502100);
+    player.key('z', false, 2502101);
+    player.key('l', true, 2502200);
+    player.key('l', false, 2502201);
+    for (int ms = 0; ms < 500; ms += 10)
+        player.tick(2502200 + ms);
+    CHECK(std::count_if(modes.events.begin(), modes.events.end(), [](const Command &c) {
+              return c.type == CommandType::On && c.part == Part::Harp;
+          }) == 8);
+    CHECK(std::none_of(modes.events.begin(), modes.events.end(), [](const Command &c) {
+        return c.type == CommandType::On && c.part == Part::Chord;
+    }));
+    player.key('o', true, 2503000);
+    player.key('o', false, 2503001);
+    CHECK(player.settings.mode == PlaybackMode::Pad);
+    // Style changes preserve the app key, learned mappings, and held fingering.
     player.panic();
     player.library.entries[1].sound.tonic = 2;
     player.library.entries[1].sound.combinations[0] = int(Quality::Sus4);
     player.settings = player.library.entries[0].sound;
+    player.settings.tonic = 4;
+    player.settings.combinations[0] = int(Quality::No3);
     player.key('8', true, 3000000);
     player.key('u', true, 3000001);
     player.key('0', true, 3000002);
-    CHECK(chordName(player.chord) == "Dsus4" && player.settings.preset == 1);
+    CHECK(chordName(player.chord) == "Eno3" && player.settings.preset == 2);
+    // Recognition waits from the first button, never extending the deadline.
+    // Every order of each combination produces one completed backing attack.
+    for (auto mode : {PlaybackMode::Pad, PlaybackMode::Chord, PlaybackMode::Arp})
+        for (unsigned mask : combinationMasks) {
+            std::string keys;
+            const char rows[]{'8', 'u', 'j'};
+            for (int n = 0; n < 3; n++)
+                if (mask & (1u << n))
+                    keys += rows[n];
+            std::sort(keys.begin(), keys.end());
+            do {
+                Capture captured;
+                Instrument grouped(captured);
+                grouped.settings.mode = mode;
+                for (int n = 0; n < int(keys.size()); n++)
+                    grouped.key(keys[n], true, 100 + n * 14);
+                grouped.tick(129);
+                CHECK(captured.events.empty());
+                grouped.tick(130);
+                auto notes = chordNotes(grouped.chord);
+                CHECK(grouped.chord.quality == qualityFor(mask));
+                int n = 0;
+                for (const auto &event : captured.events)
+                    if (event.type == CommandType::On) {
+                        CHECK(event.part == Part::Chord && event.pitch == notes[n++]);
+                    }
+                CHECK(n == (mode == PlaybackMode::Arp ? 1 : 4));
+                // Releases retain the selected combination rather than retriggering partials.
+                captured.events.clear();
+                for (char key : keys)
+                    grouped.key(key, false, 131);
+                grouped.tick(132);
+                CHECK(captured.events.empty());
+            } while (std::next_permutation(keys.begin(), keys.end()));
+        }
+    Capture groupedEvents;
+    Instrument grouped(groupedEvents);
+    grouped.settings.mode = PlaybackMode::Chord;
+    grouped.key('8', true, 100);
+    grouped.key('u', true, 115);
+    grouped.key('z', true, 116);
+    CHECK(groupedEvents.events.size() == 1 && groupedEvents.events[0].part == Part::Harp);
+    groupedEvents.events.clear();
+    grouped.key('j', true, 128);
+    grouped.tick(130);
+    CHECK(groupedEvents.events.size() == 4 && chordName(grouped.chord) == "Caug");
+    grouped.panic();
+    groupedEvents.events.clear();
+    grouped.key('8', true, 200);
+    grouped.key('u', true, 231); // Outside the window: first attack commits before this event.
+    CHECK(groupedEvents.events.size() == 4);
+    grouped.tick(261);
+    CHECK(groupedEvents.events.size() == 8);
+    grouped.panic();
+    grouped.key('8', true, 300);
+    grouped.panic();
+    groupedEvents.events.clear();
+    grouped.tick(1000);
+    CHECK(groupedEvents.events.empty());
+    grouped.settings.hold = 0;
+    grouped.key('8', true, 1100);
+    grouped.key('8', false, 1105);
+    CHECK(!grouped.active);
+    groupedEvents.events.clear();
+    grouped.tick(1200);
+    CHECK(groupedEvents.events.empty());
+    // Later harmony changes do not restart the arpeggio's beat.
+    grouped.panic();
+    grouped.settings.hold = 1;
+    grouped.settings.mode = PlaybackMode::Arp;
+    grouped.key('8', true, 2000);
+    grouped.key('8', false, 2001);
+    grouped.tick(2030);
+    grouped.tick(2300);
+    groupedEvents.events.clear();
+    grouped.key('2', true, 2305);
+    grouped.tick(2320);
+    grouped.tick(2335);
+    CHECK(groupedEvents.events.size() == 1 &&
+          groupedEvents.events[0].pitch == chordNotes(grouped.chord)[1]);
     std::cout << "PASS: harmony, combinations, harp direction, hold, simultaneous chords, "
                  "patterns, phase and bounded scheduling\n";
 }

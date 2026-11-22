@@ -4,7 +4,11 @@
 150 DOWN up
 200 DOWN down
 220 DOWN up
-270 ENTER down
-290 ENTER up
+270 DOWN down
+290 DOWN up
 340 DOWN down
 360 DOWN up
+410 ENTER down
+430 ENTER up
+480 DOWN down
+500 DOWN up

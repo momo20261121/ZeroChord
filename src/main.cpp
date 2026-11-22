@@ -1,6 +1,7 @@
 #include "audio.hpp"
 #include "platform.hpp"
 #include "settings_io.hpp"
+#include "sounds.hpp"
 #include "ui.hpp"
 #include <algorithm>
 #include <atomic>
@@ -107,6 +108,9 @@ int main(int argc, char **argv) {
         std::signal(SIGTERM, signalHandler);
         lv_init();
         zc::Platform platform(headless);
+        zc::soundLibrary().load(std::filesystem::path(configPath()).parent_path().string(), bank);
+        if (!zc::soundLibrary().warning.empty())
+            std::cerr << zc::soundLibrary().warning;
         Silent silent;
         std::unique_ptr<zc::Audio> audio;
         if (!noAudio)
@@ -141,8 +145,11 @@ int main(int argc, char **argv) {
                 ui.key(key, down);
                 return;
             }
-            if (ui.settingsOpen)
+            if (ui.settingsOpen || ui.tempoOpen() || key == 'p') {
                 ui.key(key, down);
+                if (!ui.settingsOpen && !down)
+                    instrument.key(key, false, now);
+            }
             else
                 instrument.key(key, down, now);
         };

@@ -131,6 +131,7 @@ try:
         assert max(pad) > 1, 'Pad output was silent'
         assert max(chord_tail) < max(pad)*.0001, 'Manual chord kept sustaining or repeating'
         assert max(arp) > 1 and min(arp) < max(arp)*.001, 'Arp output has no quiet gaps'
+        tap(24)  # O: Front only
         tap(24)  # O: back to Pad
         emit(9, True)  # 8: C
         emit(36, True)  # J: Cmaj7
@@ -145,17 +146,19 @@ try:
         time.sleep(.5)
         tap(57)  # Space panic
         tap(15)  # Tab settings
-        tap(46)  # C tonic +1
-        tap(1)   # short Esc closes settings, app remains alive
+        framebuffer_capture(output/'style-settings-fb.ppm')
+        tap(106) # Right: App tab, no setting changes
+        tap(103); tap(28); tap(108) # Theme -> Chord config -> Key
+        tap(28); tap(108); tap(28) # C -> C#
+        tap(1); tap(1) # short Esc returns through config/settings; app remains alive
         assert process.poll() is None, 'short Esc incorrectly exited'
         tap(9)   # C# major
         tap(38)
         time.sleep(.3)
         # Edit shared no3 and a V-only sus4 override using actual evdev arrows.
         tap(15)  # Tab
-        for _ in range(3):
-            tap(108)  # Down -> Chord combinations
-        tap(28)  # Enter
+        tap(28) # Reopen Chord config
+        tap(108) # Key -> first combination
         tap(2)   # 1: All
         tap(28)
         tap(108)  # dim -> aug
@@ -208,44 +211,49 @@ try:
     with (output/'presets.log').open('w') as log:
         process = subprocess.Popen([str(binary)], cwd=root, env=environment, stdout=log, stderr=log)
         time.sleep(1.5)
-        tap(15)  # Tab: Key
-        tap(106) # Customize key
-        tap(14)  # Backspace: restore just key
-        for _ in range(8): tap(108)
-        tap(106) # BPM 100 -> 105
-        tap(28)  # Picker
-        tap(14)  # Highlight default 100
-        tap(1)   # Cancel: retain 105
-        for _ in range(2): tap(108)
-        tap(106) # Mode: Pad -> Chord
-        tap(108) # Chord pattern
-        tap(28); tap(108); tap(28) # Manual -> Every beat
+        tap(15)  # Tab: Style, Preset
+        tap(106) # App: Theme
+        tap(103); tap(28); tap(108) # Theme -> Chord config -> Key
+        tap(28); tap(108); tap(28) # Customize key C# -> D
+        tap(14)  # Backspace: restore just key to C
+        tap(28); tap(108); tap(108); tap(28) # D is app-wide
+        tap(108); tap(6) # Key -> first combination, V scope
+        framebuffer_capture(output/'global-combinations-fb.ppm')
+        tap(1) # Back to App
+        tap(106) # Style, Preset
+        tap(108) # Tempo
+        tap(28); tap(2); tap(11); tap(6); tap(28) # Type BPM 105
+        tap(28); tap(19); tap(1) # R selects default; cancel retains 105
+        tap(108) # Mode
+        tap(28); tap(108); tap(28) # Pad -> Chord
+        for _ in range(2): tap(108) # Mode -> Arp pattern -> Chord pattern
+        tap(28); tap(108); tap(28) # Every beat
         tap(108) # Pad motion
         tap(28); tap(108); tap(108); tap(28) # Breathe
-        for _ in range(5): tap(108)
-        tap(105) # Master volume 100 -> 95
-        tap(108); tap(106) # Theme -> Light
+        tap(106) # App, combinations (remembered row)
+        tap(108) # Theme (wrap)
+        tap(108) # Master
+        tap(28); tap(103); tap(28) # 100 -> 95
+        tap(103); tap(28); tap(108); tap(28) # Theme -> Light
         framebuffer_capture(output/'light-settings-fb.ppm')
-        tap(108); tap(28); tap(108); tap(28) # Save as User001
-        tap(1) # Back to performance
-        tap(11) # Next preset -> Harp
-        tap(10) # Previous preset -> User001 with remembered settings
-        tap(9)  # Play User001's repeating chord pattern
+        tap(106) # Style, Pad motion (remembered row)
+        for _ in range(7): tap(108) # Pad motion -> Save as
+        tap(28); tap(108); tap(28) # User001
+        tap(1)
+        tap(11); tap(10) # Switch presets, preserving global key/mappings
+        tap(9)
         time.sleep(.8)
         framebuffer_capture(output/'preset-performance-fb.ppm')
-        tap(24) # Customize Mode to Arp before full restore
-        tap(15) # Tab, selection remains Save as
-        tap(103) # Theme
-        tap(105) # Light -> Dark for a clear factory-preset screenshot later
-        tap(106) # Restore Light
-        tap(108); tap(108) # Restore preset
-        tap(28); tap(108); tap(28) # Confirm; preserve global master/theme
+        tap(24) # Customize Mode before restore
+        tap(15); tap(108) # Style, Restore preset
+        tap(28); tap(108); tap(28)
         framebuffer_capture(output/'preset-restore-fb.ppm')
         process.send_signal(2)
         assert process.wait(timeout=5) == 0, 'preset customization exit failed'
     settings = dict(line.split() for line in saved.read_text().splitlines())
-    assert settings['tonic'] == '0' and settings['bpm'] == '105', 'individual reset/cancel or preset recall failed'
+    assert settings['tonic'] == '2' and settings['bpm'] == '105', 'individual reset/cancel or preset recall failed'
     assert settings['mode'] == '1' and settings['chordPattern'] == '1' and settings['padMotion'] == '2', 'preset patterns not retained'
+    assert settings['combo3'] == '7' and settings['degree3combo3'] == '9', 'preset operation changed app mappings'
     assert settings['masterVolume'] == '95' and settings['theme'] == '1', 'preset reset changed app controls'
     config_root = saved.parent
     assert 'User001' in (config_root/'presets/user/user-001.toml').read_text(), 'save-as TOML missing'
@@ -256,7 +264,7 @@ try:
         tap(9); time.sleep(.8)
         framebuffer_capture(output/'preset-reload-fb.ppm')
         tap(15)
-        tap(108); tap(108); tap(28) # Preset dropdown
+        tap(28) # Style opens with Preset at top
         framebuffer_capture(output/'presets-fb.ppm')
         tap(1); tap(1)
         process.send_signal(2)

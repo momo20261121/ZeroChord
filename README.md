@@ -37,30 +37,35 @@ Combine rows in one column for maj7, m7, diminished, or augmented chords.
 Hold one column and press another for a slash bass.
 
 **Z X C V B N M** play ascending harp notes. **K** strums down, **L** strums up.
-**9/0** select the previous/next preset. **I** toggles hold; **O** cycles Pad → Chord → Arp;
-**P** taps tempo. Hold **1** when choosing a chord to sharpen its root.
-**Space** stops all sound. **Tab** opens settings; **Up/Down** select and
-**Left/Right** change values. **Enter** opens a choice list; **Enter** confirms
-and **Esc** cancels. **F/X** and **Z/C** also work. Short **Esc** goes back; holding
+**9/0** select the previous/next preset. **I** toggles hold; **O** cycles Pad → Chord → Arp → Front only;
+**P** opens a numeric tempo editor (40–240 BPM). Hold **1** when choosing a chord to sharpen its root.
+**Space** stops all sound. **Tab** opens settings; **←/→** switches Style/App tabs and
+**↑/↓** selects a row. **Enter** opens a choice list; **Enter** confirms
+and **Esc** cancels. **F/X** and **Z/C**, the device's printed arrows, also work
+throughout settings, including nested editors and choice lists. Short **Esc** goes back; holding
 **Esc** for 800 ms exits. System Home/forced quit is handled by the launcher;
 SIGINT and SIGTERM also cleanly stop audio.
 
+**Style → Pad sound** and **Chord sound** are independent; Arp uses Chord sound.
+
 The **O** modes change what a chord button (for example **8**) plays:
 
+- **Front only:** chord buttons select harmony silently; Z–M and K/L play it.
 - **Pad:** a continuous background chord while Hold is on.
 - **Chord:** all notes strike together with a clear attack and falling envelope.
   Manual hit plays once per press; optional rhythmic patterns repeat the chord.
 - **Arp:** rhythmic chord tones repeat, with Up/Down/Up-down, alternating bass,
   Pop, R&B, Rock, Waltz, and Bossa choices. Up at 100 BPM starts a note every 300 ms.
 
-**K/L** remain manual foreground sweeps in every mode. The backing sound stays
-separate from the foreground sound. Space stops everything and preserves the mode.
+**K/L** strum the front notes or shift their octave, configured per front-note
+mode in **App → Front notes → All**. The backing sound stays separate. Space stops everything and preserves the mode.
 Pad motion can be Steady, Slow swell, Breathe, or Pulse.
 
-Nine complete factory presets: Harp, Dream, Keys, Organ, Pop, R&B, Rock, Waltz,
-and Bossa. Each includes key/scale, sounds, BPM, mode/patterns, Hold, effects,
-levels, sweep duration, and chord mappings. Switching recalls that preset's
-remembered edits. Only **Master volume** and **Theme** are app-wide.
+Nine complete factory presets: Dream, Harp, Keys, Organ, Pop, R&B, Rock, Waltz,
+and Bossa. Each includes sounds, BPM, and mode/patterns. Switching recalls its remembered edits. **App** settings contain
+Theme, Master/Backing/Front volume, Echo, Hold, Front notes, and
+Chord config (Key, shared/per-degree octaves, absolute roots, mappings and recognition timing);
+these survive preset switching and restoration.
 
 **Backspace restores the highlighted setting to its preset default.** A `*` marks
 customization. **Save as new preset** creates an editable copy; **Restore preset**
@@ -68,27 +73,38 @@ resets all musical settings with confirmation. Defaults and remembered edits are
 separate TOML files under `~/.config/zerochord/` (or `$XDG_CONFIG_HOME/zerochord/`).
 The active legacy setup migrates automatically. Changes save on clean exit;
 startup is silent. See the [preset guide](docs/PRESETS.md) for the file format,
-volume inheritance, patterns, and restore behavior.
+app-wide controls, patterns, and restore behavior.
 
 ### Customize chord combinations
 
-Open **Tab → Chord combinations → Enter**. The four combined presses retain
+Open **Tab → App → Chord config → Enter**. **Octave comes first** on All and every degree tab.
+All also contains **Key**; each degree has an absolute **Root** override (C–B),
+with **Follow Key** to restore its normal degree. Octaves are absolute numbers;
+per-degree **Follow All** inherits the shared octave. Changing Key transposes only
+default roots, preserving explicit roots and octaves.
+
+ The four combined presses retain
 minichord defaults: top+middle = dim, top+bottom = maj7, middle+bottom = m7,
 all three = aug. Each can be assigned any chord quality, including **no3**
 (root/fifth), **sus2**, and **sus4**. Single-button major/minor/7 rows stay fixed.
 
 - **1** edits the shared mapping for all degrees.
+- **←/→** also switches scope tabs.
 - **2–8** select **II, III, IV, V, VI, VII, I**, matching the playing keyboard.
-- **Up/Down** selects a combination; **Enter** opens its choices. Sound/chord
+- **↑/↓** selects a combination; **Enter** opens its choices. Sound/chord
   choices audition automatically; Enter saves the highlighted choice, Esc cancels.
 - Individual degrees start **Inherited**. Choosing a quality makes it **Custom**;
   **Follow All** removes that override. Shared edits preserve custom overrides.
-- **Left/Right** changes a mapping directly. Reset actions require Enter and a
-  confirmation; restore the degree or shared mappings to the preset defaults.
+- **↑/↓** selects a mapping; **Enter** opens its editor. Reset actions require a
+  confirmation; restore the degree or shared mappings to the app defaults.
   Backspace restores only the highlighted mapping.
 
-Mappings follow degrees when key/scale changes, and affect chord, harp, and arp
+Default roots follow Key using major-scale degrees; custom roots are absolute notes.
+Front Scale mode has its own major/minor selector. Mappings affect chord, harp, and arp
 notes. Releasing part of a combination preserves the selected harmony.
+**All → Combination window** groups near-simultaneous chord buttons into one
+attack: the trial default is 30 ms, adjustable Off–60 ms in 5 ms steps. Front
+notes stay immediate. Longer windows catch more stagger but delay backing more.
 
 ## Build locally
 
@@ -114,7 +130,38 @@ build/desktop/M5CardputerZero-ZeroChord
 build/desktop/zerochord-render .tools/soundfonts/TimGM6mb.sf2 build/demo.wav
 ```
 
-For hardware, configure with `-DZEROCHORD_DESKTOP=OFF` and
-`-DZEROCHORD_TEST_SOUNDFONT=/usr/share/sounds/sf2/TimGM6mb.sf2`.
+### Build for the device on macOS
+
+```sh
+.venv/bin/python scripts/build_device.py
+sh scripts/deploy_device.sh
+```
+
+The first command installs checksum-verified Zig 0.15.2 inside `.tools/`, then
+cross-compiles the Linux ARM64 framebuffer app into `build/cross-device/`.
+Compiler caches also stay in `.tools/`; subsequent builds are incremental.
+No VM, device sysroot, or system-wide install is required. The target uses glibc
+2.36 compatibility and a statically linked C++ runtime. See the
+[official Zig downloads](https://ziglang.org/download/) for the compiler source.
+
+Deployment uses the workspace's `ssh_config` and existing development wrapper
+at `${HOME}/ZeroChord`. It verifies the transferred binary's checksum, stops
+the old preview cleanly so settings save, retains a `.previous` binary, and
+reopens the app. A launch failure restores the previous binary. Nothing compiles
+on the CardputerZero. This updates the development preview; packaging is separate.
+
 See the [testing guide](docs/TESTING.md) for the device workflow and remaining
 hands-on checks.
+
+## Named sounds and front notes
+
+The sound picker offers ten named sounds in Keys, Plucked, Strings, and Pads.
+←/→ changes category; ↑/↓ auditions sounds; Enter saves; Esc cancels.
+Older saved sounds remain available without expanding the built-in selection.
+Pad, Chord/Arp, and Front can each use built-in or imported sounds.
+
+Put `.sf2` files or named packs in `~/ZeroChord/sounds/` on the TF card and restart.
+See [custom sound packs](sounds/README.md) for locations, naming, and limits.
+In **App → Front notes**, choose Chord notes or Scale notes on the All tab,
+configure K/L as Strum or Octave shift, and set each key’s note and actual octave.
+←/→ navigates All and Z–M tabs. See [front-note controls](docs/FRONT_NOTES.md).

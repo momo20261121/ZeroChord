@@ -4,7 +4,7 @@
 
 namespace zc {
 const std::array<Preset, 4> presets = {
-    {{"Harp", 48, 46}, {"Dream", 89, 10}, {"Keys", 4, 24}, {"Organ", 16, 11}}};
+    {{"Harp", 48, 46}, {"Dream", 88, 10, 89}, {"Keys", 4, 24}, {"Organ", 16, 11}}};
 int columnFor(char key) {
     for (const std::string row : {"2345678", "qwertyu", "asdfghj"}) {
         auto n = row.find(key);
@@ -87,7 +87,7 @@ std::array<int, 4> chordNotes(const Chord &c) {
         int bass = c.bass;
         while (bass >= c.root)
             bass -= 12;
-        n[0] = bass;
+        n[0] = std::max(0, bass);
     }
     return n;
 }
@@ -114,26 +114,49 @@ const char *degreeName(int column) {
     return names[column];
 }
 const char *modeName(PlaybackMode mode) {
-    static const char *names[] = {"Pad", "Chord", "Arp"};
+    static const char *names[] = {"Pad", "Chord", "Arp", "Front only"};
     return names[int(mode)];
 }
 bool PerformanceSettings::operator==(const PerformanceSettings &b) const {
-    return std::tie(mode, chordProgram, harpProgram, chordPattern, padMotion, chordVolume,
-                    harpVolume, echo, strumMs, bpm, pattern) ==
-           std::tie(b.mode, b.chordProgram, b.harpProgram, b.chordPattern, b.padMotion,
-                    b.chordVolume, b.harpVolume, b.echo, b.strumMs, b.bpm, b.pattern);
+    return std::tie(mode, chordProgram, harpProgram, padProgram, chordSound, padSound, frontSound,
+                    chordPattern, padMotion, bpm, pattern, envelopes) ==
+           std::tie(b.mode, b.chordProgram, b.harpProgram, b.padProgram, b.chordSound, b.padSound,
+                    b.frontSound, b.chordPattern, b.padMotion, b.bpm, b.pattern, b.envelopes);
+}
+int Settings::chordRoot(int column) const {
+    int octave = degreeChordOctave[column] == -2 ? chordOctave : degreeChordOctave[column];
+    int pitch = degreeChordRoot[column] < 0 ? rootFor(tonic, 0, column) % 12 : degreeChordRoot[column];
+    return pitch + 12 * (octave + 1);
 }
 void Settings::clamp() {
+    chordOctave = std::clamp(chordOctave, -1, 7);
+    for (auto &root : degreeChordRoot) root = std::clamp(root, -1, 11);
+    for (auto &octave : degreeChordOctave) octave = std::clamp(octave, -2, 7);
+    for (auto &envelope : envelopes)
+        for (int n = 0; n < 4; n++)
+            envelope.values[n] = std::clamp(envelope.values[n], -1, n == 2 ? 100 : 5000);
+    combinationMs = std::clamp(combinationMs, 0, 60);
+    frontMode = std::clamp(frontMode, 0, 1);
+    for (auto &action : frontAction)
+        action = std::clamp(action, 0, 1);
+    scaleStrumMs = std::clamp(scaleStrumMs, 60, 600);
+    for (int n = 0; n < 7; n++) {
+        frontSource[n] = std::clamp(frontSource[n], -1, 4);
+        frontOffset[n] = std::clamp(frontOffset[n], 0, 11);
+        frontOctave[n] = std::clamp(frontOctave[n], -2, 9);
+        frontDegree[n] = std::clamp(frontDegree[n], 0, 6);
+        scaleOctave[n] = std::clamp(scaleOctave[n], -2, 9);
+    }
     tonic = std::clamp(tonic, 0, 11);
     scale = std::clamp(scale, 0, 1);
     preset = std::clamp(preset, 0, 127);
-    mode = PlaybackMode(std::clamp(int(mode), 0, 2));
+    mode = PlaybackMode(std::clamp(int(mode), 0, 3));
     chordProgram = std::clamp(chordProgram, -1, 127);
     harpProgram = std::clamp(harpProgram, -1, 127);
+    padProgram = std::clamp(padProgram, -1, 127);
     chordPattern = std::clamp(chordPattern, 0, 4);
     padMotion = std::clamp(padMotion, 0, 3);
     hold = !!hold;
-    presetLevel = std::clamp(presetLevel, 0, 100);
     masterVolume = std::clamp(masterVolume, 0, 100);
     theme = std::clamp(theme, 0, 1);
     chordVolume = std::clamp(chordVolume, 0, 100);
@@ -149,5 +172,28 @@ void Settings::clamp() {
             if (row[n] < -1 || row[n] >= qualityCount)
                 row[n] = -1;
     }
+}
+std::array<int, 7> frontNotes(const Chord &chord, const Settings &s) {
+    auto result = harpNotes(chord);
+    const auto layout = result;
+    const auto tones = chordNotes({chord.root, -1, chord.column, chord.quality});
+    for (int n = 0; n < 7; n++) {
+        int octave = s.frontMode ? s.scaleOctave[n] : s.frontOctave[n];
+        if (s.frontMode) {
+            static constexpr int scale[2][7]{{0, 2, 4, 5, 7, 9, 11}, {0, 2, 3, 5, 7, 8, 10}};
+            result[n] = 60 + s.tonic + scale[s.scale != 0][s.frontDegree[n]];
+        } else {
+            if (s.frontSource[n] >= 0 && s.frontSource[n] < 4)
+                result[n] = tones[s.frontSource[n]] + 12;
+            if (s.frontSource[n] == 4)
+                result[n] = chord.root + 12 + s.frontOffset[n];
+            if (s.frontSource[n] >= 0 && octave == -2)
+                octave = layout[n] / 12 - 1;
+        }
+        if (octave != -2)
+            result[n] = (result[n] % 12 + 12) % 12 + 12 * (octave + 1);
+        result[n] = std::clamp(result[n], 0, 127);
+    }
+    return result;
 }
 } // namespace zc

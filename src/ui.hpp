@@ -10,6 +10,9 @@ class UI : public SettingsEditor {
   private:
     std::string previous_;
     void drawPicker();
+    void drawTempo();
+    void drawEnvelope();
     void drawCombinations();
+    void drawFrontNotes();
 };
 } // namespace zc

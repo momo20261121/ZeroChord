@@ -1,5 +1,84 @@
 # Testing ZeroChord
 
+## Menu navigation audit — 2026-11-21
+
+Physical printed arrows F/X/Z/C and dedicated arrow events now use the same
+navigation in every settings page and picker. Previously the Front notes and
+Chord combinations pages accepted only dedicated arrow events, leaving the
+device's printed arrows unresponsive. Local coverage walks all Style/App rows,
+both front modes and every key tab, and every chord scope, including wraparound,
+sound categories, preview isolation, Enter commit, Esc cancel, Backspace default,
+and Tab closing a pending edit. The main view separates each note plus octave
+from its keyboard label, checked locally at 320×170 in dark and light themes.
+
+## Front editor and combination recognition — 2026-11-21
+
+The local regression checks cover arrow-only front tabs, All/per-key restores,
+actual-octave migration, default layout preservation, chord/scale modes, per-mode
+K/L actions/times, octave bounds, and settings persistence across style changes.
+Combination recognition covers all row-button orders, a fixed first-press
+deadline, staggered three-button presses, late additions, immediate front notes,
+release stability, cancellation, and preserved rhythmic phase. The 30 ms trial
+default is adjustable; no hardware action-to-sound latency has been measured.
+
+## macOS cross-build — 2026-11-21
+
+The device app now builds locally with project-local Zig 0.15.2, targeting Linux
+ARM64 with glibc 2.36 compatibility. The first full build, including the compiler
+download, took 41.3 seconds on the development Mac. The produced ELF was copied
+to the CardputerZero with checksum verification and launched successfully with
+the framebuffer and normal audio enabled. No compilation or repeated test suites
+ran on the device. The previous native binary is retained for rollback.
+
+## Named sounds, packs, and front notes — 2026-11-21
+
+Local coverage adds curated/category picker transactions, manifest validation,
+real SF2 pad/chord/front routing, missing-pack fallback, stable IDs and preset
+round trips, front-key editors/reset/cancel/persistence, chord-aware versus fixed
+intervals, actual octaves, separate chord/scale layouts, and matching pluck/strum pitches. Five local
+suites pass. Both new editors are checked at 320×170 before one local ARM64 cross-build.
+A successful device audio launch is checked; the local suites are not rerun there.
+
+## App controls and menu order — 2026-11-21
+
+Volume, echo, and sweep are app-wide; preset level is removed. Style starts
+with Preset then Tempo; App starts with Theme. All four local suites pass,
+including app defaults, preservation across preset selection/restore/restart,
+legacy preset compatibility, and master scaling of dry and wet audio. The
+local 320×170 layout is checked before one native app build and launch; no
+repeat device test suite or package rebuild is needed for this iteration.
+
+## Separate sounds and Front only — 2026-11-21
+
+Pad sound and Chord sound are separate preset fields; Arp uses Chord sound.
+Older presets inherit their former backing sound for Pad. Local checks cover
+independent audio routing with the real SoundFont, foreground independence,
+per-field reset, preset round-trip, and legacy fallback. Front only tests verify
+silent chord selection, retained harmony, foreground notes/sweeps, mode cycling,
+and persistence. All four local suites passed before the device build. The
+updated native app was reopened; repeated device test suites and packaging
+were skipped for this iteration. The previous packaged release remains unchanged.
+
+
+## Tabbed settings update — 2026-11-21
+
+Settings now have Style and App tabs. Left/Right switches tabs without changing
+values; Up/Down selects rows and Enter opens a transactional editor. Each tab
+remembers its row. Preset is first on Style. Hold retains its existing name.
+
+App-wide key/scale, Hold, chord combinations, master volume, and theme survive
+preset selection, save-as, restoration, and restart. Style presets retain BPM,
+sounds, patterns, levels, echo, and sweep timing. Version 1 files remain readable;
+new version 2 preset files omit app fields. Tests cover the upgrade with a legacy
+working snapshot whose app values differ from the active settings.
+
+The four desktop and native suites passed. Both tabs were visually checked at
+320×170. A focused real-evdev check passed for tab switching, Enter/cancel, tempo
+editing, preset recall, global settings persistence, restart, and framebuffer
+capture. The broad device audio integration suite was not repeated for this UI
+change. The updated preview was reopened with the user’s setup preserved.
+
+
 ## Desktop first, hardware early
 
 The [official CardputerZero template](https://github.com/CardputerZero/Template)
@@ -72,32 +151,45 @@ build/desktop/zerochord-render .tools/soundfonts/TimGM6mb.sf2 build/demo.wav
 start. `--no-save` prevents test settings from overwriting user settings; tests
 that need known defaults should also use an isolated `XDG_CONFIG_HOME`.
 
-### 3. Native device validation
+### 3. Cross-build locally, validate the launch on device
 
-Build on Linux AArch64 with a project-local CMake (or an existing installation):
+After the relevant desktop checks, run on the Mac:
+
+```sh
+.venv/bin/python scripts/build_device.py
+sh scripts/deploy_device.sh
+```
+
+Zig and its caches stay in `.tools/`; the ARM64 binary and incremental objects
+stay in `build/cross-device/`. Deployment uses the existing SSH host and wrapper,
+checks the copied binary's SHA256, saves settings by stopping the old preview
+cleanly, preserves its binary, and launches the new one. It verifies the service
+and child process after two seconds and restores the old binary if startup fails.
+The sound bank remains supplied by the device's Debian package. The installed
+APPLaunch package is separate from this development preview.
+
+Normal iterations require no on-device compilation or repeated local suites.
+Use focused hardware integration only for an observed regression or a specific
+physical input, framebuffer, audio backend, or lifecycle risk.
+
+#### Native compilation: diagnostic fallback only
+
+If deliberately investigating a compiler difference on Linux AArch64:
 
 ```sh
 .tools/cmake/bin/cmake -S . -B build/device -DZEROCHORD_DESKTOP=OFF \
   -DCMAKE_BUILD_TYPE=Release \
   -DZEROCHORD_TEST_SOUNDFONT=/usr/share/sounds/sf2/TimGM6mb.sf2
-.tools/cmake/bin/cmake --build build/device -j1
-.tools/cmake/bin/ctest --test-dir build/device --output-on-failure
-python3 scripts/device_input_test.py
+.tools/cmake/bin/cmake --build build/device --target ZeroChord -j1
 ```
 
-For development from macOS, `scripts/prepare_device.py` makes an ignored source
-archive using a Linux ARM64 CMake wheel downloaded into `.tools/downloads`:
+The device has about 352 MiB usable RAM. Parallel C++ compilation can exhaust
+memory and stall SSH; do not use it as the normal development build host.
 
-```sh
-.venv/bin/python -m pip download --no-deps --only-binary=:all: \
-  --platform manylinux2014_aarch64 cmake==3.31.6 -d .tools/downloads
-python3 scripts/prepare_device.py
-```
+#### Focused hardware integration
 
-Copy the resulting `.tools/zerochord-device-source.tar.gz` to the device and
-extract it in a user-owned development directory. The bank stays supplied by
-the device's `timgm6mb-soundfont` package. The bundle includes project-local CMake,
-LVGL, miniaudio, TinySoundFont, and toml++, but excludes macOS tools and SDL.
+Run `python3 scripts/device_input_test.py` on the device only when that broader
+check is justified. It needs the development test fixtures on the device.
 
 The integration test creates a temporary uinput keyboard and passes its event
 path only to ZeroChord. It stops the user's `APPLaunch.service` for display
@@ -275,3 +367,37 @@ nor `--auto-install-cardputer` is passed; package creation does not install syst
 files or restart the launcher. It rejects non-AArch64 binaries, strips the staged
 binary, retains license notices, and produces `dist/zerochord_0.1.0_arm64.deb`.
 Requires Python 3.9+, GNU `strip`, and `dpkg-deb` on the packaging host.
+
+### Tempo, tabs and preset isolation (2026-11-21)
+
+The local menu audit covers both dedicated arrows and the physical F/X/Z/C
+arrows across Style, App, all front tabs, all chord scopes, and sound groups.
+Numeric tempo tests cover shared P/menu entry, save/cancel, deletion, range
+validation, preset default, and unchanged audio transport. Preset tests edit two
+styles, restore one, and reload to verify the other survives. Dream stock
+migration preserves customized defaults and working snapshots. Layouts are
+rendered locally at 320×170 for both themes and every tab layout, including
+the tempo popup and performance hints. The ARM64 binary is cross-built locally
+and deployed once, with only a launch check on the device.
+
+## Envelopes and chord configuration
+
+Local regression coverage checks independent Front/Chord/Pad ADSR routing,
+attack and release timing, decay/sustain level, release on StopChord, optional
+TOML validation/persistence, and preset-scoped restore. The menu audit walks all
+controls with dedicated arrows and physical F/X/Z/C arrows, exercising preview,
+save, cancel and default restore. Chord checks cover octave inheritance, absolute
+roots staying fixed across key changes, root/scale independence, sharp, MIDI
+bounds, settings persistence and preset operations preserving App settings.
+Layouts are captured locally at 320×170 before one ARM cross-build and deploy;
+no full second test suite is run on the device.
+
+This batch passed all five local suites, and the changed pages were inspected in
+both themes at 320×170. The Mac ARM64 cross-build completed in six seconds;
+the transferred binary passed the preview service/process launch check.
+
+## Broad physical-key scenario audit
+
+See [the scenario review](SCENARIO_REVIEW.md) for the 80% backing default,
+reproduced bugs, physical Z/C/F/X workflows, rendered-audio checks, sanitizer
+results, design observations and local reproduction commands.

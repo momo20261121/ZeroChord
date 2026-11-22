@@ -19,6 +19,7 @@ class PresetLibrary {
     void load(const std::string &configDirectory, Settings &settings, bool writable = true);
     void save(Settings &settings);
     Settings resolved(int index) const;
+    std::vector<int> order() const;
     void select(Settings &settings, int index);
     bool modified(const Settings &settings) const;
     void restore(Settings &settings);

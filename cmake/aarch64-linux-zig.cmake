@@ -1,0 +1,16 @@
+# Zig supplies Linux headers, glibc stubs and a static C++ runtime. No device
+# sysroot or host package manager is needed. glibc 2.36 runs on the device's 2.41.
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
+get_filename_component(ZEROCHORD_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+set(CMAKE_C_COMPILER "${ZEROCHORD_ROOT}/scripts/zig-cc")
+set(CMAKE_CXX_COMPILER "${ZEROCHORD_ROOT}/scripts/zig-cxx")
+set(CMAKE_AR "${ZEROCHORD_ROOT}/.tools/zig/zig" CACHE FILEPATH "" FORCE)
+set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> ar qc <TARGET> <LINK_FLAGS> <OBJECTS>")
+set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> ar qc <TARGET> <LINK_FLAGS> <OBJECTS>")
+set(CMAKE_C_ARCHIVE_FINISH "")
+set(CMAKE_CXX_ARCHIVE_FINISH "")
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
