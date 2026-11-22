@@ -6,11 +6,14 @@ scope; preserve previously agreed behavior unless the request changes it.
 ## Branches
 
 - Keep `main` for tested releases; tag each release as `v<version>`.
-- Use short-lived `feature/<name>` or `fix/<name>` branches for development.
-  Create one before changing application code while on `main`.
-- Merge a completed release into `main`, then delete its merged development
-  branch. There is no permanent `dev` branch.
+- Use `dev` for development toward the next release (currently 1.1.0).
+  Switch to it before changing application code while on `main`.
+- Merge into `main` only when the release is tested and ready.
+- `dev` is local-only: never push it or set it to track a remote. Only `main` and
+  `v<version>` may be pushed, and only with authorization. `scripts/install_git_guard.sh`
+  installs a pre-push hook that refuses `dev`.
 - Do not rewrite existing release history or push without authorization.
+- Release with the `/publish` workflow (`.claude/skills/publish/SKILL.md`).
 
 ## Privacy
 

@@ -2,20 +2,20 @@
 
 <img src="assets/share/images/zerochord.png" alt="ZeroChord icon" width="96" height="96">
 
-**A pocket chord-and-harp instrument for CardputerZero. Version 1.0.0.**
+**A pocket chord-and-harp instrument for CardputerZero. Version 1.1.0.**
 
 Play a chord with one hand and pick or strum its notes with the other.
-Choose a soft Pad, a clear Chord, a rhythmic Arp, or Front only. Nine editable
+Combine a soft Pad, a clear Chord, and a rhythmic Arp, or play Front only. Nine editable
 presets give you a starting point; sounds, envelopes and tempo are adjustable.
 
 ![ZeroChord performance screen](docs/images/release-performance.png)
 
 ## Install
 
-Copy `zerochord_1.0.0_arm64.deb` to the CardputerZero, then run there:
+Copy `zerochord_1.1.0_arm64.deb` to the CardputerZero, then run there:
 
 ```sh
-sudo apt install ./zerochord_1.0.0_arm64.deb
+sudo apt install ./zerochord_1.1.0_arm64.deb
 systemctl --user restart APPLaunch.service
 ```
 
@@ -29,7 +29,7 @@ needed to play once installed.
 1. Press **8** for a C major chord. The app starts silently until you play.
 2. Play **Z X C V B N M** to pick its notes. **L** strums up; **K** strums down.
 3. Try **8 → 5 → T → 4** for C → G → Am → F in the default key of C.
-4. Press **O** to cycle Pad → Chord → Arp → Front only. **I** toggles Hold.
+4. Press **O** to choose backing layers (Chord, Pad, Arp, or none for Front only). **I** toggles Hold.
 5. Press **Space** to stop sound. Hold **Esc** to return to the launcher.
 
 ## Essential controls
@@ -41,7 +41,7 @@ needed to play once installed.
 | K / L | Down/up strum, or octave down/up when configured |
 | 9 / 0 | Previous/next preset |
 | 1 + chord | Sharpen that chord root |
-| I / O / P | Hold / backing mode / type a tempo |
+| I / O / P | Hold / backing layers / type a tempo |
 | Tab | Settings |
 | Z / C | Previous/next settings tab (printed ←/→) |
 | F / X | Previous/next row or choice (printed ↑/↓) |
@@ -52,14 +52,20 @@ needed to play once installed.
 **Hold** keeps a chord selected after release. **Chord → Sustained** keeps its
 sound going too; **Manual hit** sounds once. Pad and Front use their own sounds.
 
-## Learn and customize
+## Using ZeroChord
 
 - [User guide](docs/USER_GUIDE.md): playing, modes, settings, EQ and troubleshooting.
+  Open Tab → **About** on the device for the version and a QR code to this repository.
 - [Presets](docs/PRESETS.md): sounds, envelopes, defaults and editable files.
 - [Front notes](docs/FRONT_NOTES.md): chord/scale modes and per-key mappings.
 - [Custom sound packs](sounds/README.md): importing your own SoundFonts.
 - [Release notes](CHANGELOG.md).
-- [Build instructions](docs/DEVELOPMENT.md) and [test details](docs/TESTING.md).
+
+## For developers
+
+- [Build and release](docs/DEVELOPMENT.md) and [testing](docs/TESTING.md).
+- [Design record](docs/DESIGN.md), [audio sourcing](docs/AUDIO_AND_REUSE.md) and the
+  [scenario review](docs/SCENARIO_REVIEW.md): dated project notes, not user documentation.
 
 Inspired by [minichord](https://minichord.com/) and Suzuki Omnichord.
 ZeroChord's source and original icon are [MIT licensed](LICENSE).

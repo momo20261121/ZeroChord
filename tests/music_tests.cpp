@@ -17,6 +17,98 @@ struct Capture : Sink {
     void send(const Command &c) override { events.push_back(c); }
 };
 int main() {
+    // 1 modifies new selections/plucks without retuning the current backing.
+    for (int frontMode : {0, 1})
+        for (auto mode : {PlaybackMode::Pad, PlaybackMode::Chord, PlaybackMode::Arp,
+                          PlaybackMode::FrontOnly}) {
+            Capture captured;
+            Instrument p(captured);
+            p.settings.combinationMs = 0;
+            p.settings.frontMode = frontMode;
+            p.settings.mode = mode;
+            p.settings.degreeChordRoot[6] = 11; // B -> C must cross the octave.
+            p.settings.frontSource[0] = 4;
+            p.settings.frontOffset[0] = 0;
+            p.settings.frontOctave[0] = 3;
+            p.settings.scaleOctave[0] = 3;
+            p.frontOctaveShift[frontMode] = -1;
+            p.key('8', true, 10);
+            p.key('5', true, 11); // Slash bass transposes with the chord.
+            p.key('8', false, 12);
+            p.key('5', false, 13);
+            auto before = p.playingFrontNotes();
+            auto harmony = p.chord;
+            auto count = captured.events.size();
+            p.key('1', true, 20);
+            CHECK(p.semitoneShift() == 1);
+            CHECK(p.chord == harmony && captured.events.size() == count);
+            auto raised = p.playingFrontNotes();
+            for (int n = 0; n < 7; n++) CHECK(raised[n] == before[n] + 1);
+            p.key('1', true, 21); // Key repeat cannot transpose twice.
+            CHECK(captured.events.size() == count && p.playingFrontNotes() == raised);
+            captured.events.clear();
+            p.key('z', true, 22);
+            p.key('z', false, 23);
+            CHECK(captured.events.size() == 1 && captured.events[0].pitch == raised[0]);
+            p.key('1', false, 24);
+            CHECK(p.semitoneShift() == 0 && p.chord == harmony);
+            CHECK(p.playingFrontNotes() == before);
+            // A fresh sharp selection stays sharp after 1 is released.
+            p.key('1', true, 30);
+            p.key('2', true, 31);
+            CHECK(p.chord.root == p.settings.chordRoot(0) + 1);
+            raised = p.playingFrontNotes();
+            p.key('1', false, 32);
+            CHECK(p.chord.root == p.settings.chordRoot(0) + 1);
+            auto released = p.playingFrontNotes();
+            for (int n = 0; n < 7; n++)
+                CHECK(released[n] == raised[n] - 1);
+            captured.events.clear();
+            p.key('1', true, 33);
+            CHECK(p.playingFrontNotes() == raised && captured.events.empty());
+            p.panic();
+            CHECK(p.semitoneShift() == 0);
+            p.key('8', true, 34);
+            CHECK(p.chord.root == p.settings.chordRoot(6));
+        }
+    {
+        Capture captured;
+        Instrument p(captured);
+        p.settings.frontMode = 1; // Scale notes work before any chord is selected.
+        auto before = p.playingFrontNotes();
+        p.key('1', true, 1);
+        CHECK(captured.events.empty() && !p.active);
+        p.key('z', true, 2);
+        CHECK(captured.events.back().pitch == before[0] + 1);
+        p.key('1', false, 3);
+        CHECK(p.playingFrontNotes() == before);
+        p.panic();
+        p.settings.frontMode = 0;
+        p.settings.mode = PlaybackMode::Chord;
+        p.key('8', true, 100);
+        p.key('1', true, 114); // A pending selection retains the pitch chosen at keydown.
+        CHECK(p.chord.root == 48);
+        p.tick(130);
+        int count = 0;
+        for (const auto &c : captured.events)
+            if (c.type == CommandType::On && c.part == Part::Chord)
+                CHECK(c.pitch == chordNotes(p.chord)[count++]);
+        CHECK(count == 4);
+        p.key('1', false, 140);
+        auto notes = p.playingFrontNotes();
+        captured.events.clear();
+        p.key('l', true, 200);
+        p.tick(200);
+        p.key('1', true, 201); // Already queued notes retain their original pitch.
+        p.tick(410);
+        count = 0;
+        for (const auto &c : captured.events)
+            if (c.type == CommandType::On && c.part == Part::Harp) {
+                CHECK(c.pitch == notes[count]);
+                ++count;
+            }
+        CHECK(count == 7);
+    }
     for (int tonic = 0; tonic < 12; tonic++)
         for (int scale = 0; scale < 2; scale++) {
             CHECK(rootFor(tonic, scale, 6) == 48 + tonic);
@@ -125,10 +217,12 @@ int main() {
     CHECK(!i.active);
     i.settings.hold = true;
     i.key('8', true, 1200);
-    i.key('o', true, 1201);
+    i.key('o', true, 1201); // Advance input time; O itself is handled by the popup.
+    i.setBackingMode(PlaybackMode((int(i.settings.mode) + 1) % 4));
     CHECK(i.settings.mode == PlaybackMode::Chord);
     i.key('o', false, 1201);
-    i.key('o', true, 1201);
+    i.key('o', true, 1201); // Advance input time; O itself is handled by the popup.
+    i.setBackingMode(PlaybackMode((int(i.settings.mode) + 1) % 4));
     CHECK(i.settings.mode == PlaybackMode::Arp);
     sink.events.clear();
     i.tick(1201);
@@ -158,14 +252,15 @@ int main() {
     player.key('8', false, 1);
     CHECK(modes.events.size() == 4);
     for (const auto &c : modes.events)
-        CHECK(c.durationMs == 0 && c.part == Part::Chord);
+        CHECK(c.durationMs == 0 && c.part == Part::Pad);
     modes.events.clear();
-    player.key('o', true, 10);
+    player.key('o', true, 10); // Advance input time; O itself is handled by the popup.
+    player.setBackingMode(PlaybackMode((int(player.settings.mode) + 1) % 4));
     player.key('o', false, 11);
     CHECK(player.settings.mode == PlaybackMode::Chord);
-    CHECK(modes.events.front().type == CommandType::StopChord);
-    CHECK(modes.events[1].type == CommandType::Configure &&
-          modes.events[1].settings.mode == PlaybackMode::Chord); // Renderer switches timbre too.
+    CHECK(std::count_if(modes.events.begin(), modes.events.end(), [](const Command &c) { return c.type == CommandType::StopChord; }) == 1);
+    CHECK(std::any_of(modes.events.begin(), modes.events.end(), [](const Command &c) {
+        return c.type == CommandType::Configure && c.settings.mode == PlaybackMode::Chord; })); // Renderer switches timbre too.
     CHECK(std::count_if(modes.events.begin(), modes.events.end(), [](const auto &c) {
               return c.type == CommandType::On && c.durationMs == 400;
           }) == 4);
@@ -182,7 +277,8 @@ int main() {
     CHECK(std::count_if(modes.events.begin(), modes.events.end(), [](const auto &c) {
               return c.type == CommandType::On && c.part == Part::Harp;
           }) == 7);
-    player.key('o', true, 2500);
+    player.key('o', true, 2500); // Advance input time; O itself is handled by the popup.
+    player.setBackingMode(PlaybackMode((int(player.settings.mode) + 1) % 4));
     player.key('o', false, 2501);
     modes.events.clear();
     for (int at : {2500, 2799, 2800, 3100, 3400, 3700})
@@ -190,7 +286,7 @@ int main() {
     CHECK(modes.events.size() == 5);
     auto notes = chordNotes(player.chord);
     for (int n = 0; n < 5; n++)
-        CHECK(modes.events[n].pitch == notes[n % 4] && modes.events[n].durationMs == 180);
+        CHECK(modes.events[n].pitch == notes[n % 4] && modes.events[n].durationMs == 285);
     // Changing harmony between steps keeps the beat, including after a tempo edit.
     modes.events.clear();
     player.key('2', true, 3750);
@@ -247,7 +343,8 @@ int main() {
     player.configure();
     player.key('8', true, 2500000);
     player.key('8', false, 2500001);
-    player.key('o', true, 2500002);
+    player.key('o', true, 2500002); // Advance input time; O itself is handled by the popup.
+    player.setBackingMode(PlaybackMode((int(player.settings.mode) + 1) % 4));
     player.key('o', false, 2500003);
     CHECK(player.settings.mode == PlaybackMode::FrontOnly && player.active);
     modes.events.clear();
@@ -270,7 +367,8 @@ int main() {
     CHECK(std::none_of(modes.events.begin(), modes.events.end(), [](const Command &c) {
         return c.type == CommandType::On && c.part == Part::Chord;
     }));
-    player.key('o', true, 2503000);
+    player.key('o', true, 2503000); // Advance input time; O itself is handled by the popup.
+    player.setBackingMode(PlaybackMode((int(player.settings.mode) + 1) % 4));
     player.key('o', false, 2503001);
     CHECK(player.settings.mode == PlaybackMode::Pad);
     // Style changes preserve the app key, learned mappings, and held fingering.
@@ -308,7 +406,7 @@ int main() {
                 int n = 0;
                 for (const auto &event : captured.events)
                     if (event.type == CommandType::On) {
-                        CHECK(event.part == Part::Chord && event.pitch == notes[n++]);
+                        CHECK(event.part == (mode == PlaybackMode::Pad ? Part::Pad : mode == PlaybackMode::Arp ? Part::Arp : Part::Chord) && event.pitch == notes[n++]);
                     }
                 CHECK(n == (mode == PlaybackMode::Arp ? 1 : 4));
                 // Releases retain the selected combination rather than retriggering partials.
@@ -389,6 +487,35 @@ int main() {
         }
         sustained.panic();
         CHECK(!sustained.active);
+    }
+    // Every checkbox combination shares harmony/tempo but keeps independent note routes.
+    for (unsigned layers = 0; layers < 8; ++layers) {
+        Capture captured; Instrument p(captured);
+        p.settings.mode = modeForLayers(layers); p.settings.combinationMs = 0;
+        p.settings.chordPattern = 0; p.settings.pattern = 0;
+        CHECK(backingLayers(p.settings.mode) == layers);
+        p.key('8', true, 100); p.key('8', false, 101); p.tick(101);
+        int count[4]{};
+        for (const auto &event : captured.events)
+            if (event.type == CommandType::On) ++count[int(event.part)];
+        CHECK(count[int(Part::Chord)] == ((layers & 1) ? 4 : 0));
+        CHECK(count[int(Part::Pad)] == ((layers & 2) ? 4 : 0));
+        CHECK(count[int(Part::Arp)] == ((layers & 4) ? 1 : 0));
+        CHECK(p.active && chordName(p.chord) == "C");
+        captured.events.clear();
+        p.key('z', true, 102); p.key('z', false, 103);
+        CHECK(captured.events.size() == 1 && captured.events[0].part == Part::Harp);
+        p.setBackingMode(PlaybackMode::FrontOnly);
+        captured.events.clear(); p.tick(5000);
+        CHECK(captured.events.empty() && p.active);
+    }
+    // The Waltz and Bossa bass notes sit below the harmony, rather than replacing its upper voice.
+    for (int pattern : {4, 7}) {
+        Capture captured; Instrument p(captured);
+        p.settings.mode = PlaybackMode::Chord; p.settings.chordPattern = pattern;
+        p.settings.combinationMs = 0; p.key('8', true, 100); p.tick(100);
+        CHECK(captured.events.back().type == CommandType::On);
+        CHECK(captured.events.back().pitch == p.chord.root - 12);
     }
     std::cout << "PASS: harmony, combinations, harp direction, hold, simultaneous chords, "
                  "patterns, phase and bounded scheduling\n";

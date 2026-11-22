@@ -48,8 +48,8 @@ void press(SettingsEditor &editor, char key) {
     editor.key(key, false);
 }
 void row(SettingsEditor &editor, int field) {
-    if ((editor.tab() == SettingsEditor::Tab::App) != SettingsEditor::appField(field))
-        press(editor, 20);
+    const auto target = SettingsEditor::appField(field) ? SettingsEditor::Tab::App : SettingsEditor::Tab::Style;
+    for (int n = 0; editor.tab() != target && n < 3; ++n) press(editor, 20);
     for (int n = 0; editor.selected() != field && n < SettingsEditor::settingCount; n++)
         press(editor, 18);
     CHECK(editor.selected() == field);
@@ -286,6 +286,30 @@ int main() {
     CHECK((legacy.eqDb == std::array<int, 3>{0, 0, 0}));
     CHECK(legacy.combinations == defaults.combinations &&
           legacy.degreeCombinations == defaults.degreeCombinations);
+    // O and the Style row open the same transactional checkbox editor, using physical F/X arrows.
+    for (unsigned initial = 0; initial < 8; ++initial) {
+        Capture captured; Instrument p(captured); SettingsEditor e(p);
+        p.settings.mode = modeForLayers(initial);
+        p.settings.combinationMs = 0; p.key('8', true, 10); p.key('8', false, 11);
+        auto harmony = p.chord; captured.events.clear();
+        press(e, 'o'); CHECK(e.backingOpen() && !e.settingsOpen);
+        press(e, '\n'); press(e, 'x'); press(e, '\n'); press(e, 'x'); press(e, '\n');
+        CHECK(e.pendingLayers() == (initial ^ 7u) && backingLayers(p.settings.mode) == initial);
+        CHECK(captured.events.empty());
+        press(e, 27); CHECK(!e.backingOpen() && backingLayers(p.settings.mode) == initial);
+        press(e, 'o'); press(e, '\n'); press(e, 'x'); press(e, '\n');
+        press(e, 'x'); press(e, '\n'); press(e, 'x'); press(e, '\n');
+        CHECK(!e.backingOpen() && backingLayers(p.settings.mode) == (initial ^ 7u));
+        CHECK(p.active && p.chord == harmony);
+        press(e, 'o'); press(e, '\b');
+        CHECK(e.pendingLayers() == backingLayers(p.library.current(p.settings).sound.mode));
+        press(e, 27);
+        press(e, 'o'); press(e, '\t');
+        CHECK(!e.backingOpen() && e.settingsOpen);
+        auto file = path + ".layers";
+        saveSettings(p.settings, file); Settings loaded; loadSettings(loaded, file);
+        CHECK(loaded.mode == p.settings.mode); std::filesystem::remove(file);
+    }
     // Audit every page/picker with both desktop arrow events and the physical
     // Cardputer's printed F/X/Z/C arrows. Previews must never commit settings.
     for (const auto nav : {std::array<char, 4>{17, 18, 19, 20},
@@ -315,6 +339,19 @@ int main() {
                 press(menu, '\n'); press(menu, 'r'); press(menu, '\n');
                 CHECK(walker.settings.bpm == walker.library.current(walker.settings).sound.bpm);
                 walker.settings = saved;
+                return;
+            }
+            if (page == SettingsEditor::Page::Setup && row == 10) {
+                CHECK(menu.backingOpen() && menu.pendingLayers() == backingLayers(saved.mode));
+                press(menu, '\n');
+                CHECK(state() == before && menu.pendingLayers() == (backingLayers(saved.mode) ^ 1u));
+                press(menu, down); CHECK(menu.backingRow() == 1);
+                press(menu, up); CHECK(menu.backingRow() == 0);
+                press(menu, 27); CHECK(!menu.backingOpen() && state() == before);
+                press(menu, '\n'); press(menu, '\n');
+                press(menu, down); press(menu, down); press(menu, down); press(menu, '\n');
+                CHECK(!menu.backingOpen() && backingLayers(walker.settings.mode) == (backingLayers(saved.mode) ^ 1u));
+                walker.settings = saved; walker.configure();
                 return;
             }
             CHECK(menu.pickerOpen() && !menu.choices().empty());
@@ -383,6 +420,22 @@ int main() {
             press(menu, down);
             press(menu, right);
         }
+        CHECK(menu.tab() == SettingsEditor::Tab::About && menu.rows().empty());
+        const auto beforeAbout = state();
+        for (char key : {up, down, char('\n'), char('\b'), 'r', '1', 'o', 'p'}) {
+            press(menu, key);
+            CHECK(menu.tab() == SettingsEditor::Tab::About && menu.selected() == -1);
+            CHECK(!menu.pickerOpen() && !menu.tempoOpen() && !menu.backingOpen());
+            CHECK(state() == beforeAbout);
+        }
+        press(menu, right);
+        CHECK(menu.tab() == SettingsEditor::Tab::Style && menu.selected() == 2);
+        press(menu, left);
+        CHECK(menu.tab() == SettingsEditor::Tab::About);
+        press(menu, 27); CHECK(!menu.settingsOpen);
+        press(menu, '\t'); CHECK(menu.tab() == SettingsEditor::Tab::About);
+        press(menu, left);
+        CHECK(menu.tab() == SettingsEditor::Tab::App && menu.selected() == 18);
         row(menu, 22);
         for (int mode = 0; mode < 2; mode++) {
             walker.settings.frontMode = mode;
@@ -511,7 +564,7 @@ int main() {
             press(tempo, 27);
         }
         press(tempo, 'p'); press(tempo, 'r');
-        CHECK(tempo.tempoText() == "100");
+        CHECK(tempo.tempoText() == "80");
         press(tempo, '\b'); press(tempo, '8'); press(tempo, '0'); press(tempo, '\n');
         CHECK(player.settings.bpm == 80 && captured.events.empty());
         press(tempo, 'p'); press(tempo, '\t');

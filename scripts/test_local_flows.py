@@ -59,14 +59,14 @@ def run(name, keys, expected, seed='', hold_escape=False):
     print('PASS:', name)
 
 
-run('fresh-defaults', [], {'chordVolume':80, 'harpVolume':100, 'preset':1})
+run('fresh-defaults', [], {'chordVolume':80, 'harpVolume':100, 'preset':1, 'mode':7, 'chordPattern':5, 'bpm':80})
 run('physical-volume-edit', ['TAB','c','x','x','ENTER','x','ENTER','x','ENTER','f','ENTER'],
     {'chordVolume':85, 'harpVolume':95})
 run('physical-volume-restore', ['TAB','c','x','x','BACKSPACE'],
     {'chordVolume':80, 'harpVolume':62}, 'chordVolume 37\nharpVolume 62\n')
 run('tempo-type-and-cancel', ['p','1','3','7','ENTER','p','2','4','0','ESC'], {'bpm':137})
 run('menu-tempo-type', ['TAB','x','ENTER','4','0','ENTER'], {'bpm':40})
-run('tempo-invalid-stays-open', ['p','2','4','1','ENTER'], {'bpm':100})
+run('tempo-invalid-stays-open', ['p','2','4','1','ENTER'], {'bpm':80})
 run('absolute-roots-and-octaves',
     ['TAB','c','f','ENTER','x','ENTER','x','ENTER','c','ENTER']+['x']*7+
     ['ENTER','c','f','ENTER']+['x']*6+['ENTER'],
@@ -75,7 +75,7 @@ run('front-scale-physical',
     ['TAB','c','f','f','ENTER','ENTER','x','ENTER','x','ENTER','x','ENTER'],
     {'frontMode':1,'scale':1})
 run('envelope-physical', ['TAB']+['x']*7+['ENTER','ENTER']+['x']*6+['ENTER','c','x','ENTER']+
-    ['x']*5+['ENTER'], {'envelope00':100,'envelope11':50})
+    ['f']*4+['ENTER'], {'envelope00':100,'envelope11':50})
 run('picker-cancel-physical', ['TAB']+['x']*7+['ENTER','ENTER']+['x']*6+['ESC'], {'envelope00':-1})
 run('light-volume-editor', ['TAB','c','x','x','ENTER'], {'theme':1,'chordVolume':80}, 'theme 1\n')
 run('long-escape-saves', ['TAB','c','x','x','ENTER','x','ENTER'], {'chordVolume':85}, hold_escape=True)
@@ -84,5 +84,16 @@ run('eq-physical-edit-cancel', ['TAB','c']+['x']*5+['ENTER']+['x']*6+
     {'eqLowDb':6,'eqMidDb':-3,'eqHighDb':0})
 run('eq-physical-restore', ['TAB','c']+['x']*5+['BACKSPACE'],
     {'eqLowDb':0,'eqMidDb':-3,'eqHighDb':2}, 'eqLowDb 6\neqMidDb -3\neqHighDb 2\ntheme 1\n')
-run('sustained-chord-physical', ['TAB']+['x']*4+['ENTER','x','ENTER'], {'chordPattern':5})
-print('PASS: 15 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')
+run('sustained-chord-physical', ['TAB']+['x']*4+['ENTER','ENTER'], {'chordPattern':5})
+run('backing-popup-cancel', ['o','ENTER','ESC'], {'mode':7})
+run('backing-all-layers', ['o','x','x','x','ENTER'], {'mode':7})
+run('backing-front-only', ['o','ENTER','x','ENTER','x','ENTER','x','ENTER'], {'mode':3})
+run('backing-style-popup', ['TAB','x','x','ENTER','x','x','x','ENTER'], {'mode':7})
+run('backing-popup-preview', ['o','ENTER','x','x','ENTER'], {'mode':7})
+run('front-source-rate', ['TAB']+['x']*6+['ENTER'], {'harpProgram':10})
+run('mixed-source-rate', ['TAB']+['x']*8+['ENTER'], {'chordProgram':88})
+run('strings-source-rate', ['TAB']+['x']*6+['ENTER','c'], {'harpProgram':10})
+run('about-dark', ['TAB','c','c','x','ENTER','BACKSPACE'], {'theme':0, 'preset':1})
+run('about-light', ['TAB','c','c'], {'theme':1}, 'theme 1\n')
+run('about-wrap', ['TAB','z','c','x','ENTER','1','3','7','ENTER'], {'bpm':137})
+print('PASS: 26 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')

@@ -5,6 +5,7 @@
 #include "music.hpp"
 #include <cmath>
 #include <algorithm>
+#include <set>
 #include <tsf.h>
 namespace zc {
 std::vector<SoundFontPreset> soundfontPresets(tsf *synth) {
@@ -15,13 +16,24 @@ std::vector<SoundFontPreset> soundfontPresets(tsf *synth) {
     }
     return result;
 }
+std::vector<int> soundfontSampleRates(tsf *synth, int bank, int program) {
+    if (!synth) return {};
+    int index = tsf_get_presetindex(synth, bank, program);
+    if (index < 0) return {};
+    const auto &preset = synth->presets[index];
+    std::set<int> rates;
+    for (int n = 0; n < preset.regionNum; ++n)
+        if (preset.regions[n].sample_rate)
+            rates.insert(int(preset.regions[n].sample_rate));
+    return {rates.begin(), rates.end()};
+}
 void soundfontPanic(tsf *synth) {
     for (int n = 0; n < synth->voiceNum; n++)
         synth->voices[n].playingPreset = -1;
 }
 void soundfontEnvelope(tsf *synth, int channel, int pitch, int rate, const Envelope &settings) {
     if (settings == Envelope{})
-        return; // Keep the original sample envelope and rhythmic articulation byte-for-byte.
+        return; // Keep the native sample envelope (with a bounded attack/release for backing).
     const auto &v = settings.values;
     for (int n = 0; n < synth->voiceNum; n++) {
         auto &voice = synth->voices[n];
@@ -51,15 +63,13 @@ void soundfontArticulate(tsf *synth, int channel, int pitch, int rate, bool sust
         if (voice.playingPreset < 0 || voice.playingChannel != channel ||
             voice.ampenv.segment >= TSF_SEGMENT_RELEASE)
             continue;
-        auto envelope = voice.region->ampenv;
+        auto envelope = voice.ampenv.parameters;
+        // Keep each instrument's native decay/sustain and note-dependent timing.
+        // Only prevent slow pad attacks/tails from obscuring rhythmic backing.
         envelope.delay = 0;
-        envelope.attack = std::min(envelope.attack, 0.005f);
-        envelope.hold = 0;
-        envelope.keynumToHold = 0;
-        envelope.decay = 0.22f;
-        envelope.sustain = sustained ? 0.65f : 0.08f;
-        envelope.keynumToDecay = 0;
-        envelope.release = std::min(envelope.release, sustained ? 0.08f : 0.03f);
+        envelope.attack = std::min(envelope.attack, 0.01f);
+        envelope.keynumToHold = envelope.keynumToDecay = 0;
+        envelope.release = std::min(envelope.release, sustained ? 0.25f : 0.2f);
         tsf_voice_envelope_setup(&voice.ampenv, &envelope, pitch, voice.ampenv.midiVelocity,
                                  TSF_TRUE, float(rate));
     }

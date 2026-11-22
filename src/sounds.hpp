@@ -27,6 +27,7 @@ class SoundLibrary {
     std::vector<std::string> categories() const;
     std::string name(int program, const std::string &id) const;
     int selected(int program, const std::string &id) const;
+    std::string sampleRateLabel(int choice) const;
 };
 SoundLibrary &soundLibrary();
 struct SoundFontPreset {
@@ -34,6 +35,7 @@ struct SoundFontPreset {
     int bank, program;
 };
 std::vector<SoundFontPreset> soundfontPresets(tsf *synth);
+std::vector<int> soundfontSampleRates(tsf *synth, int bank, int program);
 void soundfontPanic(tsf *synth);
 void soundfontEnvelope(tsf *synth, int channel, int pitch, int rate, const Envelope &settings);
 void soundfontArticulate(tsf *synth, int channel, int pitch, int rate, bool sustained = false);

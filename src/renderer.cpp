@@ -90,7 +90,7 @@ void Renderer::send(const Command &c) {
     if (c.type == CommandType::ChordGain) {
         s.chordGain = std::clamp(c.gain, 0.f, 1.f);
         for (int i = 0; i < 64; i++)
-            if (s.voices[i].part == Part::Chord)
+            if (s.voices[i].part == Part::Pad && s.voices[i].synth)
                 tsf_channel_set_volume(s.voices[i].synth, i,
                                        s.settings.chordVolume / 100.f * s.chordGain *
                                            s.voices[i].gain);
@@ -98,7 +98,7 @@ void Renderer::send(const Command &c) {
     }
     if (c.type == CommandType::StopChord) {
         for (int i = 0; i < 64; i++)
-            if (s.voices[i].part == Part::Chord) {
+            if (s.voices[i].part != Part::Harp && s.voices[i].synth) {
                 if (s.voices[i].releaseOverride) {
                     if (s.voices[i].held)
                         tsf_channel_note_off(s.voices[i].synth, i, s.voices[i].pitch);
@@ -128,19 +128,15 @@ void Renderer::send(const Command &c) {
     if (s.voices[slot].synth)
         tsf_channel_sounds_off_all(s.voices[slot].synth, slot);
     const auto &preset = presets[std::clamp(s.settings.preset, 0, 3)];
-    int program = c.part == Part::Chord ? s.settings.chordProgram : s.settings.harpProgram;
-    if (c.part == Part::Chord && s.settings.mode == PlaybackMode::Pad && s.settings.padProgram >= 0)
-        program = s.settings.padProgram;
+    const bool front = c.part == Part::Harp;
+    const bool pad = c.part == Part::Pad;
+    int program = front ? s.settings.harpProgram : pad ? s.settings.padProgram : s.settings.chordProgram;
     if (program < 0)
-        program = c.part == Part::Chord
-                      ? (s.settings.mode == PlaybackMode::Pad && preset.padProgram >= 0
-                             ? preset.padProgram : preset.chordProgram)
-                      : preset.harpProgram;
+        program = front ? preset.harpProgram : pad && preset.padProgram >= 0
+                      ? preset.padProgram : preset.chordProgram;
     tsf *synth = s.synth;
-    const std::string &soundId =
-        c.part == Part::Harp
-            ? s.settings.frontSound
-            : (s.settings.mode == PlaybackMode::Pad ? s.settings.padSound : s.settings.chordSound);
+    const std::string &soundId = front ? s.settings.frontSound
+                                    : pad ? s.settings.padSound : s.settings.chordSound;
     auto *sound = soundLibrary().find(soundId);
     if (sound && !sound->bank.empty()) {
         auto it = s.synths.find(sound->bank);
@@ -154,26 +150,21 @@ void Renderer::send(const Command &c) {
         tsf_channel_set_presetnumber(synth, slot, program, 0);
     else
         tsf_channel_set_bank_preset(synth, slot, sound->bankNumber, program);
-    tsf_channel_set_volume(
-        synth, slot,
-        (c.part == Part::Chord ? s.settings.chordVolume * s.chordGain : s.settings.harpVolume) /
-            100.f * c.gain);
-    tsf_channel_note_on(synth, slot, c.pitch, c.part == Part::Chord ? 0.68f : 0.9f);
-    const bool sustained = s.settings.mode == PlaybackMode::Chord &&
-                           s.settings.chordPattern == sustainedChordPattern;
-    if (c.part == Part::Chord && (c.durationMs > 0 || sustained)) {
-        // Timed chord notes need articulation even when their preset is a pad.
-        // Dream's bank envelope has a 606 ms attack and 2.57 s release, longer
-        // than an arp step. Change only the new voices, never shared SF2 regions.
-        // This adapter uses the envelope API internal to the pinned TSF version.
-        soundfontArticulate(synth, slot, c.pitch, s.rate, sustained && c.durationMs == 0);
-    }
-    int envelopePart = c.part == Part::Harp ? 0 : (s.settings.mode == PlaybackMode::Pad ? 2 : 1);
+    unsigned layers = backingLayers(s.settings.mode);
+    int layerCount = int(bool(layers & 1)) + int(bool(layers & 2)) + int(bool(layers & 4));
+    float balance = front ? 1.f : 1.f / std::sqrt(float(std::max(1, layerCount)));
+    float gain = c.gain * balance;
+    tsf_channel_set_volume(synth, slot,
+        (front ? s.settings.harpVolume : s.settings.chordVolume * (pad ? s.chordGain : 1.f)) / 100.f * gain);
+    tsf_channel_note_on(synth, slot, c.pitch, front ? 0.9f : std::clamp(.68f * c.gain, 0.f, 1.f));
+    if (!front && !pad)
+        soundfontArticulate(synth, slot, c.pitch, s.rate, c.durationMs == 0);
+    int envelopePart = front ? 0 : pad ? 2 : 1;
     soundfontEnvelope(synth, slot, c.pitch, s.rate, s.settings.envelopes[envelopePart]);
     s.voices[slot] = {
         c.id,        c.pitch, c.durationMs ? s.frame + uint64_t(c.durationMs) * s.rate / 1000 : 0,
         s.frame + 1, true,    c.part,
-        c.gain,      synth, s.settings.envelopes[envelopePart].values[3] >= 0};
+        gain,        synth, s.settings.envelopes[envelopePart].values[3] >= 0};
 }
 void Renderer::render(float *stereo, int frames) {
     auto &s = *impl_;

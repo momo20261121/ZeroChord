@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
                 ui.key(key, down);
                 return;
             }
-            if (ui.settingsOpen || ui.tempoOpen() || key == 'p') {
+            if (ui.settingsOpen || ui.tempoOpen() || ui.backingOpen() || key == 'p' || key == 'o') {
                 ui.key(key, down);
                 if (!ui.settingsOpen && !down)
                     instrument.key(key, false, now);

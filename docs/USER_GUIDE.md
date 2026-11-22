@@ -1,4 +1,4 @@
-# ZeroChord 1.0 user guide
+# ZeroChord user guide
 
 ZeroChord turns your CardputerZero keyboard into a chord-and-harp instrument.
 Select a chord, then play its individual front notes. The backing and front
@@ -7,7 +7,7 @@ parts have separate sounds and envelopes.
 ## Start playing
 
 Open ZeroChord from APPLaunch. Startup is silent. The initial preset is Dream,
-with a soft Pad backing and a bright front sound in the key of C.
+with Chord, Pad and Arp backing layers and a bright front sound in the key of C.
 
 Press **8**, then play **Z X C V B N M**. Try **8 → 5 → T → 4** for C, G, Am, F.
 Press **Space** to stop everything. Hold **Esc** for about a second to exit.
@@ -35,13 +35,26 @@ Combine buttons **within a column** for more chord qualities:
 For example **8 + U** selects C diminished. Press the buttons close together;
 the default 30 ms combination window groups them into one attack. Change that
 window, or assign no3/sus2/sus4, in **App → Chord config**.
-Holding **1** while selecting a chord sharpens its root and the front chord
-notes that follow it. Front Scale notes follow their chosen key/scale instead.
+Hold **1** while selecting a chord to raise its root and bass by one semitone.
+Releasing **1** leaves that selected chord unchanged; the next chord selection
+uses the modifier's current state. The main page shows **+1** while held and the
+chord grid shows the roots the next selection will use.
+Front Chord notes follow the selected chord; holding **1** raises new front notes
+one semitone above those pitches. For example, over C# a new root note becomes D
+while 1 is held, and returns to C# for notes played after release.
+In Scale mode, **1** sharpens new front notes independently of the backing chord.
+Front-note labels match the next notes. Ringing notes and queued K/L strums
+retain the pitches they started with.
 Hold one column and press another to choose a different bass note.
 
 ## Backing modes and Hold
 
-Press **O** to cycle through these modes. The pattern is selected in Style.
+Press **O**, or open **Style → Backing layers**, for the same checkbox popup.
+Use **↑/↓** (printed **F/X**) to select Chord, Pad or Arp, then **Enter** to
+toggle it. Select **Apply** and press Enter to save all changes together.
+**Esc** cancels; **Backspace** or **R** selects the preset defaults for confirmation.
+Select none for Front only; select several to layer them. The selected harmony
+stays latched when applying layers. Their patterns are set separately in Style.
 
 | Mode | What the chord buttons do |
 | --- | --- |
@@ -51,9 +64,12 @@ Press **O** to cycle through these modes. The pattern is selected in Style.
 | Front only | Select harmony silently, ready for Z–M and K/L |
 
 In Chord mode, **Manual hit** plays once, **Sustained** keeps the sound going,
-and Every beat/Offbeat/Syncopated/Waltz repeat the chord rhythmically.
-Arp choices include Up, Down, Up/down, Alternating bass, Pop, R&B, Rock,
-Waltz and Bossa. They do not add a drum track.
+and Every beat, Every eighth, Offbeat, Syncopated, Bass/chord 3/4 and Bossa
+accompaniment repeat it rhythmically. Bass events play an octave below the chord.
+Arp choices are Up, Down, Up/down, Root and upper notes, Broken eighths and
+Syncopated notes. Previously saved mixed patterns remain playable. They do not
+add a drum track. Multiple backing layers share tempo and harmony; Pad motion
+changes only Pad. The mixer balances combined backing layers to leave headroom.
 
 **I** toggles **Hold**. On keeps the selected harmony after releasing its buttons.
 Off stops backing when the chord buttons are released. Hold does not repeat
@@ -84,7 +100,7 @@ Esc cancels a preview. Sound choices also use ←/→ for categories. Tempo uses
 a number popup: type 40–240 and press Enter. **P** opens the same popup while
 playing. Short Esc goes back; hold Esc exits the app.
 
-**Style** starts with Preset, Tempo, Mode and patterns, followed by Front,
+**Style** starts with Preset, Tempo, Backing layers and patterns, followed by Front,
 Chord and Pad sounds/envelopes. **App** contains Theme, volumes, Echo, EQ,
 Hold, Front notes and Chord config.
 
@@ -123,7 +139,7 @@ Front, Chord and Pad each have their own envelope. Arp uses Chord's envelope.
 | Sustain | Level while the note is active |
 | Release | Fade after the note stops |
 
-**Sound default** keeps the sound's original behavior or the mode's default
+**Sound default** keeps the sound's original decay/sustain, with bounded backing
 chord articulation. A recorded one-shot sound cannot continue beyond its sample
 just by increasing Sustain. Restore envelope affects only that part.
 
@@ -135,6 +151,13 @@ its own Octave and absolute Root. Follow All/Follow Key removes an override.
 Root, octave and combination mappings remain the same when switching presets.
 Front Scale notes have their own major/minor setting under Front notes → All.
 
+### About
+
+Tab → **About** (after Style and App) shows the running version, a note that the
+user guide and more details are in the repository, and a QR code for the GitHub
+source and documentation. The code stays black on white in either theme and works
+offline; your phone needs network access to open the page. Esc returns to playing.
+
 ## Add your own sounds
 
 Copy named SoundFont packs into `ZeroChord/sounds/` on the TF card, or
@@ -142,6 +165,8 @@ Copy named SoundFont packs into `ZeroChord/sounds/` on the TF card, or
 built-in sound set. Front, Chord and Pad can each choose an imported sound.
 See [the sound pack guide](../sounds/README.md) for the manifest and size limits.
 Use sound files whose license permits your intended use.
+An optional, checksum-verified Grand Piano (FluidR3) pack can be fetched with
+`scripts/fetch_piano_pack.py`; it is not part of the installed package.
 
 ## Troubleshooting
 

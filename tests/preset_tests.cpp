@@ -1,4 +1,5 @@
 #include "presets.hpp"
+#include "patterns.hpp"
 #include "settings_editor.hpp"
 #include "settings_io.hpp"
 #include <chrono>
@@ -22,8 +23,8 @@ void press(SettingsEditor &e, char k) {
     e.key(k, false);
 }
 void row(SettingsEditor &e, int r) {
-    if ((e.tab() == SettingsEditor::Tab::App) != SettingsEditor::appField(r))
-        press(e, 20);
+    const auto target = SettingsEditor::appField(r) ? SettingsEditor::Tab::App : SettingsEditor::Tab::Style;
+    for (int n = 0; e.tab() != target && n < 3; ++n) press(e, 20);
     while (e.selected() != r)
         press(e, 18);
 }
@@ -88,7 +89,7 @@ int main() {
         CHECK(samePresetSettings(dream, loaded));
         reloaded.restore(loaded);
         CHECK(!reloaded.modified(loaded));
-        CHECK(loaded.bpm == 100 && loaded.tonic == 2 && loaded.scale == 1 &&
+        CHECK(loaded.bpm == 80 && loaded.tonic == 2 && loaded.scale == 1 &&
               loaded.combinations[0] == int(Quality::No3) &&
               loaded.degreeCombinations[3][3] == int(Quality::Sus4));
         CHECK(loaded.masterVolume == 47 && loaded.theme == 1);
@@ -171,8 +172,9 @@ int main() {
         CHECK(instrument.settings.bpm == 135);
         row(editor, 10);
         press(editor, '\n');
-        choose(editor, int(PlaybackMode::Arp));
-        press(editor, '\n');
+        CHECK(editor.backingOpen());
+        press(editor, 'x'); press(editor, 'x'); press(editor, '\n'); // Arp only.
+        press(editor, 'x'); press(editor, '\n'); // Apply.
         CHECK(instrument.settings.mode == PlaybackMode::Arp);
         press(editor, '\b');
         CHECK(instrument.settings.mode == PlaybackMode::FrontOnly);
@@ -320,14 +322,45 @@ int main() {
         std::string protectedText;
         std::getline(protectedFile, protectedText);
         CHECK(protectedText == "keep this unfinished file");
+        // Combined layers retain their exact selection through editable preset files.
+        for (unsigned layers = 0; layers < 8; ++layers) {
+            auto preset = lib.entries[4]; preset.sound.mode = modeForLayers(layers);
+            writePreset(preset, (dir / "layers.toml").string());
+            CHECK(readPreset((dir / "layers.toml").string()).sound.mode == preset.sound.mode);
+        }
         // New defaults and stock Dream migration preserve custom Dream and other presets.
         PresetLibrary defaults;
         Settings start;
         defaults.load((dir / "clean").string(), start);
         CHECK(defaults.current(start).id == "dream" && defaults.order().front() == 1);
         CHECK(start.chordProgram == 88 && start.padProgram == 89 && start.harpProgram == 10);
+        CHECK(start.mode == PlaybackMode::All && start.chordPattern == sustainedChordPattern);
+        for (int preset : {0, 1, 2})
+            CHECK(defaults.entries[preset].sound.chordPattern == sustainedChordPattern);
+        // Previous preview stock upgrades, but a chosen Manual hit override survives.
+        auto previewDir = dir / "preview";
+        auto previewDream = defaults.entries[1];
+        previewDream.sound.mode = PlaybackMode::Pad;
+        previewDream.sound.chordPattern = 0;
+        writePreset(previewDream, (previewDir / "presets/factory/dream.toml").string());
+        writePreset(previewDream, (previewDir / "working/dream.toml").string());
+        PresetLibrary preview;
+        Settings previewSettings;
+        preview.load(previewDir.string(), previewSettings);
+        CHECK(preview.entries[1].sound.mode == PlaybackMode::All);
+        CHECK(preview.entries[1].sound.chordPattern == sustainedChordPattern);
+        // A modified definition and its working copy are never mistaken for stock.
+        previewDream.sound.bpm = 137;
+        writePreset(previewDream, (previewDir / "presets/factory/dream.toml").string());
+        writePreset(previewDream, (previewDir / "working/dream.toml").string());
+        PresetLibrary previewCustom;
+        previewCustom.load(previewDir.string(), previewSettings);
+        CHECK(previewCustom.entries[1].sound.chordPattern == 0);
+        CHECK(previewCustom.entries[1].sound.bpm == 137);
         auto oldDream = defaults.entries[1];
-        oldDream.sound.chordProgram = 89;
+        oldDream.sound = Settings{};
+        oldDream.sound.chordProgram = oldDream.sound.padProgram = 89;
+        oldDream.sound.harpProgram = 10;
         writePreset(oldDream, (dir / "clean/presets/factory/dream.toml").string());
         writePreset(oldDream, (dir / "clean/working/dream.toml").string());
         defaults.save(start);
@@ -347,7 +380,7 @@ int main() {
         PresetLibrary envelopes;
         Settings envelopeSettings;
         envelopes.load(envelopeDir.string(), envelopeSettings);
-        CHECK(envelopeSettings.envelopes == Settings{}.envelopes);
+        CHECK(envelopeSettings.envelopes == envelopes.entries[1].sound.envelopes);
         envelopeSettings.envelopes[0].values = {20, 300, 65, 700};
         envelopeSettings.envelopes[1].values = {0, 100, 20, 30};
         envelopeSettings.envelopes[2].values = {1000, 2000, 90, 3000};
@@ -368,7 +401,7 @@ int main() {
         CHECK(restoredEnvelopes.envelopes == savedEnvelopes);
         envelopeReload.select(restoredEnvelopes, 1);
         envelopeReload.restore(restoredEnvelopes);
-        CHECK(restoredEnvelopes.envelopes == Settings{}.envelopes);
+        CHECK(restoredEnvelopes.envelopes == envelopes.entries[1].sound.envelopes);
         envelopeReload.select(restoredEnvelopes, 0);
         CHECK(restoredEnvelopes.envelopes[0].values[0] == 40);
         std::ofstream(dir / "invalid-envelope.toml") << "schema_version=2\nid='bad'\nname='Bad'\nfront_sustain_percent=101\n";

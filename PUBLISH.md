@@ -1,43 +1,46 @@
-# ZeroChord 1.0.0 release record
+# ZeroChord 1.1.0 release record
 
-Status: **release prepared, installed, and tested on the development Cardputer.**
-Git release: `main`, tagged `v1.0.0`; the completed `dev` branch is retired.
+Status: **released.** Package built, installed and tested on the development Cardputer;
+Git release: `main`, tagged `v1.1.0`. `dev` is local-only and is never pushed.
 Store submission is separate from source-repository synchronization.
+Previous release: `v1.0.0`.
 
 ## Package
 
 | Field | Value |
 | --- | --- |
 | Package | `zerochord` |
-| Version | `1.0.0`, from [VERSION.txt](VERSION.txt) |
+| Version | `1.1.0`, from [VERSION.txt](VERSION.txt) |
 | Architecture | `arm64` |
-| Release file | [dist/zerochord_1.0.0_arm64.deb](dist/zerochord_1.0.0_arm64.deb) |
-| Size | 784,212 bytes |
-| SHA-256 | `de2d9795097b85b4cd0be0a461a7597f64df14f767dc7648b32979e5e3f89d1a` |
-| Checksum file | [dist/zerochord_1.0.0_arm64.deb.sha256](dist/zerochord_1.0.0_arm64.deb.sha256) |
+| Release file | `dist/zerochord_1.1.0_arm64.deb` (not tracked by Git) |
+| Size | 811,624 bytes |
+| SHA-256 | `6ac80aa183620c048fa03b969a0426b68aee21f95b71c26489d291377905f01a` |
+| Checksum file | `dist/zerochord_1.1.0_arm64.deb.sha256` |
+| Executable SHA-256 | `5339efb2391425b618559db24f093e5bf2f8ae552939da6b730c898aaa5aa095` |
 | Maintainer configuration | Set `ZEROCHORD_MAINTAINER` locally before packaging |
 | Dependencies | `libc6 (>= 2.36), libpulse0, timgm6mb-soundfont` |
 | Source URL configuration | Optional `ZEROCHORD_HOMEPAGE`; see [.env.example](.env.example) |
 | Source/icon license | MIT; [third-party notices](THIRD_PARTY_NOTICES.md) included |
 
-The binary is cross-compiled on macOS, stripped at link time, and about 1.8 MB.
-The C++ runtime is linked statically. The runtime SoundFont is a Debian dependency,
-not included in the archive. No install hooks or credentials are packaged.
+The binary is cross-compiled on macOS (Zig, Linux ARM64, glibc 2.36) with a statically
+linked C++ runtime. The runtime SoundFont is a Debian dependency, not included in the
+archive; the optional Grand Piano pack is not packaged. No install hooks or credentials
+are packaged. The installed executable on the device is byte-identical to the one in this
+package; the final package differs from the one first installed only in bundled documentation.
 
 ## User-facing deliverables
 
 - [README](README.md): installation, first notes and essential controls.
-- [User guide](docs/USER_GUIDE.md): modes, menus, presets, EQ and troubleshooting.
+- [User guide](docs/USER_GUIDE.md): modes, menus, presets, EQ, About and troubleshooting.
 - [Release notes](CHANGELOG.md).
-- [Approved original icon artwork](assets/zerochord-source.png) and [256×256 PNG](assets/share/images/zerochord.png): a simple three-note chord on a staff.
-- Four clean 320×170 screenshots, reviewed at native resolution:
+- [Original icon artwork](assets/zerochord-source.png) and [256×256 PNG](assets/share/images/zerochord.png).
+- Four 320×170 store screenshots, refreshed and inspected for 1.1.0:
   [playing](store/screenshots/performance.png),
   [Style](store/screenshots/style.png),
   [sounds](store/screenshots/sounds.png),
   [chord configuration](store/screenshots/chord-config.png).
 
-The package also installs the guides and license notices under
-`/usr/share/doc/zerochord/`.
+The package also installs the guides and license notices under `/usr/share/doc/zerochord/`.
 
 ## Launcher installation
 
@@ -45,45 +48,30 @@ The package also installs the guides and license notices under
 - Wrapper: `/usr/share/APPLaunch/bin/run-zerochord`
 - Executable: `/usr/share/APPLaunch/bin/M5CardputerZero-ZeroChord`
 - Icon: `/usr/share/APPLaunch/share/images/zerochord.png`
-- `Terminal=false`; the wrapper passes arguments through to the native GUI.
 
-The verified archive and checksum have been copied to the device home directory,
-and `zerochord 1.0.0` is installed. For a manual reinstall, run there:
+On the development device use `scripts/install_release_device.sh push|install|test`
+(see [development notes](docs/DEVELOPMENT.md#releasing)). Manually, on the device:
 
 ```sh
-sudo dpkg -i "$HOME/zerochord_1.0.0_arm64.deb"
+sudo apt install ./zerochord_1.1.0_arm64.deb
 systemctl --user restart APPLaunch.service
 ```
 
-All dependencies are already present on the development Cardputer. For another
-unit, use `sudo apt install ./zerochord_1.0.0_arm64.deb` to resolve dependencies.
-The app runs as the normal launcher user and retains existing settings in
-`~/.config/zerochord/`.
+The app runs as the normal launcher user and keeps settings in `~/.config/zerochord/`.
 
 ## Validation
 
-- [x] All six local regression suites pass.
-- [x] All fifteen real-app Z/C/F/X keyboard flows pass, including reload.
-- [x] Four screenshots and the icon are visually checked.
-- [x] Native Debian tools parse/extract the final archive and verify its checksum.
-- [x] Packaged ARM64 executable reports `ZeroChord 1.0.0` on the Cardputer.
-- [x] Native library resolution succeeds; no missing libraries.
-- [x] Package contains launcher entry, executable permissions, PNG and guides.
-- [x] Installed package and launcher registration verified; its icon is visible and selecting it launches the installed executable.
-- [x] Installed wrapper tested with evdev, framebuffer, live audio and clean exit.
+- [x] Six desktop suites and six ASan/UBSan suites pass; 26 real-app flows pass.
+- [x] Privacy scan of sources, commit metadata and package: no FAIL; one intentional WARN (public project URL in the About QR).
+- [x] Package built from the tested executable; its checksum verified on the device.
+- [x] `zerochord 1.1.0` installed on the Cardputer; `dpkg --verify` clean; launcher active.
+- [x] `scripts/test_installed.py 1.1.0` passed: evdev input, framebuffer readback, 415,200 audio frames (peak 9,116, no queue overflows), persisted settings, clean exit.
+- [x] Store screenshots inspected at native resolution.
+- [ ] About screen inspected on the device display (checked in the desktop render only).
+- [ ] Optional Grand Piano pack and other hardware scripts exercised on the device.
 - [ ] Physical keyboard feel and speaker/headphone listening accepted by the user.
 
-A focused installed-release test is available as
-[scripts/test_installed.py](scripts/test_installed.py). It uses isolated settings,
-preserves the physical input configuration, and restores APPLaunch afterward.
-The installed check passed with 384,000 recorded audio frames, peak 9,960,
-and no audio queue overflows. EQ, Sustained chord pattern, and tempo persisted
-in isolated test settings. Independent kernel framebuffer readback matched the
-app capture within RGB565 quantization. The release was then opened from its
-actual launcher icon and left running with the user's normal settings.
-The approved three-note chord icon is included in the current archive; its
-installed checksum matches the source export, and its rendering and launch
-action were checked in APPLaunch after refreshing the launcher.
+Details and limits are in the [testing record](docs/TESTING.md).
 
 ## Store listing ready to use
 
@@ -102,7 +90,7 @@ Description:
 > Make music with the CardputerZero keyboard. Select major, minor and seventh
 > chords, combine buttons for richer harmonies, and pick or strum seven front
 > notes. Play soft pads, clear sustained chords, rhythmic accompaniment or
-> arpeggios. Nine editable presets include independent Front, Chord and Pad
+> arpeggios. Layer Chord, Pad and Arp backing with a checkbox popup. Nine editable presets include independent Front, Chord and Pad
 > sounds, envelopes, tempo and patterns. Customize chord roots, octaves, key
 > combinations and front-note layouts; shape the full mix with three-band EQ.
 > Import named SoundFont packs from a TF card. Dark and light themes, printed
@@ -114,3 +102,8 @@ Not submitted. Package-name ownership, store category acceptance and uploader
 sign-in are checked by the portal at submission. External submission requires
 an affirmative user request; preparation and local installation do not submit it.
 Record submission time, portal result and tracking URL here after submission.
+
+## Git release
+
+`dev` was merged into `main` with a merge commit and tagged `v1.1.0`; only `main` and the
+tag are pushed to the public repository.

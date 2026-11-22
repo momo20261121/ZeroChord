@@ -5,10 +5,15 @@ Run commands from the project root. User controls are in the [user guide](USER_G
 ## Branches and releases
 
 `main` contains tested releases, identified by `v<version>` tags (starting with
-`v1.0.0`). Create a short-lived `feature/<name>` or `fix/<name>` branch before
-developing changes. Merge it into `main` when the next release is ready, then
-delete the merged branch. There is no permanent `dev` branch. Preserve existing
-history; pushing branches or tags requires explicit authorization.
+`v1.0.0`). Use `dev` for the next release (currently 1.1.0) and merge into `main`
+when the release is tested and ready. Preserve existing
+history. `dev` stays local and is never pushed (`scripts/install_git_guard.sh`
+installs a pre-push hook enforcing this); pushing `main` or a release tag requires
+explicit authorization.
+
+The `/publish` workflow (`.claude/skills/publish/SKILL.md`) runs a release: version choice,
+`scripts/privacy_check.py`, packaging, `scripts/install_release_device.sh` (install and
+installed-app test on the Cardputer), a report for approval, docs, and the merge into `main`.
 
 ## Build locally
 
@@ -73,15 +78,35 @@ The packaging command requires `ZEROCHORD_MAINTAINER` to contain a public
 into the resulting public Debian package, so never supply secrets there.
 Required third-party copyright and license notices remain intact.
 
-## Named sounds and front notes
+## Releasing
 
-The sound picker offers ten named sounds in Keys, Plucked, Strings, and Pads.
-←/→ changes category; ↑/↓ auditions sounds; Enter saves; Esc cancels.
-Older saved sounds remain available without expanding the built-in selection.
-Pad, Chord/Arp, and Front can each use built-in or imported sounds.
+Run the `/publish` workflow (`.claude/skills/publish/SKILL.md`). It uses these tools:
 
-Put `.sf2` files or named packs in `~/ZeroChord/sounds/` on the TF card and restart.
-See [custom sound packs](../sounds/README.md) for locations, naming, and limits.
-In **App → Front notes**, choose Chord notes or Scale notes on the All tab,
-configure K/L as Strum or Octave shift, and set each key’s note and actual octave.
-←/→ navigates All and Z–M tabs. See [front-note controls](FRONT_NOTES.md).
+- `scripts/privacy_check.py [--deb PACKAGE]` scans publishable files, commit
+  metadata since the last tag and the package for private values from `.env`, Git
+  configuration and the local account. Add extra terms with `ZEROCHORD_PRIVATE_TERMS`
+  (comma-separated) in `.env`. FAIL blocks a release; WARN needs a human decision.
+- `scripts/package.py` builds `dist/zerochord_<version>_arm64.deb`.
+- `scripts/install_release_device.sh push|install|test` copies the package to the
+  device, installs it (the device's sudo password is typed on a terminal) and runs
+  `scripts/test_installed.py` against the installed app.
+- `scripts/install_git_guard.sh` installs a local pre-push hook that refuses `dev`.
+
+## Sounds and front notes
+
+User-facing behavior is documented in the [user guide](USER_GUIDE.md),
+[front notes](FRONT_NOTES.md) and [custom sound packs](../sounds/README.md).
+
+### Controlled sound comparison
+
+Fetch the optional licensed Piano with `python scripts/fetch_piano_pack.py`.
+Build `zerochord-compare` in the desktop build, then run:
+
+```sh
+build/desktop/zerochord-compare .tools/soundfonts/TimGM6mb.sf2 \
+  sounds/fluid-grand/piano.sf2 build/audio-comparison
+```
+
+This checks the dry native renderer reference and creates matched-RMS WAVs.
+See [audio notes](AUDIO_AND_REUSE.md#controlled-piano-and-renderer-comparison)
+for what this comparison establishes and its limits.

@@ -49,3 +49,13 @@ with a startup warning. Packs load once at startup, before audio starts; restart
 after adding/editing/removing files. WAV sample importing is not included.
 Use sounds whose licenses permit your intended use; ZeroChord adds no rights
 to imported recordings or SoundFonts.
+
+## Optional grand piano comparison
+
+Run `python scripts/fetch_piano_pack.py` from the app repository to fetch the
+checksum-verified [FluidR3 piano pack](fluid-grand/SOURCES.md). Copy the resulting
+`fluid-grand` directory into a sound pack location above. **Grand Piano (FluidR3)**
+appears in Keys for Front, Chord and Pad, alongside the original Piano. Its source
+is 32 kHz; its name identifies the bank rather than claiming Hi-fi quality.
+License and provenance travel with the pack. This optional download is not
+bundled into the installed package.

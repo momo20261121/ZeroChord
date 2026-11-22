@@ -6,7 +6,7 @@ namespace zc {
 class SettingsEditor {
   public:
     enum class Page { Setup, Combinations, FrontNotes, Envelope };
-    enum class Tab { Style, App };
+    enum class Tab { Style, App, About };
     struct Choice {
         int value;
         std::string name, description;
@@ -24,6 +24,9 @@ class SettingsEditor {
                                        page_ == Page::Envelope ? envelopeField_ : combination_);
     }
     bool pickerOpen() const { return picker_; }
+    bool backingOpen() const { return backing_; }
+    unsigned pendingLayers() const { return pendingLayers_; }
+    int backingRow() const { return backingRow_; }
     bool tempoOpen() const { return tempo_; }
     const std::string &tempoText() const { return tempoInput_; }
     const std::string &tempoError() const { return tempoError_; }
@@ -45,12 +48,15 @@ class SettingsEditor {
     Instrument &instrument_;
     Page page_ = Page::Setup;
     Tab tab_ = Tab::Style;
-    int tabRows_[2] = {0, 0};
+    int tabRows_[3] = {0, 0, 0};
     int selection_ = 2, combination_ = 6, scope_ = -1;
     int frontKey_ = -1, frontField_ = 0;
     int envelopePart_ = 0, envelopeField_ = 0;
     std::string soundCategory_;
     bool picker_ = false, reset_ = false;
+    bool backing_ = false;
+    unsigned pendingLayers_ = 0;
+    int backingRow_ = 0;
     bool tempo_ = false, tempoReplace_ = true;
     std::string tempoInput_, tempoError_;
     int choice_ = 0, savedChoice_ = 0;
@@ -83,6 +89,7 @@ class SettingsEditor {
     void buildChoices();
     void openPicker();
     void openTempo();
+    void openBacking();
     void applyChoice(int value);
     void preview();
     void restoreField();

@@ -1,6 +1,7 @@
 #include "ui.hpp"
 #include "sounds.hpp"
 #include <algorithm>
+#include <cstring>
 #include <lvgl.h>
 #include <sstream>
 namespace zc {
@@ -43,6 +44,27 @@ void tabs(const std::vector<std::string> &names, int active) {
     }
 }
 } // namespace
+void UI::drawAbout() {
+    label(8, 5, 304, "ZeroChord / Setup", gold, &lv_font_montserrat_14);
+    tabs({"Style", "App", "About"}, int(tab_));
+    label(10, 55, 188, "ZeroChord", text, &lv_font_montserrat_14);
+    label(10, 77, 188, "Version " ZEROCHORD_VERSION, gold, &lv_font_montserrat_12);
+    label(10, 97, 188, "Pocket chord instrument", muted);
+    label(10, 113, 190, "User guide and details at:", muted);
+    label(10, 127, 190, "github.com/", cyan);
+    label(10, 140, 194, "momo20261121/ZeroChord", cyan);
+    constexpr char url[] = "https://github.com/momo20261121/ZeroChord";
+    auto *qr = lv_qrcode_create(lv_screen_active());
+    lv_obj_set_pos(qr, 208, 48);
+    lv_qrcode_set_size(qr, 106);
+    // Keep high contrast and the scanner's quiet zone in both themes.
+    lv_qrcode_set_dark_color(qr, lv_color_hex(0x000000));
+    lv_qrcode_set_light_color(qr, lv_color_hex(0xffffff));
+    lv_qrcode_set_quiet_zone(qr, true);
+    if (lv_qrcode_update(qr, url, std::strlen(url)) != LV_RESULT_OK)
+        label(210, 80, 100, "Scan unavailable", muted);
+    label(8, 159, 306, LV_SYMBOL_LEFT LV_SYMBOL_RIGHT " tab   Esc back   Hold Esc: home", muted);
+}
 void UI::drawEnvelope() {
     const auto &s = instrument_.settings;
     const auto &d = instrument_.library.current(s).sound;
@@ -58,6 +80,22 @@ void UI::drawEnvelope() {
     }
     label(8, 146, 306, "Backspace: preset default   * edited", muted);
     label(8, 159, 306, LV_SYMBOL_LEFT LV_SYMBOL_RIGHT " part   " LV_SYMBOL_UP LV_SYMBOL_DOWN " row   Enter edit   Esc back", muted);
+}
+void UI::drawBacking() {
+    label(8, 5, 304, "Backing layers", gold, &lv_font_montserrat_14);
+    label(8, 26, 304, instrument_.library.current(instrument_.settings).name + " / choose any combination", muted);
+    static const char *names[]{"Chord", "Pad", "Arp", "Apply"};
+    static const char *details[]{"Simultaneous chord notes", "Sustained harmony", "Patterned chord notes", ""};
+    for (int n = 0; n < 4; ++n) {
+        int y = 49 + n * 20;
+        if (n == backingRow_) box(6, y - 3, 308, 19, panel);
+        std::string mark = n == 3 ? "> " : (pendingLayers_ & (1u << n)) ? "[x] " : "[ ] ";
+        label(12, y, 100, mark + names[n], n == backingRow_ ? gold : text);
+        label(112, y, 198, details[n], muted);
+    }
+    label(8, 134, 304, pendingLayers_ ? modeName(modeForLayers(pendingLayers_)) : "None selected: Front only", cyan);
+    label(8, 148, 304, LV_SYMBOL_UP LV_SYMBOL_DOWN " row   Enter toggle / Apply   Esc cancel", muted);
+    label(8, 160, 304, "Backspace: preset default", muted);
 }
 void UI::drawTempo() {
     label(8, 5, 304, "Tempo", gold, &lv_font_montserrat_14);
@@ -209,7 +247,8 @@ void UI::draw() {
               << s.preset << ',' << s.chordVolume << ',' << s.harpVolume << ',' << s.echo << ','
               << s.strumMs << ',' << s.bpm << ',' << s.pattern << ',' << i.active << ','
               << chordName(i.chord) << ',' << s.hold << ',' << int(s.mode) << ',' << i.harpFlash
-              << ',' << s.combinationMs;
+              << ',' << s.combinationMs << ',' << i.semitoneShift();
+    signature << ',' << backing_ << ',' << pendingLayers_ << ',' << backingRow_;
     signature << ',' << tempo_ << ',' << tempoInput_ << ',' << tempoError_ << ',' << int(page_) << ',' << combination_ << ',' << scope_ << ',' << picker_ << ','
               << reset_ << ',' << choice_ << ',' << int(tab_);
     for (auto value : s.combinations)
@@ -256,6 +295,10 @@ void UI::draw() {
     lv_obj_remove_flag(lv_screen_active(), LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(bg), 0);
     lv_obj_set_style_bg_opa(lv_screen_active(), LV_OPA_COVER, 0);
+    if (backing_) {
+        drawBacking();
+        return;
+    }
     if (tempo_) {
         drawTempo();
         return;
@@ -276,14 +319,19 @@ void UI::draw() {
         drawCombinations();
         return;
     }
-    label(8, 5, 174, settingsOpen ? "ZeroChord / Setup" : "ZeroChord", gold,
+    if (settingsOpen && tab_ == Tab::About) {
+        drawAbout();
+        return;
+    }
+    label(8, 5, 174, settingsOpen ? "ZeroChord / Setup" :
+              (i.semitoneShift() ? "ZeroChord  +1" : "ZeroChord"), gold,
           &lv_font_montserrat_14);
     label(188, 7, 124,
           noteName(s.tonic) + (s.frontMode ? (s.scale ? " min" : " maj") : "") + "  " +
               instrument_.library.current(s).name + (instrument_.library.modified(s) ? "*" : ""),
           muted);
     if (settingsOpen) {
-        tabs({"Style", "App"}, int(tab_));
+        tabs({"Style", "App", "About"}, int(tab_));
         int row = rowIndex();
         int start = std::clamp(row - 2, 0, std::max(0, int(rows().size()) - 5));
         for (int n = start; n < int(rows().size()) && n < start + 5; n++) {
@@ -323,12 +371,19 @@ void UI::draw() {
             label(
                 x + 3, y + 2, 25,
                 std::string(1, rows[row][col]) + " " +
-                    (row == 0 ? noteName(s.chordRoot(col)) : (row == 1 ? "m" : "7")),
+                    (row == 0 ? noteName(s.chordRoot(col) + i.semitoneShift()) : (row == 1 ? "m" : "7")),
                 selected ? gold : text);
         }
     }
+    std::string backingHint;
+    unsigned layers = backingLayers(s.mode);
+    if (layers & 1) backingHint += "C";
+    if (layers & 2) backingHint += "P";
+    if (layers & 4) backingHint += "A";
+    if (backingHint.empty()) backingHint = "Front";
+    else if (layers == 1 || layers == 2 || layers == 4) backingHint = modeName(s.mode);
     label(8, 90, 210,
-          std::string("I ") + (s.hold ? "hold" : "off") + "  O " + modeName(s.mode) + "  P " +
+          std::string("I ") + (s.hold ? "hold" : "off") + "  O " + backingHint + "  P " +
               std::to_string(s.bpm), muted);
     label(220, 90, 94, s.frontAction[s.frontMode] ? "K/L oct -/+" : "K/L strum", cyan);
     auto pitches = i.playingFrontNotes();
@@ -344,7 +399,7 @@ void UI::draw() {
         label(x + 2, 125, 36, std::string(1, harp[n]), flash ? bg : muted,
               &lv_font_montserrat_10, LV_TEXT_ALIGN_CENTER);
     }
-    label(8, 142, 306, "9/0 preset   1 sharp   P tempo", text);
+    label(8, 142, 306, "9/0 preset   Hold 1: +1 semitone", text);
     label(8, 156, 306, "Tab setup   Space stop   Hold Esc: home", muted);
 }
 } // namespace zc

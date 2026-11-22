@@ -6,6 +6,7 @@ constexpr int sustainedChordPattern = 5; // Append to preserve saved numeric pat
 struct PatternStep {
     int tick, notes;
     float gate, accent;
+    bool bass = false; // Place this event an octave below the chord voicing.
 };
 struct Pattern {
     const char *id, *name, *description;
