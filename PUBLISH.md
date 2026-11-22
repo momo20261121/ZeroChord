@@ -2,7 +2,7 @@
 
 Status: **release prepared, installed, and tested on the development Cardputer.**
 Git release: `main`, tagged `v1.0.0`; the completed `dev` branch is retired.
-No store submission or Git push has been performed.
+Store submission is separate from source-repository synchronization.
 
 ## Package
 
@@ -15,9 +15,9 @@ No store submission or Git push has been performed.
 | Size | 784,212 bytes |
 | SHA-256 | `de2d9795097b85b4cd0be0a461a7597f64df14f767dc7648b32979e5e3f89d1a` |
 | Checksum file | [dist/zerochord_1.0.0_arm64.deb.sha256](dist/zerochord_1.0.0_arm64.deb.sha256) |
-| Maintainer | ZeroChord contributors, `maintainers@example.invalid` |
+| Maintainer configuration | Set `ZEROCHORD_MAINTAINER` locally before packaging |
 | Dependencies | `libc6 (>= 2.36), libpulse0, timgm6mb-soundfont` |
-| Source | <https://example.invalid/ZeroChord> |
+| Source URL configuration | Optional `ZEROCHORD_HOMEPAGE`; see [.env.example](.env.example) |
 | Source/icon license | MIT; [third-party notices](THIRD_PARTY_NOTICES.md) included |
 
 The binary is cross-compiled on macOS, stripped at link time, and about 1.8 MB.
@@ -51,7 +51,7 @@ The verified archive and checksum have been copied to the device home directory,
 and `zerochord 1.0.0` is installed. For a manual reinstall, run there:
 
 ```sh
-sudo dpkg -i ${HOME}/zerochord_1.0.0_arm64.deb
+sudo dpkg -i "$HOME/zerochord_1.0.0_arm64.deb"
 systemctl --user restart APPLaunch.service
 ```
 
@@ -92,8 +92,8 @@ Portal: <https://dev.cardputer.cc/#/upload>
 - Application name: **ZeroChord**
 - Summary: **A pocket chord-and-harp instrument for CardputerZero.**
 - Category suggestion: **Media**
-- Source repository: <https://example.invalid/ZeroChord>
-- Email privacy: hide uploader email (`true`); package uses a GitHub noreply address.
+- Source repository: use the public URL configured in `ZEROCHORD_HOMEPAGE`.
+- Email privacy: hide uploader email (`true`); choose a public package contact with `ZEROCHORD_MAINTAINER`.
 - Icon: use the packaged PNG.
 - Screenshots: the four files listed above, in that order.
 

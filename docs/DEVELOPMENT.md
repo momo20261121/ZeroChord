@@ -36,7 +36,11 @@ build/desktop/zerochord-render .tools/soundfonts/TimGM6mb.sf2 build/demo.wav
 
 ### Build for the device on macOS
 
+Copy [.env.example](../.env.example) to `.env` and set the SSH host, optional SSH
+config, and device directory there. Load it before deploying:
+
 ```sh
+set -a; . ./.env; set +a
 .venv/bin/python scripts/build_device.py
 sh scripts/deploy_device.sh
 ```
@@ -48,14 +52,26 @@ No VM, device sysroot, or system-wide install is required. The target uses glibc
 2.36 compatibility and a statically linked C++ runtime. See the
 [official Zig downloads](https://ziglang.org/download/) for the compiler source.
 
-Deployment uses the workspace's `ssh_config` and existing development wrapper
-at `${HOME}/ZeroChord`. It verifies the transferred binary's checksum, stops
+Deployment uses `ZEROCHORD_SSH_HOST`, optional `ZEROCHORD_SSH_CONFIG`, and
+`ZEROCHORD_REMOTE_DIR` (default `ZeroChord`, relative to the remote user's home).
+The existing device directory must contain the development wrapper and previous
+binary. Deployment verifies the transferred binary's checksum, stops
 the old preview cleanly so settings save, retains a `.previous` binary, and
 reopens the app. A launch failure restores the previous binary. Nothing compiles
 on the CardputerZero. This updates the development preview; packaging is separate.
 
 See the [testing guide](TESTING.md) for the device workflow and remaining
 hands-on checks.
+
+### Private configuration and package metadata
+
+Keep device addresses, account details and credentials in ignored local files
+or environment variables. Only the placeholder [.env.example](../.env.example)
+is tracked. Its Git identity variables use the project name and an empty email.
+The packaging command requires `ZEROCHORD_MAINTAINER` to contain a public
+`Name <email>` contact; `ZEROCHORD_HOMEPAGE` is optional. Those values are written
+into the resulting public Debian package, so never supply secrets there.
+Required third-party copyright and license notices remain intact.
 
 ## Named sounds and front notes
 
