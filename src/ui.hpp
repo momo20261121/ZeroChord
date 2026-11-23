@@ -9,7 +9,11 @@ class UI : public SettingsEditor {
 
   private:
     std::string previous_;
+    const char *enterAction() const;
+    void drawPerformance();
     void drawAbout();
+    void drawSettingRows(int top, int limit, int spacing);
+    void drawVolumeEffects();
     void drawPicker();
     void drawTempo();
     void drawBacking();

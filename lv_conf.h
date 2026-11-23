@@ -14,6 +14,7 @@
 #define LV_FONT_MONTSERRAT_10 1
 #define LV_FONT_MONTSERRAT_12 1
 #define LV_FONT_MONTSERRAT_14 1
+#define LV_FONT_UNSCII_8 1
 #define LV_FONT_DEFAULT &lv_font_montserrat_12
 #define LV_USE_THEME_DEFAULT 0
 #define LV_USE_THEME_SIMPLE 0

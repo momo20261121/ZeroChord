@@ -27,7 +27,7 @@ assert subprocess.check_output(['dpkg','--verify','zerochord'], text=True) == ''
 metadata = dict(line.split('=',1) for line in (app/'applications/zerochord.desktop').read_text().splitlines() if '=' in line)
 assert metadata['Name'] == 'ZeroChord' and metadata['Exec'] == 'bin/run-zerochord'
 assert metadata['Terminal'] == 'false' and metadata['Icon'] == 'share/images/zerochord.png'
-assert struct.unpack_from('>II',(app/metadata['Icon']).read_bytes(),16) == (256,256)
+assert struct.unpack_from('>II',(app/metadata['Icon']).read_bytes(),16) == (100,100)
 fd = os.open('/dev/uinput',os.O_WRONLY|os.O_NONBLOCK)
 created = False
 process = monitor = recording = None
@@ -96,18 +96,19 @@ try:
         for code in [44,45,46,47,48,49,50,38]: tap(code) # Z-M and L
         time.sleep(.3)
         tap(24) # O: backing-layers popup; all layers start on
-        tap(45); tap(28); tap(45); tap(28); tap(45); tap(28) # clear Pad and Arp, Apply: Chord only
+        tap(45); tap(28); tap(45); tap(28); tap(45); tap(28) # clear Arp and Pad, Apply: Chord only
         tap(15) # Tab: Style
-        for _ in range(4): tap(45) # X -> Chord pattern
+        for _ in range(3): tap(45) # X -> Chord pattern
         tap(28); tap(45); tap(28) # Enter, next item after the default Sustained, Enter
         tap(1) # Esc: performance
         tap(9); time.sleep(.9)
-        # App EQ: printed C/X arrows, preview/save and isolated persistence.
+        # App > Volume & effects > EQ Low, using the printed C/X arrows.
         tap(15); tap(46)
-        for _ in range(5): tap(45)
+        tap(45); tap(28)
+        for _ in range(4): tap(45)
         tap(28)
         for _ in range(3): tap(45)
-        tap(28); tap(1)
+        tap(28); tap(1); tap(1)
         tap(25) # P: numeric tempo
         for code in [2,4,8,28]: tap(code) # 137 Enter
         tap(9); time.sleep(.3)

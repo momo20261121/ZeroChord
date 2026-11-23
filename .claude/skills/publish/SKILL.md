@@ -118,7 +118,12 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
 5. Push only if approved in step 4, naming refs explicitly:
    `git push origin main v<version>`. Then confirm `git ls-remote --heads origin` shows no
    `dev`. If not approved, print that exact command for the user.
-6. Final summary: version, commit/tag, package path and SHA-256, push state. Store upload
+6. GitHub Release (only if the user approved it at step 4): use this project's account without
+   switching the global `gh` login, and never `gh auth switch`:
+   `GH_TOKEN=$(gh auth token --user "$ZEROCHORD_GH_USER") gh release create v<version> dist/zerochord_<version>_arm64.deb dist/zerochord_<version>_arm64.deb.sha256 --title "ZeroChord <version>" --notes-file <changelog section> --verify-tag`.
+   If that account is not logged in, ask the user to run `! gh auth login`. Also ask about this
+   at step 4, next to the push question.
+7. Final summary: version, commit/tag, package path and SHA-256, push state, release link. Store upload
    (`PUBLISH.md` has the listing text) is a separate manual step the user must request.
 
 ## If something fails

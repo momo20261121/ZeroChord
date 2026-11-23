@@ -90,11 +90,15 @@ int main() {
     SettingsEditor editor(instrument);
     press(editor, '\t');
     CHECK(editor.selected() == 2); // Preset is first on Style.
-    CHECK((editor.rows() == std::vector<int>{2, 8, 10, 9, 11, 12, 14, 23, 13, 24, 21, 25, 19, 20}));
+    CHECK((editor.rows() == std::vector<int>{2, 8, 10, 11, 9, 12, 14, 23, 13, 24, 21, 25, 19, 20}));
     const auto original = instrument.settings;
     press(editor, 20);
     CHECK(editor.tab() == SettingsEditor::Tab::App && editor.selected() == 18);
-    CHECK((editor.rows() == std::vector<int>{18, 17, 4, 5, 6, 26, 27, 28, 15, 22, 3}));
+    CHECK((editor.rows() == std::vector<int>{18, SettingsEditor::volumeEffectsField, 15, 22, 3}));
+    row(editor, SettingsEditor::volumeEffectsField);
+    press(editor, '\n');
+    CHECK(editor.page() == SettingsEditor::Page::VolumeEffects && editor.selected() == 17);
+    CHECK((editor.rows() == std::vector<int>{17, 4, 5, 6, 26, 27, 28}));
     for (int field : {4, 5, 6}) {
         row(editor, field);
         press(editor, '\n');
@@ -106,6 +110,8 @@ int main() {
           instrument.settings.harpVolume == defaults.harpVolume &&
           instrument.settings.echo == defaults.echo &&
           instrument.settings.strumMs == defaults.strumMs);
+    press(editor, 27);
+    CHECK(editor.page() == SettingsEditor::Page::Setup && editor.selected() == SettingsEditor::volumeEffectsField);
     press(editor, 19);
     CHECK(editor.tab() == SettingsEditor::Tab::Style && editor.selected() == 2);
     CHECK(samePresetSettings(original, instrument.settings));
@@ -286,6 +292,28 @@ int main() {
     CHECK((legacy.eqDb == std::array<int, 3>{0, 0, 0}));
     CHECK(legacy.combinations == defaults.combinations &&
           legacy.degreeCombinations == defaults.degreeCombinations);
+    {
+        // A preset can still use a legacy arp as its default after the player changes away from it.
+        Capture captured;
+        Instrument player(captured);
+        auto custom = player.library.current(player.settings);
+        custom.id = "custom-legacy-arp";
+        custom.name = "Custom legacy arp";
+        custom.factory = false;
+        custom.sound.pattern = 6;
+        player.library.entries.push_back(custom);
+        player.library.select(player.settings, int(player.library.entries.size()) - 1);
+        player.settings.pattern = 0;
+        SettingsEditor menu(player);
+        press(menu, '\t');
+        row(menu, 9);
+        press(menu, '\n');
+        press(menu, '\b');
+        CHECK(menu.choices()[menu.highlighted()].value == 6);
+        CHECK(player.settings.pattern == 0);
+        press(menu, '\n');
+        CHECK(player.settings.pattern == 6);
+    }
     // O and the Style row open the same transactional checkbox editor, using physical F/X arrows.
     for (unsigned initial = 0; initial < 8; ++initial) {
         Capture captured; Instrument p(captured); SettingsEditor e(p);
@@ -293,7 +321,12 @@ int main() {
         p.settings.combinationMs = 0; p.key('8', true, 10); p.key('8', false, 11);
         auto harmony = p.chord; captured.events.clear();
         press(e, 'o'); CHECK(e.backingOpen() && !e.settingsOpen);
-        press(e, '\n'); press(e, 'x'); press(e, '\n'); press(e, 'x'); press(e, '\n');
+        for (auto layer : {PlaybackMode::Chord, PlaybackMode::Arp, PlaybackMode::Pad}) {
+            auto previous = e.pendingLayers();
+            press(e, '\n');
+            CHECK(e.pendingLayers() == (previous ^ backingLayers(layer)));
+            press(e, 'x');
+        }
         CHECK(e.pendingLayers() == (initial ^ 7u) && backingLayers(p.settings.mode) == initial);
         CHECK(captured.events.empty());
         press(e, 27); CHECK(!e.backingOpen() && backingLayers(p.settings.mode) == initial);
@@ -396,7 +429,32 @@ int main() {
             const auto list = menu.visibleRows();
             for (size_t n = 0; n < list.size(); n++) {
                 CHECK(menu.selected() == list[n]);
-                if (menu.selected() >= 23 && menu.selected() <= 25) {
+                if (menu.selected() == SettingsEditor::volumeEffectsField) {
+                    press(menu, '\n');
+                    CHECK(menu.page() == SettingsEditor::Page::VolumeEffects);
+                    const auto fields = menu.visibleRows();
+                    for (int field : fields) {
+                        CHECK(menu.selected() == field);
+                        checkPicker();
+                        press(menu, down);
+                    }
+                    CHECK(menu.selected() == fields.front());
+                    press(menu, up);
+                    const auto before = state();
+                    press(menu, left);
+                    press(menu, right);
+                    CHECK(menu.page() == SettingsEditor::Page::VolumeEffects && menu.selected() == fields.back());
+                    press(menu, '\n');
+                    press(menu, down);
+                    press(menu, '\t');
+                    CHECK(!menu.settingsOpen && !menu.pickerOpen() && state() == before);
+                    press(menu, '\t');
+                    CHECK(menu.page() == SettingsEditor::Page::Setup && menu.selected() == SettingsEditor::volumeEffectsField);
+                    press(menu, '\n');
+                    CHECK(menu.page() == SettingsEditor::Page::VolumeEffects && menu.selected() == fields.back());
+                    press(menu, 27);
+                    CHECK(menu.page() == SettingsEditor::Page::Setup && menu.selected() == SettingsEditor::volumeEffectsField);
+                } else if (menu.selected() >= 23 && menu.selected() <= 25) {
                     const int envelopeRow = menu.selected();
                     press(menu, '\n');
                     CHECK(menu.page() == SettingsEditor::Page::Envelope &&

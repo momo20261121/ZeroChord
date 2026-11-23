@@ -1,17 +1,19 @@
 #pragma once
 #include "instrument.hpp"
+#include <array>
 #include <string>
 #include <vector>
 namespace zc {
 class SettingsEditor {
   public:
-    enum class Page { Setup, Combinations, FrontNotes, Envelope };
+    enum class Page { Setup, Combinations, FrontNotes, Envelope, VolumeEffects };
     enum class Tab { Style, App, About };
     struct Choice {
         int value;
         std::string name, description;
     };
-    static constexpr int settingCount = 29;
+    static constexpr int volumeEffectsField = 29;
+    static constexpr int settingCount = volumeEffectsField + 1;
     explicit SettingsEditor(Instrument &instrument) : instrument_(instrument) {}
     bool settingsOpen = false;
     void key(char key, bool down);
@@ -19,7 +21,7 @@ class SettingsEditor {
     Page page() const { return page_; }
     int scope() const { return scope_; }
     int selected() const {
-        return page_ == Page::Setup ? selection_
+        return settingListPage() ? selection_
                                     : (page_ == Page::FrontNotes ? frontField_ :
                                        page_ == Page::Envelope ? envelopeField_ : combination_);
     }
@@ -45,27 +47,46 @@ class SettingsEditor {
     static const char *combinationName(int index);
 
   protected:
+    enum class SetupDestination { Picker, Tempo, Backing, Envelope, FrontNotes, Combinations, VolumeEffects };
+    enum class Confirmation { None, Create, Restore };
+    struct BackingLayerRow {
+        PlaybackMode mode;
+        const char *description;
+    };
+    static constexpr std::array<BackingLayerRow, 3> backingLayerRows{{
+        {PlaybackMode::Chord, "Simultaneous chord notes"},
+        {PlaybackMode::Arp, "Patterned chord notes"},
+        {PlaybackMode::Pad, "Sustained harmony"},
+    }};
+    static constexpr int backingApplyRow = int(backingLayerRows.size());
+    static std::string backingLabel(PlaybackMode mode);
     Instrument &instrument_;
     Page page_ = Page::Setup;
     Tab tab_ = Tab::Style;
     int tabRows_[3] = {0, 0, 0};
+    int volumeEffectsRow_ = 0;
     int selection_ = 2, combination_ = 6, scope_ = -1;
     int frontKey_ = -1, frontField_ = 0;
     int envelopePart_ = 0, envelopeField_ = 0;
     std::string soundCategory_;
-    bool picker_ = false, reset_ = false;
+    bool picker_ = false;
     bool backing_ = false;
     unsigned pendingLayers_ = 0;
     int backingRow_ = 0;
     bool tempo_ = false, tempoReplace_ = true;
     std::string tempoInput_, tempoError_;
-    int choice_ = 0, savedChoice_ = 0;
+    int choice_ = 0;
     std::vector<Choice> choices_;
     std::string status_;
+    bool settingListPage() const { return page_ == Page::Setup || page_ == Page::VolumeEffects; }
     std::string settingValue(int index) const;
     std::string scopeName() const;
     Chord previewChord() const;
     bool fieldModified(int index) const;
+    SetupDestination setupDestination() const;
+    Confirmation confirmation() const;
+    bool canRestoreField() const;
+    int fieldValue() const;
     int defaultValue() const;
     int settingValueNumber() const;
     const char *frontSettingName(int index) const;
@@ -87,6 +108,8 @@ class SettingsEditor {
     void assign(Settings &s, int index, int value);
     void setSettingValue(int value);
     void buildChoices();
+    void openSetting();
+    void returnToSetup();
     void openPicker();
     void openTempo();
     void openBacking();

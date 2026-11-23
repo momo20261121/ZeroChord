@@ -5,7 +5,7 @@ Run commands from the project root. User controls are in the [user guide](USER_G
 ## Branches and releases
 
 `main` contains tested releases, identified by `v<version>` tags (starting with
-`v1.0.0`). Use `dev` for the next release (currently 1.1.0) and merge into `main`
+`v1.0.0`). Use `dev` for the next release (currently 1.2.0) and merge into `main`
 when the release is tested and ready. Preserve existing
 history. `dev` stays local and is never pushed (`scripts/install_git_guard.sh`
 installs a pre-push hook enforcing this); pushing `main` or a release tag requires
@@ -90,6 +90,11 @@ Run the `/publish` workflow (`.claude/skills/publish/SKILL.md`). It uses these t
 - `scripts/install_release_device.sh push|install|test` copies the package to the
   device, installs it (the device's sudo password is typed on a terminal) and runs
   `scripts/test_installed.py` against the installed app.
+- `scripts/release_screenshots.py` uses the desktop build to refresh the dark-theme
+  screenshots in `docs/images` and copies the five store images to `store/screenshots`.
+- `ZEROCHORD_GH_USER` in `.env` names the GitHub account for releases; the workflow passes
+  its token per command (`GH_TOKEN=$(gh auth token --user ...)`), so other projects keep
+  their own `gh` account. Git pushes use SSH and are separate.
 - `scripts/install_git_guard.sh` installs a local pre-push hook that refuses `dev`.
 
 ## Sounds and front notes

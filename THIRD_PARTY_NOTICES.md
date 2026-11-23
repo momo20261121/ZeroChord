@@ -11,6 +11,7 @@ in [third_party/licenses](third_party/licenses).
 | [toml++](https://github.com/marzer/tomlplusplus) | 3.4.0 | MIT | Preset configuration parser |
 | [miniaudio](https://github.com/mackron/miniaudio) | 0.11.25 | MIT-0 option | Audio output |
 | [Montserrat](https://github.com/JulietaUla/Montserrat) | LVGL bundled glyphs | SIL OFL 1.1 | Display font |
+| [Unscii 8](http://viznut.fi/unscii/) | LVGL bundled glyphs | Public domain | Key legends and Roman numerals |
 | [Font Awesome 5](https://github.com/FortAwesome/Font-Awesome/tree/5.x) | LVGL bundled glyphs | SIL OFL 1.1 (font) | Symbols embedded in LVGL fonts |
 | [minichord firmware](https://github.com/BenjaminPoilve/minichord) | Reference, not linked | BSD-3-Clause | Combination chord and note-lifetime design reference |
 | [CardputerZero Piano](https://github.com/CardputerZero/Piano) | Reference, not linked | MIT | Audio/backend architecture reference |
@@ -19,6 +20,11 @@ ZeroChord implements its own music state machine and platform layer. It does
 not include minichord's Teensy firmware or Omnichord assets. Minichord firmware
 copyright: 2024 Benjamin Poilvé. Piano source copyright: 2026 M5Stack CardputerZero Community.
 Reference licenses are retained conservatively for future adaptations.
+
+The optional Grand Piano (FluidR3) pack uses the piano SoundFont from the
+CardputerZero Piano repository. The download script verifies the pinned asset's
+SHA-256. The upstream repository records the SoundFont's source and license.
+[Pinned SoundFont source](https://github.com/CardputerZero/Piano/tree/703eb1e0926c9d4ab3b34997e854c06b180e2c7b/assets/soundfonts)
 
 Font Awesome Free font glyphs: copyright Fonticons, Inc.
 The full SIL OFL 1.1 text is included in `Montserrat-OFL.txt`, alongside the
