@@ -11,6 +11,7 @@ in [third_party/licenses](third_party/licenses).
 | [toml++](https://github.com/marzer/tomlplusplus) | 3.4.0 | MIT | Preset configuration parser |
 | [miniaudio](https://github.com/mackron/miniaudio) | 0.11.25 | MIT-0 option | Audio output |
 | [Montserrat](https://github.com/JulietaUla/Montserrat) | LVGL bundled glyphs | SIL OFL 1.1 | Display font |
+| [Unscii 8](http://viznut.fi/unscii/) | LVGL bundled glyphs | Public domain | Key legends and Roman numerals |
 | [Font Awesome 5](https://github.com/FortAwesome/Font-Awesome/tree/5.x) | LVGL bundled glyphs | SIL OFL 1.1 (font) | Symbols embedded in LVGL fonts |
 | [minichord firmware](https://github.com/BenjaminPoilve/minichord) | Reference, not linked | BSD-3-Clause | Combination chord and note-lifetime design reference |
 | [CardputerZero Piano](https://github.com/CardputerZero/Piano) | Reference, not linked | MIT | Audio/backend architecture reference |

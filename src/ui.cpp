@@ -7,8 +7,19 @@
 #include <sstream>
 namespace zc {
 namespace {
-uint32_t bg = 0x111923, panel = 0x202d3a, text = 0xe9edf0, muted = 0x90a1b2, gold = 0xffce75,
-         cyan = 0x73d9d0;
+struct Palette {
+    uint32_t bg, panel, text, muted, accent, signal, keyFace, keyText, activeChord, frontPanel;
+};
+constexpr Palette dark{0x20192c, 0x30263f, 0xf9f0e8, 0xc1b3c8, 0xffc18d, 0x84e0bf,
+                       0x2d4a49, 0xc3f5df, 0x50333f, 0x29373f};
+constexpr Palette light{0xfff5e6, 0xefe2e8, 0x30213c, 0x5f4d65, 0x882f61, 0x0a6352,
+                        0xd2e9da, 0x174d43, 0xf7d3d2, 0xe8e9da};
+Palette colors = dark;
+constexpr auto *small = &lv_font_montserrat_10;
+constexpr auto *body = &lv_font_montserrat_12;
+constexpr auto *titleFont = &lv_font_montserrat_14;
+constexpr auto *mono = &lv_font_unscii_8;
+
 lv_obj_t *box(int x, int y, int w, int h, uint32_t color) {
     auto *o = lv_obj_create(lv_screen_active());
     lv_obj_remove_style_all(o);
@@ -20,9 +31,8 @@ lv_obj_t *box(int x, int y, int w, int h, uint32_t color) {
     lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
     return o;
 }
-void label(int x, int y, int w, const std::string &value, uint32_t color = text,
-           const lv_font_t *font = &lv_font_montserrat_10,
-           lv_text_align_t align = LV_TEXT_ALIGN_LEFT) {
+lv_obj_t *label(int x, int y, int w, const std::string &value, uint32_t color = colors.text,
+                const lv_font_t *font = small, lv_text_align_t align = LV_TEXT_ALIGN_LEFT) {
     auto *o = lv_label_create(lv_screen_active());
     lv_obj_remove_style_all(o);
     lv_obj_set_pos(o, x, y);
@@ -32,26 +42,53 @@ void label(int x, int y, int w, const std::string &value, uint32_t color = text,
     lv_obj_set_style_text_align(o, align, 0);
     lv_label_set_long_mode(o, LV_LABEL_LONG_CLIP);
     lv_label_set_text(o, value.c_str());
+    return o;
 }
-// Every settings page uses the same dimensions, colors and centered tab labels.
-void tabs(const std::vector<std::string> &names, int active) {
+
+int textWidth(const std::string &value, const lv_font_t *font) {
+    lv_point_t size{};
+    lv_text_get_size(&size, value.c_str(), font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return size.x;
+}
+
+constexpr int tabsX = 6;
+constexpr int tabsWidth = 308;
+
+int tabX(int index, int count) {
+    return tabsX + index * tabsWidth / count;
+}
+
+void tabs(const std::vector<std::string> &names, int active, bool numbered = false) {
     const int count = int(names.size());
     for (int n = 0; n < count; n++) {
-        int x = 6 + n * 308 / count;
-        int width = (n + 1) * 308 / count - n * 308 / count - 2;
-        box(x, 26, width, 18, n == active ? gold : panel);
-        label(x + 2, 30, width - 4, names[n], n == active ? bg : muted,
-              &lv_font_montserrat_10, LV_TEXT_ALIGN_CENTER);
+        int x = tabX(n, count);
+        int width = tabX(n + 1, count) - x - 2;
+        const bool selected = n == active;
+        const bool key = names[n].size() == 1;
+        const bool fixedWidth = key || (numbered && n != 0);
+        box(x, 26, width, 18, selected ? colors.accent : colors.panel);
+        if (numbered)
+            label(x + 2, 29, 7, std::to_string(n + 1), selected ? colors.bg : colors.signal);
+        int inset = numbered ? 10 : 2;
+        label(x + inset, fixedWidth ? 31 : 29, width - inset - 1, names[n],
+              selected ? colors.bg : key && !numbered ? colors.keyText : colors.text,
+              fixedWidth ? mono : small, LV_TEXT_ALIGN_CENTER);
     }
 }
-constexpr char tabHint[] = LV_SYMBOL_LEFT LV_SYMBOL_RIGHT " tab";
-constexpr char rowHint[] = LV_SYMBOL_UP LV_SYMBOL_DOWN " row";
-constexpr char backHint[] = "Esc back";
-constexpr char cancelHint[] = "Esc cancel";
-constexpr char defaultHint[] = "Backspace reset field";
-constexpr char editedHint[] = "* edited";
-constexpr char exitHint[] = "Hold Esc to exit";
-constexpr int menuDetailY = 135;
+
+struct Hint {
+    const char *key;
+    std::string action;
+};
+constexpr char horizontalKeys[] = LV_SYMBOL_LEFT LV_SYMBOL_RIGHT;
+constexpr char verticalKeys[] = LV_SYMBOL_UP LV_SYMBOL_DOWN;
+const Hint tabHint{horizontalKeys, "Tab"};
+const Hint rowHint{verticalKeys, "Row"};
+const Hint backHint{"Esc", "Back"};
+const Hint cancelHint{"Esc", "Cancel"};
+const Hint defaultHint{"Backspace", "Reset field"};
+const Hint editedHint{"*", "Edited"};
+constexpr int menuDetailY = 132;
 constexpr int visibleRows = 5;
 constexpr int rowHeight = 18;
 const std::vector<std::string> setupTabNames{"Style", "App", "About"};
@@ -66,47 +103,97 @@ void scrollIndicator(int top, int first, int count, int limit = visibleRows, int
     const int height = limit * spacing;
     const int thumb = height * limit / count;
     const int offset = (height - thumb) * first / (count - limit);
-    box(316, top, 2, height, panel);
-    box(316, top + offset, 2, thumb, muted);
+    box(316, top, 2, height, colors.panel);
+    box(316, top + offset, 2, thumb, colors.muted);
 }
 
-void menuHints(std::initializer_list<const char *> primary,
-               std::initializer_list<const char *> secondary = {}) {
-    auto drawLine = [](int y, std::initializer_list<const char *> hints) {
-        std::string line;
-        for (const char *hint : hints) {
-            if (!*hint) continue;
-            if (!line.empty()) line += "   ";
-            line += hint;
-        }
-        if (!line.empty()) label(8, y, 306, line, muted);
-    };
-    drawLine(146, secondary);
-    drawLine(158, primary);
+void keycap(int x, int y, int width, const std::string &key, const lv_font_t *font,
+            uint32_t face = colors.keyFace, uint32_t ink = colors.keyText, int height = 13) {
+    auto *o = label(x, y, width, key, ink, font, LV_TEXT_ALIGN_CENTER);
+    lv_obj_set_height(o, height);
+    lv_obj_set_style_pad_top(o, (height - font->line_height) / 2, 0);
+    lv_obj_set_style_radius(o, 3, 0);
+    lv_obj_set_style_bg_color(o, lv_color_hex(face), 0);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+}
+
+void hintLine(int y, std::initializer_list<Hint> hints, const lv_font_t *font = body,
+              bool caps = true, int gap = 8) {
+    int x = 8;
+    for (const auto &hint : hints) {
+        if (!hint.key) continue;
+        const auto *keyFont = caps && std::strlen(hint.key) == 1 ? mono : small;
+        const int keyWidth = textWidth(hint.key, keyFont) + (caps ? 8 : 0);
+        if (caps) keycap(x, y, keyWidth, hint.key, keyFont);
+        else label(x, y, keyWidth, hint.key, colors.signal, keyFont);
+        x += keyWidth + 4;
+        const int actionWidth = textWidth(hint.action, font);
+        label(x, y + (caps ? (font == body ? -1 : 1) : 0), actionWidth, hint.action, colors.muted, font);
+        x += actionWidth + gap;
+    }
+}
+
+void menuHints(std::initializer_list<Hint> primary, std::initializer_list<Hint> secondary = {}) {
+    hintLine(143, secondary, small, false);
+    hintLine(155, primary);
+}
+
+void rowFocus(int y, int height) {
+    box(6, y - 1, 308, height, colors.panel);
+    box(8, y + 2, 2, height - 6, colors.accent);
+}
+
+void fieldRow(int y, int height, const std::string &name, const std::string &value, bool selected) {
+    if (selected) rowFocus(y, height);
+    label(16, y, 159, name, selected ? colors.accent : colors.text, body);
+    lv_label_set_long_mode(label(180, y, 132, value, selected ? colors.text : colors.muted, body),
+                           LV_LABEL_LONG_DOT);
+}
+
+constexpr int statusFieldInset = 6;
+constexpr int statusFieldGap = 4;
+constexpr int statusEditedWidth = 8;
+
+int statusFieldWidth(const char *name, const std::string &value, bool edited = false) {
+    return 2 * statusFieldInset + textWidth(name, small) + statusFieldGap + textWidth(value, body) +
+           (edited ? statusEditedWidth : 0);
+}
+
+void statusField(int x, int width, const char *name, const std::string &value, bool edited = false) {
+    box(x, 4, width, 17, colors.panel);
+    const int nameWidth = textWidth(name, small);
+    label(x + statusFieldInset, 7, nameWidth, name, colors.muted);
+    const int valueOffset = statusFieldInset + nameWidth + statusFieldGap;
+    const int valueWidth = width - valueOffset - statusFieldInset - (edited ? statusEditedWidth : 0);
+    auto *valueLabel = label(x + valueOffset, 5, valueWidth, value, colors.text, body);
+    lv_obj_set_height(valueLabel, body->line_height);
+    lv_label_set_long_mode(valueLabel, LV_LABEL_LONG_DOT);
+    if (edited)
+        label(x + width - statusFieldInset - statusEditedWidth + 2, 6, statusEditedWidth, "*", colors.accent);
 }
 } // namespace
-const char *UI::enterHint() const {
+const char *UI::enterAction() const {
     if (backing_)
-        return backingRow_ == backingApplyRow ? "Enter apply" : "Enter toggle";
-    if (tempo_) return "Enter apply";
+        return backingRow_ == backingApplyRow ? "Apply" : "Toggle";
+    if (tempo_) return "Apply";
     const auto action = confirmation();
     if (picker_) {
-        if (action == Confirmation::None) return "Enter apply";
-        if (choices_[choice_].value == 0) return "Enter keep";
-        return action == Confirmation::Create ? "Enter create" : "Enter restore";
+        if (action == Confirmation::None) return "Apply";
+        if (choices_[choice_].value == 0) return "Keep";
+        return action == Confirmation::Create ? "Create" : "Restore";
     }
-    if (page_ == Page::Setup && setupDestination() != SetupDestination::Picker) return "Enter open";
-    return action == Confirmation::None ? "Enter change" : "Enter review";
+    if (page_ == Page::Setup && setupDestination() != SetupDestination::Picker) return "Open";
+    return action == Confirmation::None ? "Change" : "Review";
 }
 void UI::drawAbout() {
-    label(8, 5, 304, "ZeroChord / Setup", gold, &lv_font_montserrat_14);
+    label(8, 5, 304, "ZeroChord / Setup", colors.accent, titleFont);
     tabs(setupTabNames, int(tab_));
-    label(10, 55, 188, "ZeroChord", text, &lv_font_montserrat_14);
-    label(10, 77, 188, "Version " ZEROCHORD_VERSION, gold, &lv_font_montserrat_12);
-    label(10, 97, 188, "Pocket chord instrument", muted);
-    label(10, 113, 190, "User guide and details at:", muted);
-    label(10, 127, 190, "github.com/", cyan);
-    label(10, 140, 194, "momo20261121/ZeroChord", cyan);
+    label(10, 52, 188, "ZeroChord", colors.text, titleFont);
+    label(10, 71, 188, "Version " ZEROCHORD_VERSION, colors.accent, body);
+    label(10, 88, 188, "Pocket chord instrument", colors.muted);
+    label(10, 107, 190, "User guide and details", colors.muted);
+    label(10, 119, 190, "github.com/", colors.signal);
+    label(10, 130, 194, "momo20261121/ZeroChord", colors.signal);
     constexpr char url[] = "https://github.com/momo20261121/ZeroChord";
     auto *qr = lv_qrcode_create(lv_screen_active());
     lv_obj_set_pos(qr, 208, 48);
@@ -116,8 +203,8 @@ void UI::drawAbout() {
     lv_qrcode_set_light_color(qr, lv_color_hex(0xffffff));
     lv_qrcode_set_quiet_zone(qr, true);
     if (lv_qrcode_update(qr, url, std::strlen(url)) != LV_RESULT_OK)
-        label(210, 80, 100, "Scan unavailable", muted);
-    menuHints({tabHint, backHint, exitHint});
+        label(210, 80, 100, "Scan unavailable", colors.muted);
+    menuHints({tabHint, backHint});
 }
 void UI::drawSettingRows(int top, int limit, int spacing) {
     const auto &fields = rows();
@@ -125,114 +212,113 @@ void UI::drawSettingRows(int top, int limit, int spacing) {
     for (int n = first; n < int(fields.size()) && n < first + limit; n++) {
         int field = fields[n];
         int y = top + (n - first) * spacing;
-        bool selected = field == selection_;
-        if (selected) box(6, y - 3, 308, spacing, panel);
-        label(12, y, 193,
-              std::string(selected ? "> " : "  ") + settingName(field) +
-                  (fieldModified(field) ? " *" : ""),
-              selected ? gold : muted, &lv_font_montserrat_12);
-        label(207, y + 1, 105, settingValue(field), selected ? text : muted);
+        fieldRow(y, spacing, std::string(settingName(field)) + (fieldModified(field) ? " *" : ""),
+                 settingValue(field), field == selection_);
     }
-    scrollIndicator(top - 3, first, int(fields.size()), limit, spacing);
+    scrollIndicator(top - 1, first, int(fields.size()), limit, spacing);
 }
 void UI::drawVolumeEffects() {
-    label(8, 5, 222, settingName(volumeEffectsField), gold, &lv_font_montserrat_14);
-    label(230, 8, 84, "All presets", muted);
-    drawSettingRows(26, 7, 16);
-    if (!status_.empty()) label(8, menuDetailY, 306, status_, cyan);
-    menuHints({rowHint, enterHint(), backHint}, {defaultHint, editedHint});
+    label(8, 5, 222, settingName(volumeEffectsField), colors.accent, titleFont);
+    label(230, 8, 84, "All presets", colors.muted, small, LV_TEXT_ALIGN_RIGHT);
+    drawSettingRows(24, 7, 15);
+    if (!status_.empty()) label(8, menuDetailY, 306, status_, colors.signal);
+    menuHints({rowHint, {"Enter", enterAction()}, backHint}, {defaultHint, editedHint});
 }
 void UI::drawEnvelope() {
     const auto &s = instrument_.settings;
     const auto &d = instrument_.library.current(s).sound;
-    label(8, 5, 304, "Envelope", gold, &lv_font_montserrat_14);
+    label(8, 5, 304, "Envelope", colors.accent, titleFont);
     tabs({envelopePartName(0), envelopePartName(1), envelopePartName(2)}, envelopePart_);
     for (int field = 0; field < 5; field++) {
-        int y = 49 + field * rowHeight;
-        if (field == envelopeField_) box(6, y - 3, 308, 18, panel);
+        int y = 46 + field * rowHeight;
         bool edited = field < 4 && s.envelopes[envelopePart_].values[field] != d.envelopes[envelopePart_].values[field];
-        label(12, y, 177, std::string(field == envelopeField_ ? "> " : "  ") + envelopeControlName(field) + (edited ? " *" : ""),
-              field == envelopeField_ ? gold : muted);
-        label(192, y, 120, field == 4 ? "Restore >" : envelopeValueName(field, s.envelopes[envelopePart_].values[field]));
+        fieldRow(y, rowHeight, std::string(envelopeControlName(field)) + (edited ? " *" : ""),
+                 field == 4 ? "Restore >" : envelopeValueName(field, s.envelopes[envelopePart_].values[field]),
+                 field == envelopeField_);
     }
-    if (!status_.empty()) label(8, menuDetailY, 306, status_, cyan);
-    menuHints({LV_SYMBOL_LEFT LV_SYMBOL_RIGHT " part", rowHint, enterHint(), backHint},
-              {canRestoreField() ? "Backspace reset to preset default" : "", editedHint});
+    if (!status_.empty()) label(8, menuDetailY, 306, status_, colors.signal);
+    menuHints({{horizontalKeys, "Part"}, rowHint, {"Enter", enterAction()}, backHint},
+              {{canRestoreField() ? "Backspace" : nullptr, "Reset to preset default"}, editedHint});
 }
 void UI::drawBacking() {
-    label(8, 5, 304, "Backing layers", gold, &lv_font_montserrat_14);
-    label(8, 26, 304, instrument_.library.current(instrument_.settings).name + " / choose any combination", muted);
+    label(8, 5, 304, "Backing layers", colors.accent, titleFont);
+    label(8, 26, 304, instrument_.library.current(instrument_.settings).name + " / Choose any combination", colors.muted);
     for (int n = 0; n <= backingApplyRow; ++n) {
-        int y = 49 + n * 20;
+        int y = 46 + n * 20;
         bool selected = n == backingRow_;
-        if (selected) box(6, y - 3, 308, 19, panel);
+        if (selected) rowFocus(y, rowHeight);
         if (n == backingApplyRow) {
-            label(12, y, 100, "> Apply", selected ? gold : text);
+            label(16, y, 100, "Apply", selected ? colors.accent : colors.text, body);
             break;
         }
         const auto &row = backingLayerRows[n];
-        std::string mark = pendingLayers_ & backingLayers(row.mode) ? "[x] " : "[ ] ";
-        label(12, y, 100, mark + modeName(row.mode), selected ? gold : text);
-        label(112, y, 198, row.description, muted);
+        bool checked = pendingLayers_ & backingLayers(row.mode);
+        keycap(12, y + 1, 14, checked ? LV_SYMBOL_OK : "", small, colors.keyFace);
+        label(32, y, 76, modeName(row.mode), selected ? colors.accent : colors.text, body);
+        label(112, y, 198, row.description, colors.muted, body);
     }
-    label(8, menuDetailY, 304, "Will play: " + backingLabel(modeForLayers(pendingLayers_)), cyan);
-    menuHints({rowHint, enterHint(), cancelHint}, {"Backspace / R load preset layers"});
+    label(8, 124, 304, "Will play: " + backingLabel(modeForLayers(pendingLayers_)), colors.signal, body);
+    menuHints({rowHint, {"Enter", enterAction()}, cancelHint}, {{"Backspace / R", "Load preset layers"}});
 }
 void UI::drawTempo() {
-    label(8, 5, 304, "Tempo", gold, &lv_font_montserrat_14);
-    label(8, 26, 304, instrument_.library.current(instrument_.settings).name + " / 40-240 BPM", muted);
-    box(28, 50, 264, 52, panel);
+    label(8, 5, 304, "Tempo", colors.accent, titleFont);
+    label(8, 26, 304, instrument_.library.current(instrument_.settings).name + " / 40-240 BPM", colors.muted, body);
+    box(28, 50, 264, 52, colors.panel);
     label(36, 67, 248, (tempoInput_.empty() ? "_" : tempoInput_) + " BPM",
-          gold, &lv_font_montserrat_14, LV_TEXT_ALIGN_CENTER);
-    if (!tempoError_.empty()) label(8, 113, 304, tempoError_, gold);
-    menuHints({"Type BPM", enterHint(), cancelHint},
-              {tempoReplace_ ? "Backspace clear" : "Backspace delete digit", "R load preset tempo"});
+          colors.accent, titleFont, LV_TEXT_ALIGN_CENTER);
+    if (!tempoError_.empty()) label(8, 113, 304, tempoError_, colors.accent, body);
+    menuHints({{"0-9", "Type BPM"}, {"Enter", enterAction()}, cancelHint},
+              {{"Backspace", tempoReplace_ ? "Clear" : "Delete digit"}, {"R", "Load preset tempo"}});
 }
 void UI::drawCombinations() {
     const auto &s = instrument_.settings;
-    label(8, 5, 210, "Chord config", gold, &lv_font_montserrat_14);
-    label(222, 8, 92, scopeName(), muted);
-    std::vector<std::string> names{"1 All"};
+    label(8, 5, 210, "Chord config", colors.accent, titleFont);
+    label(222, 8, 92, scopeName(), colors.muted, small, LV_TEXT_ALIGN_RIGHT);
+    std::vector<std::string> names{"All"};
     for (int n = 0; n < 7; n++)
-        names.push_back(std::to_string(n + 2) + " " + degreeName(n));
-    tabs(names, scope_ + 1);
+        names.push_back(degreeName(n));
+    tabs(names, scope_ + 1, true);
     const auto rows = combinationRows();
     int row = int(std::find(rows.begin(), rows.end(), combination_) - rows.begin());
     int start = firstVisibleRow(row, int(rows.size()));
     for (int index = start; index < int(rows.size()) && index < start + visibleRows; index++) {
-        int n = rows[index], y = 49 + (index - start) * rowHeight;
+        int n = rows[index], y = 46 + (index - start) * rowHeight;
         bool selected = combination_ == n;
-        if (selected) box(6, y - 3, 308, 18, panel);
         if (n < 4) {
+            if (selected) rowFocus(y, rowHeight);
             for (int button = 0; button < 3; button++)
-                box(12, y - 1 + button * 5, 7, 4, combinationMasks[n] & (1u << button) ? gold : 0x43505e);
+                box(16, y + 1 + button * 4, 7, 3,
+                    combinationMasks[n] & (1u << button) ? colors.signal : colors.keyFace);
             auto quality = scope_ < 0 ? Quality(s.combinations[n]) : s.quality(combinationMasks[n], scope_);
-            label(26, y, 142, combinationName(n), selected ? gold : text);
-            label(173, y, 48, qualityName(quality));
-            label(224, y, 88, scope_ < 0 ? "Shared" : s.degreeCombinations[scope_][n] < 0 ? "Inherited" : "Custom", muted);
+            label(30, y, 145, combinationName(n), selected ? colors.accent : colors.text, body);
+            label(180, y, 75, qualityName(quality), selected ? colors.text : colors.muted, body);
+            label(254, y + 2, 58, scope_ < 0 ? "Shared" : s.degreeCombinations[scope_][n] < 0 ? "Inherited" : "Custom",
+                  colors.muted, small, LV_TEXT_ALIGN_RIGHT);
         } else {
-            label(12, y, 177, combinationName(n), selected ? gold : muted);
+            std::string value;
             if (n == 6) {
-                int value = chordOctaveValue(s);
-                label(192, y, 120, value == -2 ? "All (" + std::to_string(s.chordOctave) + ")" : std::to_string(value));
+                int octave = chordOctaveValue(s);
+                value = octave == -2 ? "All (" + std::to_string(s.chordOctave) + ")" : std::to_string(octave);
             } else if (n == 7)
-                label(192, y, 120, noteName(s.tonic));
+                value = noteName(s.tonic);
             else if (n == 8)
-                label(192, y, 120, s.degreeChordRoot[scope_] < 0 ? "Key (" + noteName(s.chordRoot(scope_)) + ")" : noteName(s.degreeChordRoot[scope_]));
+                value = s.degreeChordRoot[scope_] < 0 ? "Key (" + noteName(s.chordRoot(scope_)) + ")" :
+                                                       noteName(s.degreeChordRoot[scope_]);
             else if (n == 5)
-                label(192, y, 120, s.combinationMs ? std::to_string(s.combinationMs) + " ms" : "Off");
-            else label(192, y, 120, "Restore >");
+                value = s.combinationMs ? std::to_string(s.combinationMs) + " ms" : "Off";
+            else value = "Restore >";
+            fieldRow(y, rowHeight, combinationName(n), value, selected);
         }
     }
-    scrollIndicator(46, start, int(rows.size()));
-    if (!status_.empty()) label(8, menuDetailY, 306, status_, cyan);
-    menuHints({LV_SYMBOL_LEFT LV_SYMBOL_RIGHT " / 1-8 tab", rowHint, enterHint(), backHint},
-              {canRestoreField() ? defaultHint : ""});
+    scrollIndicator(45, start, int(rows.size()));
+    if (!status_.empty()) label(8, menuDetailY, 306, status_, colors.signal);
+    menuHints({{LV_SYMBOL_LEFT LV_SYMBOL_RIGHT " / 1-8", "Tab"}, rowHint, {"Enter", enterAction()}, backHint},
+              {canRestoreField() ? defaultHint : Hint{}});
 }
 void UI::drawFrontNotes() {
     const auto &s = instrument_.settings;
-    label(8, 5, 220, "Front notes", gold, &lv_font_montserrat_14);
-    label(230, 8, 84, "All presets", muted);
+    label(8, 5, 220, "Front notes", colors.accent, titleFont);
+    label(230, 8, 84, "All presets", colors.muted, small, LV_TEXT_ALIGN_RIGHT);
     std::vector<std::string> names{"All"};
     for (int n = 0; n < 7; n++) names.push_back(std::string(1, frontKeys[n]));
     tabs(names, frontKey_ + 1);
@@ -241,17 +327,12 @@ void UI::drawFrontNotes() {
     defaults.frontMode = s.frontMode;
     for (int row = 0; row < int(rows.size()); row++) {
         int n = rows[row];
-        int y = 49 + row * rowHeight;
-        if (n == frontField_)
-            box(6, y - 3, 308, 18, panel);
+        int y = 46 + row * rowHeight;
         bool modified =
             !((frontKey_ < 0 && n == 3) || (frontKey_ >= 0 && n == 2)) &&
             frontValue(s, n) != frontValue(frontKey_ < 0 && n == 0 ? Settings{} : defaults, n);
-        label(12, y, 176,
-              std::string(n == frontField_ ? "> " : "  ") + frontSettingName(n) +
-                  (modified ? " *" : ""),
-              n == frontField_ ? gold : muted);
-        label(190, y, 122, frontValueName(s, n), text);
+        fieldRow(y, rowHeight, std::string(frontSettingName(n)) + (modified ? " *" : ""),
+                 frontValueName(s, n), n == frontField_);
     }
     std::string detail = "Each mode remembers its K/L action and time";
     if (frontKey_ >= 0) {
@@ -261,9 +342,9 @@ void UI::drawFrontNotes() {
                  std::to_string(pitch / 12 - 1) + " with " +
                  (s.frontMode ? "the selected scale" : chordName(chord) + " major");
     }
-    label(8, menuDetailY, 306, status_.empty() ? detail : status_, cyan);
-    menuHints({tabHint, rowHint, enterHint(), backHint},
-              {canRestoreField() ? defaultHint : "", editedHint});
+    label(8, menuDetailY, 306, status_.empty() ? detail : status_, status_.empty() ? colors.muted : colors.signal);
+    menuHints({tabHint, rowHint, {"Enter", enterAction()}, backHint},
+              {canRestoreField() ? defaultHint : Hint{}, editedHint});
 }
 void UI::drawPicker() {
     const auto action = confirmation();
@@ -304,9 +385,10 @@ void UI::drawPicker() {
         }
         break;
     }
-    label(8, 5, confirming ? 306 : 260, title, gold, &lv_font_montserrat_14);
+    label(8, 5, confirming ? 306 : 260, title, colors.accent, titleFont);
     if (!confirming)
-        label(273, 8, 41, std::to_string(choice_ + 1) + "/" + std::to_string(choices_.size()), muted);
+        label(273, 8, 41, std::to_string(choice_ + 1) + "/" + std::to_string(choices_.size()),
+              colors.muted, small, LV_TEXT_ALIGN_RIGHT);
     const bool grouped = soundPicker();
     const bool canRestore = canRestoreField();
     const int defaultChoice = canRestore ? defaultValue() : 0;
@@ -318,23 +400,21 @@ void UI::drawPicker() {
         tabs(categories, int(std::find(categories.begin(), categories.end(), soundCategory_) -
                              categories.begin()));
     } else if (!subtitle.empty()) {
-        label(8, 26, 306, subtitle, muted);
+        label(8, 26, 306, subtitle, colors.muted);
     }
     int start = firstVisibleRow(choice_, int(choices_.size()));
     for (int n = start; n < int(choices_.size()) && n < start + visibleRows; n++) {
-        int y = 47 + (n - start) * rowHeight;
+        int y = 46 + (n - start) * rowHeight;
         bool selected = n == choice_;
-        if (selected)
-            box(6, y - 3, 308, 18, panel);
+        if (selected) rowFocus(y, rowHeight);
         const auto &choice = choices_[n];
         bool isCurrent = !confirming && choice.value == currentChoice;
         bool isDefault = canRestore && choice.value == defaultChoice;
-        int nameWidth = isCurrent && isDefault ? 204 : (isCurrent || isDefault ? 244 : 298);
-        label(12, y, nameWidth, std::string(selected ? "> " : "  ") + choice.name,
-              selected ? gold : text, &lv_font_montserrat_12);
+        int nameWidth = isCurrent && isDefault ? 203 : (isCurrent || isDefault ? 244 : 294);
+        label(16, y, nameWidth, choice.name, selected ? colors.accent : colors.text, body);
         if (isCurrent || isDefault) {
             const char *badge = isCurrent && isDefault ? "Current / Default" : isCurrent ? "Current" : "Default";
-            label(221, y + 1, 90, badge, isDefault ? cyan : muted, &lv_font_montserrat_10,
+            label(221, y + 2, 90, badge, isDefault ? colors.signal : colors.muted, small,
                   LV_TEXT_ALIGN_RIGHT);
         }
     }
@@ -350,12 +430,76 @@ void UI::drawPicker() {
             description += " " + noteName(notes[3]);
         description += "  |  " + choices_[choice_].description;
     }
-    if (!description.empty()) label(8, menuDetailY, 306, description, cyan);
-    const char *chooseHint = grouped ? LV_SYMBOL_UP LV_SYMBOL_DOWN " sound" : LV_SYMBOL_UP LV_SYMBOL_DOWN " choose";
-    menuHints({multipleGroups ? LV_SYMBOL_LEFT LV_SYMBOL_RIGHT " group" : "",
-               choices_.size() > 1 ? chooseHint : "", enterHint(), cancelHint},
-              {canRestore ? "Backspace select default" : ""});
+    if (!description.empty()) label(8, menuDetailY, 306, description, colors.muted);
+    menuHints({{multipleGroups ? horizontalKeys : nullptr, "Group"},
+               {choices_.size() > 1 ? verticalKeys : nullptr, grouped ? "Sound" : "Choose"},
+               {"Enter", enterAction()}, cancelHint},
+              {{canRestore ? "Backspace" : nullptr, "Select default"}});
 }
+void UI::drawPerformance() {
+    const auto &i = instrument_;
+    const auto &s = i.settings;
+    const int transpose = i.semitoneShift();
+    label(8, 5, 174, transpose ? "ZeroChord  +1" : "ZeroChord", colors.accent, titleFont);
+    const auto key = noteName(s.tonic) + (s.frontMode ? (s.scale ? " min" : " maj") : "");
+    const auto &preset = i.library.current(s).name;
+    const bool presetEdited = i.library.modified(s);
+    constexpr int statusLeft = 116, statusRight = 312, betweenFields = 4;
+    const int keyWidth = statusFieldWidth("Key:", key);
+    const int presetWidth = std::min(statusFieldWidth("Preset:", preset, presetEdited),
+                                     statusRight - statusLeft - keyWidth - betweenFields);
+    const int presetX = statusRight - presetWidth;
+    statusField(presetX - betweenFields - keyWidth, keyWidth, "Key:", key);
+    statusField(presetX, presetWidth, "Preset:", preset, presetEdited);
+
+    box(8, 33, 74, 55, i.active ? colors.activeChord : colors.panel);
+    const std::string currentChord = i.active ? chordName(i.chord) : "Ready";
+    label(13, 42, 65, currentChord, i.active ? colors.accent : colors.text,
+          textWidth(currentChord, titleFont) <= 65 ? titleFont : body);
+    if (i.active) {
+        const std::string degree = degreeName(i.chord.column);
+        const int width = textWidth(degree, mono);
+        label(13, 67, width, degree, colors.muted, mono);
+        label(17 + width, 66, 52 - width, "chord", colors.muted);
+    } else {
+        label(13, 66, 65, "Select chord", colors.muted);
+    }
+
+    constexpr int gridX = 103, gridWidth = 28, gridStep = 30, gridY = 45, gridRowStep = 16;
+    constexpr const char *chordKeys[] = {"2345678", "QWERTYU", "ASDFGHJ"};
+    constexpr const char *qualities[] = {"M", "m", "7"};
+    for (int row = 0; row < 3; row++)
+        label(86, gridY + row * gridRowStep, 13, qualities[row], colors.muted, body, LV_TEXT_ALIGN_CENTER);
+    for (int col = 0; col < 7; col++) {
+        const int x = gridX + col * gridStep;
+        const bool selected = i.active && col == i.chord.column;
+        label(x, 23, gridWidth, degreeName(col), selected ? colors.accent : colors.muted, mono, LV_TEXT_ALIGN_CENTER);
+        label(x, 31, gridWidth, noteName(s.chordRoot(col) + transpose), selected ? colors.accent : colors.text,
+              body, LV_TEXT_ALIGN_CENTER);
+        for (int row = 0; row < 3; row++)
+            keycap(x, gridY + row * gridRowStep, gridWidth, std::string(1, chordKeys[row][col]), body,
+                   selected ? colors.activeChord : colors.panel, selected ? colors.accent : colors.keyText, 15);
+    }
+
+    hintLine(93, {{"I", s.hold ? "Hold on" : "Hold off"}, {"O", backingLabel(s.mode)},
+                  {"P", std::to_string(s.bpm) + " BPM"}});
+    const auto pitches = i.playingFrontNotes();
+    const bool frontReady = i.active || s.frontMode == 1;
+    for (int n = 0; n < 7; n++) {
+        const int x = 8 + n * 44;
+        const bool flash = i.harpFlash == n;
+        box(x, 108, 40, 30, flash ? colors.signal : colors.frontPanel);
+        label(x + 2, 108, 36,
+              frontReady ? noteName(pitches[n]) + std::to_string(pitches[n] / 12 - 1) : "-",
+              flash ? colors.bg : colors.text, body, LV_TEXT_ALIGN_CENTER);
+        keycap(x + 11, 124, 18, std::string(1, frontKeys[n]), mono,
+               flash ? colors.bg : colors.keyFace, flash ? colors.signal : colors.keyText, 12);
+    }
+    hintLine(141, {{"K/L", s.frontAction[s.frontMode] ? "Octave -/+" : "Strum"},
+                   {"9/0", "Preset"}, {"1", "Hold to sharpen"}});
+    hintLine(155, {{"Tab", "Setup"}, {"Space", "Stop"}, {"Esc", "Hold to exit"}});
+}
+
 void UI::draw() {
     const auto &i = instrument_;
     const auto &s = i.settings;
@@ -394,24 +538,10 @@ void UI::draw() {
     if (signature.str() == previous_)
         return;
     previous_ = signature.str();
-    if (s.theme) {
-        bg = 0xf3f5f7;
-        panel = 0xe2e8ee;
-        text = 0x17232e;
-        muted = 0x52687b;
-        gold = 0x805000;
-        cyan = 0x006c72;
-    } else {
-        bg = 0x111923;
-        panel = 0x202d3a;
-        text = 0xe9edf0;
-        muted = 0x90a1b2;
-        gold = 0xffce75;
-        cyan = 0x73d9d0;
-    }
+    colors = s.theme ? light : dark;
     lv_obj_clean(lv_screen_active());
     lv_obj_remove_flag(lv_screen_active(), LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(bg), 0);
+    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(colors.bg), 0);
     lv_obj_set_style_bg_opa(lv_screen_active(), LV_OPA_COVER, 0);
     if (backing_) {
         drawBacking();
@@ -445,63 +575,25 @@ void UI::draw() {
         drawAbout();
         return;
     }
-    label(8, 5, 174, settingsOpen ? "ZeroChord / Setup" :
-              (i.semitoneShift() ? "ZeroChord  +1" : "ZeroChord"), gold,
-          &lv_font_montserrat_14);
-    label(188, 7, 124,
-          noteName(s.tonic) + (s.frontMode ? (s.scale ? " min" : " maj") : "") + "  " +
-              instrument_.library.current(s).name + (instrument_.library.modified(s) ? "*" : ""),
-          muted);
-    if (settingsOpen) {
-        tabs(setupTabNames, int(tab_));
-        drawSettingRows(48, visibleRows, rowHeight);
-        if (!status_.empty())
-            label(8, menuDetailY, 306, status_, cyan);
-        else if (tab_ == Tab::App && !soundLibrary().warning.empty())
-            label(8, menuDetailY, 306, "Some sound packs skipped; see startup log", muted);
-        else
-            label(8, menuDetailY, 306, tab_ == Tab::App ? "Applies to all presets" : "Settings for this preset", muted);
-        menuHints({tabHint, rowHint, enterHint(), backHint},
-                  {canRestoreField() ? defaultHint : "", editedHint, exitHint});
+    if (!settingsOpen) {
+        drawPerformance();
         return;
     }
-    box(8, 29, 84, 48, panel);
-    label(15, 35, 74, i.active ? chordName(i.chord) : "Ready", i.active ? gold : text,
-          &lv_font_montserrat_14);
-    label(15, 58, 74,
-          i.active ? std::string(degreeName(i.chord.column)) + " chord" : "Select chord", muted);
-    static const char *rows[] = {"2345678", "QWERTYU", "ASDFGHJ"};
-    for (int col = 0; col < 7; col++) {
-        int x = 100 + col * 30;
-        bool selected = i.active && col == i.chord.column;
-        label(x + 5, 25, 28, degreeName(col), selected ? gold : muted);
-        for (int row = 0; row < 3; row++) {
-            int y = 39 + row * 17;
-            box(x, y, 28, 15, selected ? (s.theme ? 0xf2ddb2 : 0x3e3a30) : panel);
-            label(
-                x + 3, y + 2, 25,
-                std::string(1, rows[row][col]) + " " +
-                    (row == 0 ? noteName(s.chordRoot(col) + i.semitoneShift()) : (row == 1 ? "m" : "7")),
-                selected ? gold : text);
-        }
-    }
-    label(8, 90, 210,
-          std::string("I ") + (s.hold ? "hold" : "off") + "  O " + backingLabel(s.mode) + "  P " +
-              std::to_string(s.bpm), muted);
-    label(220, 90, 94, s.frontAction[s.frontMode] ? "K/L oct -/+" : "K/L strum", cyan);
-    auto pitches = i.playingFrontNotes();
-    bool frontReady = i.active || s.frontMode == 1;
-    for (int n = 0; n < 7; n++) {
-        int x = 8 + n * 44;
-        bool flash = i.harpFlash == n;
-        box(x, 107, 40, 31, flash ? cyan : panel);
-        label(x + 2, 110, 36,
-              frontReady ? noteName(pitches[n]) + std::to_string(pitches[n] / 12 - 1) : "-",
-              flash ? bg : cyan, &lv_font_montserrat_12, LV_TEXT_ALIGN_CENTER);
-        label(x + 2, 125, 36, std::string(1, frontKeys[n]), flash ? bg : muted,
-              &lv_font_montserrat_10, LV_TEXT_ALIGN_CENTER);
-    }
-    label(8, 142, 306, "9/0 preset   Hold 1: +1 semitone", text);
-    label(8, 156, 306, std::string("Tab setup   Space stop   ") + exitHint, muted);
+    label(8, 5, 174, "ZeroChord / Setup", colors.accent, titleFont);
+    label(184, 7, 130,
+          noteName(s.tonic) + (s.frontMode ? (s.scale ? " min" : " maj") : "") + "  " +
+              i.library.current(s).name + (i.library.modified(s) ? "*" : ""),
+          colors.muted, small, LV_TEXT_ALIGN_RIGHT);
+    tabs(setupTabNames, int(tab_));
+    const int scopeX = tabX(int(tab_), int(setupTabNames.size())) + 2;
+    label(scopeX, 46, 312 - scopeX, tab_ == Tab::App ? "Applies to all presets" : "Settings for this preset",
+          colors.muted);
+    drawSettingRows(59, visibleRows, 15);
+    if (!status_.empty())
+        label(8, menuDetailY, 306, status_, colors.signal);
+    else if (tab_ == Tab::App && !soundLibrary().warning.empty())
+        label(8, menuDetailY, 306, "Some sound packs skipped; see startup log", colors.muted);
+    menuHints({tabHint, rowHint, {"Enter", enterAction()}, backHint},
+              {canRestoreField() ? defaultHint : Hint{}, editedHint});
 }
 } // namespace zc

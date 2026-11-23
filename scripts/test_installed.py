@@ -27,7 +27,7 @@ assert subprocess.check_output(['dpkg','--verify','zerochord'], text=True) == ''
 metadata = dict(line.split('=',1) for line in (app/'applications/zerochord.desktop').read_text().splitlines() if '=' in line)
 assert metadata['Name'] == 'ZeroChord' and metadata['Exec'] == 'bin/run-zerochord'
 assert metadata['Terminal'] == 'false' and metadata['Icon'] == 'share/images/zerochord.png'
-assert struct.unpack_from('>II',(app/metadata['Icon']).read_bytes(),16) == (256,256)
+assert struct.unpack_from('>II',(app/metadata['Icon']).read_bytes(),16) == (100,100)
 fd = os.open('/dev/uinput',os.O_WRONLY|os.O_NONBLOCK)
 created = False
 process = monitor = recording = None

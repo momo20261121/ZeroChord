@@ -33,7 +33,7 @@ package; the final package differs from the one first installed only in bundled 
 - [README](README.md): installation, first notes and essential controls.
 - [User guide](docs/USER_GUIDE.md): modes, menus, presets, EQ, About and troubleshooting.
 - [Release notes](CHANGELOG.md).
-- [Original icon artwork](assets/zerochord-source.png) and [256×256 PNG](assets/share/images/zerochord.png).
+- [Original icon artwork](assets/zerochord-source.png) and [100×100 solid-background PNG](assets/share/images/zerochord.png).
 - Four 320×170 store screenshots, refreshed and inspected for 1.1.0:
   [playing](store/screenshots/performance.png),
   [Style](store/screenshots/style.png),

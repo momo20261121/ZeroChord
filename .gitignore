@@ -9,6 +9,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+notes.md
 
 # Optional checksum-verified sample download
 sounds/fluid-grand/piano.sf2

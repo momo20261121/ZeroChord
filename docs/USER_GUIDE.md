@@ -8,6 +8,7 @@ parts have separate sounds and envelopes.
 
 Open ZeroChord from APPLaunch. Startup is silent. The initial preset is Dream,
 with Chord, Arp and Pad backing layers and a bright front sound in the key of C.
+The main screen labels the current **Key** and **Preset** separately.
 
 Press **8**, then play **Z X C V B N M**. Try **8 → 5 → T → 4** for C, G, Am, F.
 Press **Space** to stop everything. Hold **Esc** for about a second to exit.
@@ -15,7 +16,9 @@ Use a clean exit to save your settings; removing power can lose recent edits.
 
 ## Chord buttons
 
-Each vertical column chooses one degree of the key. In the default key of C:
+Each column shows its degree and root above the physical keys. Read
+**M**, **m**, and **7** at the left for major, minor, and seventh. In the
+default key of C:
 
 | Row / degree | II (D) | III (E) | IV (F) | V (G) | VI (A) | VII (B) | I (C) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -93,8 +96,8 @@ Move to a key tab to change its note and absolute octave. See
 ## Settings without guesswork
 
 Press **Tab**. **Z/C** switches tabs and **F/X** moves the selection, matching
-the printed ←/→ and ↑/↓ arrows. Dedicated arrow events work too. The bottom
-of each menu shows its navigation and shortcuts for the current selection.
+the printed ←/→ and ↑/↓ arrows. Dedicated arrow events work too. At the
+bottom of each menu, keycaps sit beside the actions for the current selection.
 
 Press **Enter** to open an editor. Choose a value with ↑/↓ and press Enter to
 apply it. Esc cancels a preview. **Current** marks the active value, and
@@ -103,9 +106,10 @@ categories. To change tempo, type 40–240 and press Enter. **R** loads the pres
 tempo for you to apply. **P** opens the same popup while playing. Tap Esc to go
 back or hold it to exit the app.
 
-**Style** settings belong to the current preset. They include Tempo, Backing
-layers, patterns, sounds and envelopes. **App** settings apply to all presets.
-They include Theme, Volume & effects, Hold, Front notes and Chord config.
+The caption under the active tab shows its scope. **Style** settings belong
+to the current preset. They include Tempo, Backing layers, patterns, sounds
+and envelopes. **App** settings apply to all presets. They include Theme,
+Volume & effects, Hold, Front notes and Chord config.
 
 ### Presets and defaults
 
