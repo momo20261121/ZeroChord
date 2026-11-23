@@ -1,19 +1,19 @@
 ---
 name: publish
-description: Release ZeroChord - choose the version, privacy-check, build/package/install/test the .deb on the Cardputer, report, update docs, and merge dev into main. Run only when the user asks to publish or release.
+description: Release ZeroChord by building and testing the Debian package, tagging the release, and publishing the package on GitHub when approved. Run only when the user asks to publish or release.
 disable-model-invocation: true
 ---
 
 # Publish ZeroChord
 
-Run the six steps in order from the project root. Invoking `/publish` authorizes the
-routine release work below (commits on `dev`, local merge into `main`, local tag).
-It does **not** authorize pushing, store submission, or rewriting history.
-Two hard stops need the user: the version choice (step 1) and the report (step 4).
+Run the numbered steps from the project root. Invoking `/publish` authorizes
+release preparation, commits on `dev`, a local merge into `main`, and a local tag.
+Use the publication choice at step 4 for any GitHub action. Store submission
+requires separate authorization. Preserve Git history.
 
 **The `dev` branch is local-only. Never push it** (no `git push --all`, `--mirror`,
-or `origin dev`). Only `main` and `v<version>` may ever be pushed, and only after the
-user approves that at step 4. `scripts/install_git_guard.sh` installs a pre-push hook
+or `origin dev`). Only `main` and `v<version>` may ever be pushed, and only with
+explicit approval. `scripts/install_git_guard.sh` installs a pre-push hook
 that refuses `dev`; the preflight runs it.
 
 Load private configuration in every shell that needs it: `set -a; . ./.env; set +a`.
@@ -35,7 +35,8 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
   saved settings and presets compatible; **minor** for significant new player-facing
   features; **major** for incompatible settings/preset/control changes. Give a
   one-sentence reason.
-- Ask the user to confirm or override (AskUserQuestion). **Wait for the answer.**
+- Use the version if the user already specified it. Otherwise ask them to
+  confirm or override the proposed version before continuing.
 - Write it to `VERSION.txt`, then `grep -rn "<old version>"` over tracked files and fix any
   other mention (docs "currently X", CHANGELOG heading) except history.
 
@@ -86,8 +87,14 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
   counts, installed-app result, package size/SHA-256); what was *not* validated (physical
   keyboard feel, speaker listening) - never claim hands-on validation that did not happen;
   privacy WARNs needing confirmation.
-- **Stop.** Ask (AskUserQuestion): approve release / fix more / abort, and separately whether
-  to push `main` + `v<version>` to origin (default: do not push). Proceed only on approval.
+- Ask for release approval and a publication choice. **Wait for approval.**
+  - **Local release only (default).** Commit, merge, and tag locally.
+  - **Publish to GitHub.** Push `main` and `v<version>`, then create the GitHub
+    Release with the final `.deb`, checksum, and release notes.
+  - **Push refs only.** Push `main` and `v<version>` when the user requests a
+    source-only push.
+- A later request to publish the package on GitHub can resume step 7 from an
+  existing release tag. Use the final package and checksum for that tag.
 
 ## 5. Update docs
 
@@ -102,7 +109,7 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
   `privacy_check.py --deb`. Update the SHA-256 in PUBLISH.md to the final file. Say that the
   final package differs from the tested one only in bundled docs.
 
-## 6. Release to main
+## 6. Create the local release
 
 1. Final `python3 -I scripts/privacy_check.py --deb dist/...`; no FAIL.
 2. Commit everything on `dev` as one release commit with the project contributor identity
@@ -111,20 +118,54 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
 3. `git switch main && git merge --no-ff dev -m "Release ZeroChord <version>"`, then
    `git tag -a v<version> -m "ZeroChord <version>"` on `main`. Verify
    `git show main:VERSION.txt` and `git diff dev main --stat` is empty.
-4. Back on `dev`: `git merge --ff-only main`, then start the next cycle: bump `VERSION.txt`
-   to the next planned version (propose it by the step 1 rules and ask the user; do not assume a patch), add a `## <next> (in development)` CHANGELOG heading, update the
-   "currently X" mentions in `AGENTS.md` and `docs/DEVELOPMENT.md`, commit
-   `Start <next> development`. `dev` stays local.
-5. Push only if approved in step 4, naming refs explicitly:
-   `git push origin main v<version>`. Then confirm `git ls-remote --heads origin` shows no
-   `dev`. If not approved, print that exact command for the user.
-6. GitHub Release (only if the user approved it at step 4): use this project's account without
-   switching the global `gh` login, and never `gh auth switch`:
-   `GH_TOKEN=$(gh auth token --user "$ZEROCHORD_GH_USER") gh release create v<version> dist/zerochord_<version>_arm64.deb dist/zerochord_<version>_arm64.deb.sha256 --title "ZeroChord <version>" --notes-file <changelog section> --verify-tag`.
-   If that account is not logged in, ask the user to run `! gh auth login`. Also ask about this
-   at step 4, next to the push question.
-7. Final summary: version, commit/tag, package path and SHA-256, push state, release link. Store upload
-   (`PUBLISH.md` has the listing text) is a separate manual step the user must request.
+
+## 7. Publish to GitHub
+
+1. For an approved GitHub publication or refs-only push, run
+   `git push origin main v<version>`. Verify the remote tag matches the local
+   annotated tag and confirm `git ls-remote --heads origin` shows no `dev`.
+   When resuming from an existing tag, skip the push if the tag matches and
+   the remote `main` already contains the tagged commit.
+2. For an approved GitHub Release, use the account named by
+   `ZEROCHORD_GH_USER` in `.env`. Pass the token to each `gh` command and keep
+   the global `gh` account unchanged. Check that `gh api user --jq .login`
+   returns the configured account. If it needs a login, ask the user to run
+   `gh auth login` for that account.
+3. Check the final package against its SHA-256 file. Save the version's section
+   from the tagged `CHANGELOG.md` to a temporary notes file. If the release
+   already exists, verify its assets before retrying any upload. Otherwise create it:
+
+   ```sh
+   (
+     test -n "$ZEROCHORD_GH_USER" || exit 1
+     zerochord_gh_token=$(gh auth token --user "$ZEROCHORD_GH_USER") || exit 1
+     test -n "$zerochord_gh_token" || exit 1
+     GH_TOKEN="$zerochord_gh_token" gh release create "v$zerochord_version" \
+       "dist/zerochord_${zerochord_version}_arm64.deb" \
+       "dist/zerochord_${zerochord_version}_arm64.deb.sha256" \
+       --repo "$zerochord_repo" --title "ZeroChord $zerochord_version" \
+       --notes-file "$zerochord_notes_file" --verify-tag
+   )
+   ```
+
+   Set `zerochord_version` to the approved version, `zerochord_repo` to the
+   GitHub owner/repo from `origin`, and `zerochord_notes_file` to the notes path.
+4. Use `gh release view` to confirm the release URL, published status, and both
+   assets. Download the `.deb` and checksum to a scratch directory, then verify
+   the downloaded package SHA-256 against the final local package.
+5. Report the tag, package path and SHA-256, and the GitHub Release URL when
+   published. For a local-only release, include `git push origin main v<version>`
+   as the refs-only command. Maintain the CardputerZero Store copy and image order
+   in `store/LISTING.md` and record Store submission links in `PUBLISH.md`.
+
+## 8. Start the next development cycle
+
+- Return to `dev` and run `git merge --ff-only main` after the local release or
+  approved GitHub publication. Ask for the next planned version using the rules
+  in step 1 before bumping `VERSION.txt`. Then add a
+  `## <next> (in development)` CHANGELOG heading, update the current versions
+  in `AGENTS.md` and `docs/DEVELOPMENT.md`, and commit
+  `Start <next> development` on local `dev`.
 
 ## If something fails
 

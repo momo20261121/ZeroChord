@@ -1,63 +1,65 @@
 # Presets and customization
 
-A style preset stores the enabled backing layers, independent Front, Chord/Arp, and Pad
-sounds, their independent envelopes, all three patterns, and BPM. The selected chord and currently pressed
-keys are performance state. Startup is silent.
+A preset remembers its sounds, envelopes, backing layers, patterns, and tempo.
+For playing and menu controls, see the [user guide](USER_GUIDE.md).
 
-**App** settings include Theme, **Volume & effects** (Master, Backing and Front
-volume, Echo and Low/Mid/High EQ), Hold, Chord config (Key, absolute roots,
-shared/per-degree octaves, combinations and recognition timing),
-and front-note modes, scale, mappings, actual octaves, K/L actions and strum times. They keep
-their values when selecting, saving, or restoring a style preset. Existing app
-values are preserved when upgrading. Preset level has been removed.
+- [Factory presets](#factory-starting-points)
+- [Edit and save on the instrument](#on-the-instrument)
+- [Edit preset files](#editable-toml-files)
+- [Imported sounds](#imported-sounds)
+- [App settings and mixing](#app-settings-and-mixing)
 
-Output level is `master volume × backing/front volume`. Combined backing layers
-receive an additional 1/√(enabled layers) balance; Front stays independent. Master volume scales
-both the direct sound and echo.
+## Factory starting points
 
-The app-wide three-band EQ shapes the entire Front, Chord, Arp and Pad mix including
-echo, before Master volume and the output clamp. Each band ranges from −12 to
-+12 dB in 1 dB steps, initially 0 dB (exact bypass). Low is a 250 Hz shelf,
-Mid is a broad 1 kHz peak (Q ≈ 0.707), High is a 4 kHz shelf, using
-[RBJ biquad formulas](https://www.w3.org/TR/audio-eq-cookbook/).
-Opening the picker auditions the band. Enter applies the choice, Esc cancels,
-and Backspace selects 0 dB. EQ survives preset switching and restoration. Existing settings
-load flat; saved EQ values live only in the app settings, never preset TOML.
+Dream is selected on a fresh launch. Press `9` / `0` to try the presets.
+
+| Preset | Front | Chord / Arp | Pad | Initial backing | BPM |
+| --- | --- | --- | --- | --- | --- |
+| Dream | Music Box | Airy Pad | Warm Pad | Chord + Arp + Pad / Sustained + Up + Slow swell | 80 |
+| Harp | Harp | Nylon Guitar | Strings | Pad / Steady | 96 |
+| Keys | Piano | Piano | Warm Pad | Chord / Sustained | 100 |
+| Organ | Organ | Organ | Warm Pad | Chord / Sustained | 100 |
+| Pop | Steel-string Guitar | Electric Piano | Warm Pad | Arp / Broken eighths | 112 |
+| R&B | Electric Piano | Electric Piano | Warm Pad | Chord / Syncopated | 82 |
+| Rock | Overdriven Guitar | Clean Electric Guitar | Organ | Chord / Every eighth | 120 |
+| Waltz | Celesta | Piano | Strings | Chord / Bass/chord 3/4 | 96 |
+| Bossa | Vibraphone | Nylon Guitar | Warm Pad | Chord / Bossa accompaniment | 128 |
+
+Dream and Harp use the **Sustained** chord pattern by default. Harp starts
+with only the **Pad** layer enabled.
 
 ## On the instrument
 
-- **9 / 0:** previous / next preset, including its BPM and remembered edits.
-- **Tab** opens settings. **←/→** switches Style, App, and About. **↑/↓**
-  selects a row. Style starts with Preset and Tempo. App starts with Theme
-  and Volume & effects. Style and App each remember their selected row.
-- **Enter** opens the selected page or picker. In a picker, Enter applies
-  the choice and Esc cancels. Sound, pattern, key, and mapping choices can
-  be auditioned before applying. In Backing layers, select **Apply** to
-  confirm all checkboxes together. Pattern auditions run for up to eight
-  seconds. Space stops them.
-- **Backspace:** restore the highlighted musical setting to the selected preset's
-  default. In an open choice list, Backspace highlights the default; Enter still
-  confirms it. App fields restore their app defaults: Dark, 100% master, 80% backing, 100% front, 15% echo, flat EQ, 210 ms front strums, 30 ms combination window, C major, Hold On,
-  and minichord chord mappings with inherited per-degree overrides.
-- **Save as new preset:** confirm to create User001, User002, etc. Its current
-  musical settings become its defaults. Rename it by editing its TOML `name`.
-- **Restore preset:** confirmation resets every musical setting in the active
-  preset. Other presets and app-wide controls are preserved.
+Press `Tab` and open **Style**. The tab remembers the last row you selected.
+See the [keyboard reference](USER_GUIDE.md#keyboard-reference) for navigation.
 
-A `*` by the preset name means its musical settings differ from its defaults.
-A `*` beside a setting marks an edited field; choice lists label the default.
-App markers compare against app defaults. Changes are remembered
-per preset and written on clean exit. Save as new preset also writes immediately.
-A forced kill/power loss can lose edits since the last clean save.
+- **Preview a change.** Open a sound, pattern, key, or mapping picker with
+  `Enter`. Moving to an option auditions it. Pattern previews run for up to
+  eight seconds. Press `Space` to stop playback, `Enter` to apply the choice,
+  or `Esc` to cancel. In **Backing layers**, use **Apply** to save the group.
+- **Reset one setting.** Press `Backspace` on its row. In an open picker,
+  `Backspace` highlights the default. Press `Enter` to apply it.
+- **Make a copy.** Choose **Save as new preset** and confirm. This writes a
+  copy immediately as User001, User002, and so on. The copied settings become
+  its defaults. Edit the TOML `name` to rename it.
+- **Start over on a preset.** Choose **Restore preset** and confirm to reset
+  the active preset's musical settings. App settings apply across presets.
 
-Chord mappings retain **1 = All, 2–8 = II–VII, I**. Backspace restores just the
-highlighted mapping at that scope to the app default. Follow All removes a
-per-degree override. The Chord config restore action resets root/key, octave, and all four mappings
-for that scope, with confirmation; All also resets recognition timing and degree overrides. Mappings are shared across all presets.
+An asterisk (`*`) marks a preset or setting that differs from its defaults.
+Hold `Esc` to exit and save your edits. A forced stop or power loss can lose
+edits made since you last saved.
 
 ![Style settings showing Chord, Arp and Pad patterns in order](images/release-style.png)
 
 ![App tab and app-wide controls](images/app-settings.png)
+
+### Tempo and defaults
+
+Press `P` or open **Style → Tempo**. Type a value from 40 to 240 BPM and
+press `Enter` to apply it or `Esc` to cancel. `Backspace` deletes digits.
+`R` selects the preset default for confirmation. ZeroChord remembers the
+last preset you used. Stock defaults upgrade with the app, and customized
+presets keep their values.
 
 ## Sound and envelope order
 
@@ -81,11 +83,18 @@ keys. Omitted controls (or -1) use the sound's envelope. Echo is a separate sett
 
 ## Chord roots and front scale
 
-App → Chord config starts each scope with **Octave**. All's next row is **Key**;
-a degree's next row is **Root**, with C–B absolute note choices and **Follow Key**.
+**App → Chord config** starts each scope with **Octave**. The next row is **Key**
+on **All** and **Root** on a degree tab. For **Root**, choose a note from C to B
+or select **Follow Key**.
 Default chord roots use major-scale degrees. Custom roots remain fixed when Key
-changes. Default octave is 3; each degree can use an absolute octave or Follow All.
-These settings remain App-wide across preset changes and restores.
+changes. The default octave is 3. Each degree can use an absolute octave or
+**Follow All**. These settings apply across presets.
+
+`Backspace` restores the highlighted mapping at its current scope. The
+**Restore defaults...** action resets the key or root, octave, and four chord
+combinations for that scope after confirmation. On **All**, it also resets
+recognition timing and degree overrides. See the
+[chord configuration reference](FRONT_NOTES.md#chord-config) for details.
 
 App → Front notes → All shows **Scale** immediately after Front mode when
 Scale notes is selected. Major/natural minor affects only front Scale notes.
@@ -128,44 +137,6 @@ without restarting it. Chord and Arp pattern changes each apply at their current
 pattern boundary. Applying a new layer selection or preset starts a new phrase.
 Settings entry stops performance; auditions use a temporary setup. Space stops
 all layers and queued front strums while preserving settings.
-
-## Factory starting points
-
-Dream remains first. Presets use the current licensed bank, with no automatic
-Lo-fi/Hi-fi labels or claimed sample upgrades. An optional, separately licensed Grand Piano
-(FluidR3) pack is described in the [sound pack guide](../sounds/README.md).
-
-| Preset | Front | Chord / Arp | Pad | Initial backing | BPM |
-| --- | --- | --- | --- | --- | --- |
-| Dream | Music Box | Airy Pad | Warm Pad | Chord + Arp + Pad / Sustained + Up + Slow swell | 80 |
-| Harp | Harp | Nylon Guitar | Strings | Pad / Steady | 96 |
-| Keys | Piano | Piano | Warm Pad | Chord / Sustained | 100 |
-| Organ | Organ | Organ | Warm Pad | Chord / Sustained | 100 |
-| Pop | Steel-string Guitar | Electric Piano | Warm Pad | Arp / Broken eighths | 112 |
-| R&B | Electric Piano | Electric Piano | Warm Pad | Chord / Syncopated | 82 |
-| Rock | Overdriven Guitar | Clean Electric Guitar | Organ | Chord / Every eighth | 120 |
-| Waltz | Celesta | Piano | Strings | Chord / Bass/chord 3/4 | 96 |
-| Bossa | Vibraphone | Nylon Guitar | Warm Pad | Chord / Bossa accompaniment | 128 |
-
-Harp and Dream also default to Sustained for their Chord pattern, including
-when the Chord layer is initially disabled. Manual hit remains selectable.
-
-The sound picker shows the source sample rate under the highlighted sound;
-mixed-rate instruments show the range and “mixed”. These are rates from the
-loaded SoundFont, including imported packs, not the 48 kHz output rate or a
-quality score.
-
-Acoustic and bell Front sounds retain native attack/decay/sustain; release is
-180 ms, or 320 ms for Dream, Waltz and Bossa. Organ Front uses 5/100/85%/90
-ADSR. Chord usually uses a 5 ms attack, native decay/sustain and 100 ms release;
-Dream uses 8/400/35%/200, Organ 5/100/85%/100, Rock 3/160/45%/65.
-Warm Pad uses 300/800/75%/550; Strings 150/600/75%/400; Organ Pad
-80/300/75%/250. Times are milliseconds. These are editable musical starting
-points; recordings that do not loop still end naturally.
-
-Unmodified older factory defaults and working copies upgrade to these starting
-points. Customized factory files and working copies keep their values. Restore
-preset resets only the current preset to its loaded default.
 
 ## Editable TOML files
 
@@ -255,15 +226,46 @@ identify a sound as `pack-folder/sound-id`. Existing numeric sound fields retain
 the built-in fallback. Missing packs keep the ID and play that fallback.
 See [pack setup](../sounds/README.md) and [front mappings](FRONT_NOTES.md).
 
-### Tempo and defaults
+## App settings and mixing
 
-Dream is first in the preset list and is selected on a fresh launch. Its chord
-sound is Airy Pad; Pad and Front keep their separate sounds. Existing sessions
-remember their last preset. Stock Dream defaults upgrade without changing
-customized presets.
+**App** settings keep their values when selecting, saving, or restoring a preset,
+and when upgrading ZeroChord. The **App** tab remembers the last selected row.
 
-P and Style → Tempo open the same numeric editor. Type 40–240, then Enter to
-save or Esc to cancel. Backspace deletes digits; R selects the preset default
-for confirmation. Restore preset resets only the current preset; other presets'
-remembered edits and all App settings remain intact. Tabs share one appearance,
-and navigation hints use arrow symbols throughout.
+| Menu | Default |
+| --- | --- |
+| **Theme** | Dark |
+| **Volume & effects** | Master 100%, Backing 80%, Front 100%, Echo 15%, EQ 0 dB |
+| **Hold** | On |
+| **Front notes** | Chord notes, with a 210 ms strum |
+| **Chord config** | Key of C, 30 ms combination window, shared minichord mappings inherited by each degree |
+
+Output level is `master volume × backing/front volume`. Combined backing layers
+receive an additional 1/√(enabled layers) balance; Front stays independent. Master volume scales
+both the direct sound and echo.
+
+The app-wide three-band EQ shapes the entire Front, Chord, Arp and Pad mix including
+echo, before Master volume and the output clamp. Each band ranges from −12 to
++12 dB in 1 dB steps, initially 0 dB (exact bypass). Low is a 250 Hz shelf,
+Mid is a broad 1 kHz peak (Q ≈ 0.707), High is a 4 kHz shelf, using
+[RBJ biquad formulas](https://www.w3.org/TR/audio-eq-cookbook/).
+Opening the picker auditions the band. `Enter` applies the choice, `Esc` cancels,
+and `Backspace` selects 0 dB. EQ settings live in the app settings file.
+
+## Factory sound details
+
+The sound picker shows the source sample rate under the highlighted sound;
+mixed-rate instruments show the range and “mixed”. These are rates from the
+loaded SoundFont, including imported packs, not the 48 kHz output rate or a
+quality score.
+
+Acoustic and bell Front sounds retain native attack/decay/sustain; release is
+180 ms, or 320 ms for Dream, Waltz and Bossa. Organ Front uses 5/100/85%/90
+ADSR. Chord usually uses a 5 ms attack, native decay/sustain and 100 ms release;
+Dream uses 8/400/35%/200, Organ 5/100/85%/100, Rock 3/160/45%/65.
+Warm Pad uses 300/800/75%/550; Strings 150/600/75%/400; Organ Pad
+80/300/75%/250. Times are milliseconds. These are editable musical starting
+points; recordings that do not loop still end naturally.
+
+Unmodified older factory defaults and working copies upgrade to these starting
+points. Customized factory files and working copies keep their values. Restore
+preset resets only the current preset to its loaded default.

@@ -28,8 +28,8 @@ Its executable and launcher files match the installed candidate byte for byte.
 
 ## User-facing deliverables
 
-- [README](README.md): installation, first notes and essential controls.
-- [User guide](docs/USER_GUIDE.md): modes, menus, presets, EQ, About and troubleshooting.
+- [README](README.md) for the download, installation, and first notes.
+- [User guide](docs/USER_GUIDE.md) for modes, menus, keyboard controls, and troubleshooting.
 - [Release notes](CHANGELOG.md).
 - [Original icon artwork](assets/zerochord-source.png) and [100×100 solid-background PNG](assets/share/images/zerochord.png).
 - Five dark-theme store screenshots, reviewed at 320×170 for 1.2.0.
@@ -75,37 +75,17 @@ The app runs as the normal launcher user and keeps settings in `~/.config/zeroch
 
 Details and limits are in the [testing record](docs/TESTING.md).
 
-## Store listing ready to use
+## CardputerZero Store
 
-Portal: <https://dev.cardputer.cc/#/upload>
+Submitted on 2026-11-23 in [CardputerZero/packages #707](https://github.com/CardputerZero/packages/pull/707).
+The submission updates the existing `CHRD` listing with the 1.2.0 package,
+the first-sound steps, the user guide link, and five screenshots.
+GitHub captured the submission and is awaiting maintainer approval to run
+[package validation](https://github.com/CardputerZero/packages/actions/runs/45156155034).
 
-- Application name: **ZeroChord**
-- Summary: **A pocket chord-and-harp instrument for CardputerZero.**
-- Category suggestion: **Media**
-- Source repository: use the public URL configured in `ZEROCHORD_HOMEPAGE`.
-- Email privacy: hide uploader email (`true`); choose a public package contact with `ZEROCHORD_MAINTAINER`.
-- Icon: use the packaged PNG.
-- Screenshots: the five files listed above, in that order.
-
-Description:
-
-> Make music with the CardputerZero keyboard. Select major, minor and seventh
-> chords, combine buttons for richer harmonies, and pick or strum seven front
-> notes. Play soft pads, clear sustained chords, rhythmic accompaniment or
-> arpeggios. Combine Chord, Arp and Pad in Backing layers. Nine editable presets
-> include separate Front, Chord/Arp and Pad sounds and envelopes. Customize
-> chord roots, octaves, key combinations, and front-note layouts. Adjust the
-> mix from Volume & effects with three-band EQ and Echo.
-> Import named SoundFont packs from a TF card. Dark and light themes, printed
-> arrow-key navigation, and per-setting defaults keep setup accessible.
-
-## External publication
-
-Not submitted. Package-name ownership, store category acceptance and uploader
-sign-in are checked by the portal at submission. External submission requires
-an affirmative user request; preparation and local installation do not submit it.
-Record submission time, portal result and tracking URL here after submission.
+Maintain the description, listing fields and image order in the
+[store listing](store/LISTING.md).
 
 ## Git release
 
-The local release is tagged `v1.2.0` on `main`. GitHub publication is pending.
+Published from `main` as [GitHub Release v1.2.0](https://github.com/momo20261121/ZeroChord/releases/tag/v1.2.0).

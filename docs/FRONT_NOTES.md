@@ -1,34 +1,35 @@
 # Front notes
 
-Open **Tab → App → Front notes**. **←/→** switches **All, Z, X, C, V,
-B, N, M** tabs. **↑/↓** selects a row; **Enter** opens its choices and
-confirms; **Esc** cancels or goes back. The printed arrows **F/X/Z/C** work on
-every page and in choice lists, as do dedicated arrow keys. Z–M key-selection
-shortcuts are disabled; Z/X/C perform navigation, rather than jumping to a key.
-Numbers do not select front-key tabs.
-**Backspace** restores the highlighted field. Choice changes audition one front
-note without saving until Enter.
+Press `Tab` and open **App → Front notes**. Use `Z` / `C` (← / →) to switch
+between **All** and the tabs for each front key. Use `F` / `X` (↑ / ↓) to
+select a row. `Enter` opens the choices and confirms a selection. `Esc` cancels
+or goes back. Dedicated arrow keys also work.
+
+In a picker, moving to a choice previews one front note. Press `Enter` to
+save the choice. `Backspace` restores the highlighted field or selects its
+default for confirmation in a picker.
 
 ## All keys
 
-- **Front mode — Chord notes:** keys follow the selected chord's root and quality.
+- **Chord notes.** Front keys follow the selected chord's root and quality.
   Defaults preserve the original minichord-inspired seven-note layout.
-- **Front mode — Scale notes:** Z–M play I–VII of Chord config → All → Key and the front Scale setting, starting
-  at octave 4. They work without selecting a backing chord. Selecting a backing
-  chord does not transpose these scale notes; holding **1** raises newly played
-  scale notes by one semitone, including custom notes and octaves.
-- **1 in Chord notes:** holding 1 raises new front notes one semitone above the
+- **Scale notes.** `Z`–`M` play degrees I–VII starting at octave 4. The key
+  comes from **Chord config → All → Key**, and **Scale** sets major or natural
+  minor. The notes can play before you choose a backing chord. Holding `1`
+  raises new scale notes by one semitone, including custom notes and octaves.
+- **Sharpen chord notes.** Holding `1` raises new front notes one semitone above the
   selected chord's notes, including when that chord was already sharp. The
   backing chord stays unchanged. Ringing notes and queued strums keep their
   original pitches.
-- **K/L action:** Strum or Octave shift, remembered separately for each front
-  mode. Chord notes defaults to Strum; Scale notes defaults to Octave shift.
+- **K/L action.** **Chord notes** defaults to **Strum** and **Scale notes**
+  defaults to **Octave shift**. Each mode remembers its own action.
 - **Strum time:** 60–600 ms from first to last note, shown when Strum is selected.
-  Each mode remembers its own duration. L plays Z→M, K plays M→Z, preserving
+  Each mode remembers its own duration. `L` plays `Z` → `M`, and `K` plays
+  `M` → `Z`, preserving
   keyboard order even with a nonascending custom layout.
 - **Restore all front:** resets both modes, all keys, K/L actions and timings.
 
-Octave shift moves front notes down with K or up with L. It leaves the backing
+**Octave shift** moves front notes down with `K` or up with `L`. It leaves the backing
 unchanged and stops before any note would exceed MIDI 0–127. The live shift is
 separate for each mode and is not saved into per-key mappings.
 
@@ -57,8 +58,9 @@ untouched defaults retain Auto.
 
 ## Chord config
 
-Open **App → Chord config**. ←/→ switches All and the seven degree
-tabs; 1 selects All and 2–8 selects II–VII/I as on the playing keyboard.
+Open **App → Chord config**. Use `Z` / `C` (← / →) to switch between **All**
+and the seven degree tabs. `1` selects **All**. `2`–`8` select II–VII and I,
+in the same order as on the playing keyboard.
 
 **All → Chord combo timing** groups chord-button presses within a fixed interval
 from the first press. The trial default is **30 ms**; choose **Off** or **5–60 ms**
@@ -71,5 +73,16 @@ resetting an individual degree preserves the shared timing.
 
 Chord config begins with Octave on each tab. All contains Key; degree tabs
 contain absolute Root overrides. Follow Key / Follow All restores inheritance.
-Major/minor is now selected under Front notes → All → Scale, visible only in
-Scale notes mode, and has no effect on backing roots.
+**Front notes → All → Scale** sets major or natural minor for **Scale notes**.
+
+### Choose a chord quality
+
+On **All** or a degree tab, select the row for the buttons you want to combine.
+Press `Enter`, choose a quality, then press `Enter` again. A degree can use its
+own quality or **Follow All** for the shared choice.
+
+| Quality | What it plays | Example from C |
+| --- | --- | --- |
+| **no3** | Root and fifth | C, G |
+| **sus2** | Second in place of the third | C, D, G |
+| **sus4** | Fourth in place of the third | C, F, G |

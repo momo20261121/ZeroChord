@@ -1,202 +1,279 @@
 # ZeroChord user guide
 
-ZeroChord turns your CardputerZero keyboard into a chord-and-harp instrument.
-Select a chord, then play its individual front notes. The backing and front
-parts have separate sounds and envelopes.
+Play a chord with one hand and pick or strum its notes with the other. The
+**front** is what you play on `Z`–`M`. **Backing** is what the chord buttons play
+through Chord, Arp, or Pad.
 
-## Start playing
+## Contents
 
-Open ZeroChord from APPLaunch. Startup is silent. The initial preset is Dream,
-with Chord, Arp and Pad backing layers and a bright front sound in the key of C.
-The main screen labels the current **Key** and **Preset** separately.
+- [Make your first sound](#make-your-first-sound)
+- [Choose and combine chords](#choose-and-combine-chords)
+- [Set up backing layers](#set-up-backing-layers)
+- [Customize your front notes](#customize-your-front-notes)
+- [Find and edit settings](#find-and-edit-settings)
+- [Shape your sound](#shape-your-sound)
+- [Import your own sounds](#import-your-own-sounds)
+- [Keyboard reference](#keyboard-reference)
+- [Troubleshooting](#troubleshooting)
 
-Press **8**, then play **Z X C V B N M**. Try **8 → 5 → T → 4** for C, G, Am, F.
-Press **Space** to stop everything. Hold **Esc** for about a second to exit.
-Use a clean exit to save your settings; removing power can lose recent edits.
+## Make your first sound
 
-## Chord buttons
+Open **ZeroChord** from APPLaunch. The default preset is **Dream**, in the key
+of **C**. The app starts silently until you play.
 
-Each column shows its degree and root above the physical keys. Read
-**M**, **m**, and **7** at the left for major, minor, and seventh. In the
-default key of C:
+1. Press `8` for a C major chord.
+2. Play `Z` `X` `C` `V` `B` `N` `M` to pick its notes. `L` strums up. `K` strums down.
+3. Try `8` → `5` → `T` → `4` for C → G → Am → F in the default key of C.
+4. Press `O` to choose backing layers. `I` toggles **Hold**.
+5. Press `Space` to stop sound. Hold `Esc` for about a second to save your
+   settings and return to the launcher.
 
-| Row / degree | II (D) | III (E) | IV (F) | V (G) | VI (A) | VII (B) | I (C) |
+![Playing screen with the Key and Preset at the top, chord buttons in the center, and front notes below](images/release-performance.png)
+
+The **chord grid** shows a degree and root above each column. The **front row**
+shows the note and octave above each key.
+
+See [installation](../README.md#install) if you need to set up the app and the
+[keyboard reference](#keyboard-reference) for all shortcuts.
+
+## Choose and combine chords
+
+### Pick a chord
+
+Choose a column for the root and a row for the quality. The grid labels the
+rows **M** for major, **m** for minor, and **7** for seventh. These are the
+labels when the key is C.
+
+| Row | II · D | III · E | IV · F | V · G | VI · A | VII · B | I · C |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Major | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
-| Minor | Q | W | E | R | T | Y | U |
-| Seventh | A | S | D | F | G | H | J |
+| **M** Major | `2` | `3` | `4` | `5` | `6` | `7` | `8` |
+| **m** Minor | `Q` | `W` | `E` | `R` | `T` | `Y` | `U` |
+| **7** Seventh | `A` | `S` | `D` | `F` | `G` | `H` | `J` |
 
-Combine buttons **within a column** for more chord qualities:
+### Add a chord quality, a sharp, or a bass note
 
-| Combination | Default |
+Press buttons **in the same column** together for richer harmonies. The
+default 30 ms window groups nearby presses into one attack.
+
+| Press together | Default quality | Example in C |
+| --- | --- | --- |
+| Top + middle | Diminished | `8` + `U` |
+| Top + bottom | Major seventh | `8` + `J` |
+| Middle + bottom | Minor seventh | `U` + `J` |
+| All three | Augmented | `8` + `U` + `J` |
+
+- **Raise a chord by a semitone.** Hold `1`, then select the chord. Its root
+  and bass rise, and it stays selected at that pitch after you release `1`.
+  The **+1** indicator and grid show what the next chord selection will use.
+- **Choose a different bass note.** In the default key, hold `8` and press `5`
+  to play C major over G. The first column sets the chord and the second sets
+  the bass note.
+
+### Change the key or chord layout
+
+Open **App → Chord config**. Use `Z` / `C` (← / →) to switch tabs, `1` for
+**All**, or `2`–`8` to select the degree shown on the playing grid.
+
+| Scope | What you can change |
 | --- | --- |
-| Top + middle | Diminished |
-| Top + bottom | Major seventh |
-| Middle + bottom | Minor seventh |
-| All three | Augmented |
+| **All** | Key, shared octave, chord combinations, and combo timing |
+| **A degree** | Its octave, absolute root, and chord combinations |
 
-For example **8 + U** selects C diminished. Press the buttons close together;
-the default 30 ms combination window groups them into one attack. Change that
-window, or assign no3/sus2/sus4, in **App → Chord config**.
-Hold **1** while selecting a chord to raise its root and bass by one semitone.
-Releasing **1** leaves that selected chord unchanged; the next chord selection
-uses the modifier's current state. The main page shows **+1** while held and the
-chord grid shows the roots the next selection will use.
-Front Chord notes follow the selected chord; holding **1** raises new front notes
-one semitone above those pitches. For example, over C# a new root note becomes D
-while 1 is held, and returns to C# for notes played after release.
-In Scale mode, **1** sharpens new front notes independently of the backing chord.
-Front-note labels match the next notes. Ringing notes and queued K/L strums
-retain the pitches they started with.
-Hold one column and press another to choose a different bass note.
+**Follow All** restores the shared octave. **Follow Key** restores the root
+for the current key. These mappings apply across presets. See the
+[chord configuration reference](FRONT_NOTES.md#chord-config) for combo timing
+and [additional chord qualities](FRONT_NOTES.md#choose-a-chord-quality).
 
-## Backing modes and Hold
+![Chord config with the shared All tab selected and degree tabs across the top](images/release-chord-config.png)
 
-Press **O**, or open **Style → Backing layers**, for the same checkbox popup.
-Use **↑/↓** (printed **F/X**) to select Chord, Arp or Pad, then **Enter** to
-toggle it. Select **Apply** and press Enter to save all changes together.
-**Esc** cancels; **Backspace** or **R** selects the preset defaults for confirmation.
-Select none for Front only; select several to layer them. The selected harmony
-stays latched when applying layers. Their patterns are set separately in Style.
+## Set up backing layers
 
-| Mode | What the chord buttons do |
+Press `O` or open **Style → Backing layers**. Use `F` / `X` (↑ / ↓)
+to move and `Enter` to toggle a layer. Select **Apply** to save the choices
+together. `Esc` cancels. `Backspace` or `R` selects the preset defaults
+for you to confirm.
+
+| Layer | What you hear when you select a chord |
 | --- | --- |
-| Chord | Strike the chord notes together using the shared Chord/Arp sound |
-| Arp | Repeat chord tones in the selected rhythmic pattern |
-| Pad | Play a soft continuous chord, with optional volume motion |
-| Front only | Select harmony silently, ready for Z–M and K/L |
+| **Chord** | Chord notes together, with a single hit, a sustained chord, or a rhythm |
+| **Arp** | Chord tones played one at a time in a repeating pattern |
+| **Pad** | A soft continuous chord with optional volume motion |
+| **None** | Front only. The chord selects the harmony for `Z`–`M`, `K`, and `L` silently. |
 
-In Chord mode, **Manual hit** plays once, **Sustained** keeps the sound going,
-and Every beat, Every eighth, Offbeat, Syncopated, Bass/chord 3/4 and Bossa
-accompaniment repeat it rhythmically. Bass events play an octave below the chord.
-Arp choices are Up, Down, Up/down, Root and upper notes, Broken eighths and
-Syncopated notes. Previously saved mixed patterns remain playable. They do not
-add a drum track. Multiple backing layers share tempo and harmony; Pad motion
-changes only Pad. The mixer balances combined backing layers to leave headroom.
+Turn on several layers to combine them. They share tempo and harmony. ZeroChord
+balances their levels to leave room for the front notes. Your harmony stays
+selected when you apply new layers.
 
-**I** toggles **Hold**. On keeps the selected harmony after releasing its buttons.
-Off stops backing when the chord buttons are released. Hold does not repeat
-a Manual hit. Space stops the backing, front notes and queued strums.
+### Pick a pattern and tempo
 
-## Front notes and K/L
+In **Style**, change **Chord pattern**, **Arp pattern**, and **Pad motion**
+independently.
 
-**Z–M** runs from lower to higher notes. The screen puts the note and octave
-above its keyboard label. **App → Front notes** has two modes:
+- **Chord pattern.** Choose **Manual hit** for one strike, **Sustained** for a
+  continuous chord, or a rhythm such as **Every beat**, **Offbeat**, or **Bossa accompaniment**.
+  Bass events sound an octave below the chord.
+- **Arp pattern.** Try **Up**, **Down**, **Up/down**, **Root and upper notes**,
+  **Broken eighths**, or **Syncopated notes**. Older mixed patterns still play using chord tones.
+- **Pad motion.** Add movement to the Pad's volume.
 
-- **Chord notes:** front notes follow the selected chord and its quality.
-- **Scale notes:** seven notes follow the selected key and major/natural minor
-  scale; they can play without selecting a chord first.
+Press `P` or open **Style → Tempo**. Type a value from 40 to 240 BPM and press
+`Enter` to apply. `R` fills in the preset tempo.
 
-On All, choose the mode and K/L action. **Strum** sweeps M→Z with K and Z→M
-with L; Strum time is the time for the complete sweep. **Octave shift** moves
-front notes down with K and up with L. Each mode remembers its own action.
-Move to a key tab to change its note and absolute octave. See
-[front customization](FRONT_NOTES.md) for details.
+### Keep a chord ringing after release
 
-## Settings without guesswork
+1. Enable **Chord** in **Backing layers**.
+2. Turn on **Hold** with `I` if it's off.
+3. Choose **Style → Chord pattern → Sustained**.
 
-Press **Tab**. **Z/C** switches tabs and **F/X** moves the selection, matching
-the printed ←/→ and ↑/↓ arrows. Dedicated arrow events work too. At the
-bottom of each menu, keycaps sit beside the actions for the current selection.
+**Hold** keeps the harmony selected after you release the chord buttons.
+**Sustained** keeps the Chord sound ringing too. **Manual hit** plays once.
+With **Hold** off, releasing the chord buttons stops the backing.
 
-Press **Enter** to open the highlighted page or picker. In a picker, use ↑/↓
-to choose a value, Enter to apply it, and Esc to cancel. **Current** marks the
-active value. **Default** marks the value Backspace selects. Sound pickers use
-←/→ to switch groups. On a settings page, Esc goes back. Hold Esc to exit.
+## Customize your front notes
 
-Open **Style → Tempo** or press **P** while playing. Type a tempo from 40 to
-240 BPM and press Enter. **R** loads the preset tempo for you to apply.
+Open **App → Front notes → All** to choose which notes `Z`–`M` play and what
+`K` and `L` do. Each mode remembers its own **K/L action**.
 
-The caption under the active tab tells you what an edit affects.
-**Settings for this preset** appears under Style for Tempo, Backing layers,
-patterns, sounds, and envelopes. **Applies to all presets** appears under App
-for Theme, Volume & effects, Hold, Front notes, and Chord config.
+| Front mode | What `Z`–`M` play |
+| --- | --- |
+| **Chord notes** | Notes from the selected chord and its quality |
+| **Scale notes** | Notes from the current key's major or natural minor scale, playable before choosing a chord |
 
-### Presets and defaults
+| K/L action | `K` | `L` |
+| --- | --- | --- |
+| **Strum** | Sweep `M` → `Z` | Sweep `Z` → `M` |
+| **Octave shift** | Shift front notes down | Shift front notes up |
 
-**9/0** changes presets. Each preset remembers its edited sounds, envelopes,
-tempo and patterns. **Backspace** restores one highlighted field to its default;
-inside an editor it highlights the default and Enter still confirms.
+**Strum time** sets the duration of the whole sweep. On each key's tab, choose
+its note and octave. In **Scale notes** mode, select **Scale** on the **All** tab.
 
-A **\*** means a setting differs from its default. **Save as new preset** makes
-an editable copy. **Restore preset** resets only the current preset, after
-confirmation. Other presets and App settings are preserved.
+Hold `1` to raise newly played front notes one semitone, even when the chord
+root is already sharp. The displayed front notes show the pitches you will play
+next. Ringing notes and queued strums keep their starting pitches. See the
+[front-note reference](FRONT_NOTES.md#each-key) for the mapping and octave options.
 
-### Volumes, EQ and Echo
+## Find and edit settings
 
-Open **App → Volume & effects** for Master, Backing and Front volume, Echo,
-and EQ. Esc returns to App. The volume defaults are 100%, 80% and 100%.
-Master controls the complete output, including Echo.
+Press `Tab` to open settings. Use `Z` / `C` to switch tabs and `F` / `X` to
+move between rows. The hint row shows the keys for the current page. In a picker,
+**Current** marks the active value and **Default** marks the value that
+`Backspace` highlights. Press `Enter` to apply a highlighted choice.
+
+| Tab | What it affects |
+| --- | --- |
+| **Style** | **Settings for this preset** covers tempo, backing layers, patterns, sounds, and envelopes |
+| **App** | **Applies to all presets** covers theme, volume and effects, Hold, front notes, and chord config |
+| **About** | The installed version and a QR code to the repository and documentation |
+
+The About QR code works in either theme. Open it on a phone with internet access.
+
+### Switch, copy, or restore a preset
+
+- **Switch.** Press `9` / `0` to move between presets. Each remembers its edits.
+- **Copy.** Choose **Style → Save as new preset** to create an editable copy.
+- **Restore.** Choose **Style → Restore preset** and confirm to reset that preset.
+  To reset one setting, use `Backspace` on its row.
+- **Check for edits.** An asterisk (`*`) marks a changed preset or setting.
+  Hold `Esc` to save recent edits and return to the launcher.
+
+See the [preset guide](PRESETS.md) for editable files and built-in defaults.
+
+## Shape your sound
+
+### Balance the mix and add effects
+
+Open **App → Volume & effects**. These controls apply to every preset.
 
 ![Volume & effects showing Master, Backing and Front volume, Echo, and three EQ bands](images/release-volume-effects.png)
 
-**EQ Low/Mid/High** boosts or cuts the complete mix by −12 to +12 dB per band.
-Start at 0 dB; try Low +3 dB for more bass, and compare while playing. The small
-speaker has limited low-frequency output. Strong boosts can distort; lower
-Master volume or reduce the boost if that happens. Backspace resets one band
-to 0 dB. EQ is shared across presets.
+| Control | What it changes | Default |
+| --- | --- | --- |
+| **Master volume** | Complete output, including Echo | 100% |
+| **Backing volume** | Chord, Arp, and Pad together | 80% |
+| **Front volume** | Picked notes and strums | 100% |
+| **Echo** | Level of the repeat, about 230 ms after the original note | 15% |
+| **EQ Low / Mid / High** | Bass, middle, and treble of the whole mix, from −12 to +12 dB | 0 dB |
 
-**Echo** adds a quiet delayed repeat, about 230 ms later. It is separate from
-the sound's envelope. Set it to 0% for a dry sound.
+Try **Low +3 dB** for a fuller sound. If the small speaker distorts, reduce the
+boost or lower **Master volume**. Press `Backspace` to reset the selected EQ
+band. Set **Echo** to **0%** for a dry sound.
 
-### Envelopes
+### Control how a note starts and ends
 
-The envelope tabs are Front, Chord/Arp and Pad. Chord and Arp use the same envelope.
+In **Style**, open the envelope for **Front**, **Chord/Arp**, or **Pad**.
+Chord and Arp share a sound and envelope.
 
-| Control | Meaning |
+| Control | What you hear |
 | --- | --- |
-| Attack | Time to rise to full level |
-| Decay | Time to fall to the held level |
-| Sustain | Level while the note is active |
-| Release | Fade after the note stops |
+| **Attack** | How quickly a note rises to full level |
+| **Decay** | How quickly it falls to the held level |
+| **Sustain** | The level while the note is held |
+| **Release** | How long it fades after you let go |
 
-**Use sound's envelope** keeps the sound's original decay/sustain, with bounded backing
-chord articulation. A recorded one-shot sound cannot continue beyond its sample
-just by increasing Sustain. Restore envelope affects only that part.
+Choose **Use sound's envelope** for the sound's own decay and sustain. Chord/Arp
+also limits the default attack and release for clearer backing. A one-shot
+sound ends when its recorded sample runs out.
+**Restore envelope** resets the selected part. See the
+[sound and envelope reference](PRESETS.md#sound-and-envelope-order) for ranges
+and how to save custom values.
 
-### Chord configuration
+## Import your own sounds
 
-**App → Chord config** starts with All. **1** selects All; **2–8** selects
-II–VII/I. ←/→ also switches scope. All has Octave and Key first; a degree has
-its own Octave and absolute Root. Follow All/Follow Key removes an override.
-Root, octave and combination mappings remain the same when switching presets.
-Front Scale notes have their own major/minor setting under Front notes → All.
+1. Put a **SoundFont (.sf2)** file or a sound pack in `ZeroChord/sounds/` on the
+   TF card, or in `~/ZeroChord/sounds/`.
+2. Restart ZeroChord.
+3. Open a **Front sound**, **Chord/Arp sound**, or **Pad sound** picker in Style.
+   Plain SF2 files appear under **Custom**. A pack can name its sounds and set
+   their categories.
 
-![Chord config with the shared All tab selected and individual degree tabs across the top](images/release-chord-config.png)
+![Front sound picker with the Plucked category selected](images/release-sounds.png)
 
-### About
+The [sound pack guide](../sounds/README.md) covers supported locations, manifests,
+size limits, and the optional Grand Piano download. Use sounds with licenses
+that allow your intended use.
 
-Tab → **About** (after Style and App) shows the running version, a note that the
-user guide and more details are in the repository, and a QR code for the GitHub
-source and documentation. The code stays black on white in either theme and works
-offline; your phone needs network access to open the page. Esc returns to playing.
+## Keyboard reference
 
-## Add your own sounds
+### While playing
 
-Copy named SoundFont packs into `ZeroChord/sounds/` on the TF card, or
-`~/ZeroChord/sounds/`, then restart the app. They appear alongside the small
-built-in sound set. Front, Chord/Arp and Pad can each choose an imported sound.
+| Key | Action |
+| --- | --- |
+| `2`–`8` / `Q`–`U` / `A`–`J` | Select a major / minor / seventh chord |
+| `Z`–`M` | Pick the seven front notes |
+| `K` / `L` | Strum down / up, or shift the octave down / up when configured |
+| `9` / `0` | Previous / next preset |
+| `1` + chord | Raise the chord root and bass by one semitone |
+| `I` | Toggle **Hold** |
+| `O` | Open **Backing layers** |
+| `P` | Type a tempo |
+| `Tab` | Open settings |
+| `Space` | Stop backing, front notes, and queued strums |
+| Hold `Esc` | Save changes and return to the launcher |
 
-![Front sound picker showing the Plucked category and the current sound's source sample rate](images/release-sounds.png)
+### In settings
 
-See [the sound pack guide](../sounds/README.md) for the manifest and size limits.
-Use sound files whose license permits your intended use.
-An optional, checksum-verified Grand Piano (FluidR3) pack can be fetched with
-`scripts/fetch_piano_pack.py`; it is not part of the installed package.
+| Key | Action |
+| --- | --- |
+| `Z` / `C` (← / →) | Switch tabs or sound groups |
+| `F` / `X` (↑ / ↓) | Move between rows or choices |
+| `Enter` | Open a page or confirm a choice |
+| `Esc` | Cancel a choice or go back |
+| `Backspace` | Restore a field or highlight its default in a picker |
+
+Dedicated arrow keys also work in settings. Hold `Esc` to exit from any page.
 
 ## Troubleshooting
 
 | Symptom | Try |
 | --- | --- |
-| Silent on startup | Press 8; startup is deliberately silent |
-| Chord button is silent | Check Front only mode, Backing/Master volume, and Hold |
-| Chord fades while Hold is On | Choose Chord pattern → Sustained; Manual hit sounds once |
-| Low notes seem quiet | Try EQ Low +3 dB; compare with headphones |
-| Sound distorts | Reduce EQ boosts or Master volume |
-| A combination makes two attacks | Increase Chord combo timing slightly |
-| An imported sound is missing | Check its manifest/limits and restart; see the sound pack guide |
-| Recent edits disappeared | Exit by holding Esc so settings are saved |
+| **Silent on startup** | Press `8`. ZeroChord starts silently. |
+| **Chord button is silent** | Press `O` to check the backing layers. Check **Backing volume** and **Master volume**. |
+| **Chord fades with Hold on** | Set **Style → Chord pattern → Sustained**. **Manual hit** plays once. |
+| **Bass is hard to hear** | Try **EQ Low +3 dB**, or compare through headphones. |
+| **Sound distorts** | Reduce EQ boosts or turn down **Master volume**. |
+| **A chord combination attacks twice** | In **App → Chord config → All**, increase **Chord combo timing** slightly. |
+| **An imported sound is missing** | Restart and check the [sound pack formats and limits](../sounds/README.md). |
+| **Recent edits disappeared** | Hold `Esc` to exit and save settings before turning off the device. |
 
-The [preset guide](PRESETS.md) describes editable files and advanced behavior.
-For development and verification, see [building](DEVELOPMENT.md) and
-[testing](TESTING.md).
+For development and verification, see the [build guide](DEVELOPMENT.md) and
+[testing guide](TESTING.md).

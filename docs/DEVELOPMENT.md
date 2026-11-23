@@ -92,9 +92,11 @@ Run the `/publish` workflow (`.claude/skills/publish/SKILL.md`). It uses these t
   `scripts/test_installed.py` against the installed app.
 - `scripts/release_screenshots.py` uses the desktop build to refresh the dark-theme
   screenshots in `docs/images` and copies the five store images to `store/screenshots`.
-- `ZEROCHORD_GH_USER` in `.env` names the GitHub account for releases; the workflow passes
-  its token per command (`GH_TOKEN=$(gh auth token --user ...)`), so other projects keep
-  their own `gh` account. Git pushes use SSH and are separate.
+- **Publish to GitHub** pushes `main` and the release tag, then creates a
+  GitHub Release with the final `.deb`, SHA-256 file, and tagged release notes.
+  `ZEROCHORD_GH_USER` in `.env` selects the account for `gh` commands.
+- **Submit to the CardputerZero Store** using the [store listing](../store/LISTING.md)
+  and record the submission in [PUBLISH.md](../PUBLISH.md).
 - `scripts/install_git_guard.sh` installs a local pre-push hook that refuses `dev`.
 
 ## Sounds and front notes
