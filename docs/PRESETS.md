@@ -27,12 +27,14 @@ load flat; saved EQ values live only in the app settings, never preset TOML.
 ## On the instrument
 
 - **9 / 0:** previous / next preset, including its BPM and remembered edits.
-- **Tab:** opens settings. **←/→** switches **Style / App** tabs;
-  **↑/↓** selects a row. Preset is first on Style, followed directly by Tempo. Theme is first on App. Each tab remembers
-  its selected row. Values only change through Enter editors (or Backspace reset).
-- **Enter:** open a choice list; Enter commits and Esc cancels. Sound, pattern,
-  key, and mapping choices audition without committing. Backing checkboxes apply together. Pattern auditions
-  run for up to eight seconds; Space stops them.
+- **Tab** opens settings. **←/→** switches Style, App, and About. **↑/↓**
+  selects a row. Style starts with Preset and Tempo. App starts with Theme
+  and Volume & effects. Style and App each remember their selected row.
+- **Enter** opens the selected page or picker. In a picker, Enter applies
+  the choice and Esc cancels. Sound, pattern, key, and mapping choices can
+  be auditioned before applying. In Backing layers, select **Apply** to
+  confirm all checkboxes together. Pattern auditions run for up to eight
+  seconds. Space stops them.
 - **Backspace:** restore the highlighted musical setting to the selected preset's
   default. In an open choice list, Backspace highlights the default; Enter still
   confirms it. App fields restore their app defaults: Dark, 100% master, 80% backing, 100% front, 15% echo, flat EQ, 210 ms front strums, 30 ms combination window, C major, Hold On,
@@ -53,7 +55,7 @@ highlighted mapping at that scope to the app default. Follow All removes a
 per-degree override. The Chord config restore action resets root/key, octave, and all four mappings
 for that scope, with confirmation; All also resets recognition timing and degree overrides. Mappings are shared across all presets.
 
-![Style settings showing Chord, Arp and Pad patterns in order](images/style-settings.png)
+![Style settings showing Chord, Arp and Pad patterns in order](images/release-style.png)
 
 ![App tab and app-wide controls](images/app-settings.png)
 

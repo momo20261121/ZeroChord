@@ -90,7 +90,7 @@ const Hint defaultHint{"Backspace", "Reset field"};
 const Hint editedHint{"*", "Edited"};
 constexpr int menuDetailY = 132;
 constexpr int visibleRows = 5;
-constexpr int rowHeight = 18;
+constexpr int rowHeight = 17;
 const std::vector<std::string> setupTabNames{"Style", "App", "About"};
 constexpr char frontKeys[] = "ZXCVBNM";
 

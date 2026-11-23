@@ -1,32 +1,30 @@
-# ZeroChord 1.1.0 release record
+# ZeroChord 1.2.0 release record
 
-Status: **released.** Package built, installed and tested on the development Cardputer;
-Git release: `main`, tagged `v1.1.0`. `dev` is local-only and is never pushed.
-Store submission is separate from source-repository synchronization.
-Previous release: `v1.0.0`.
+Released locally on 2026-11-22. The installed candidate passed acceptance
+checks on the development Cardputer. The previous release is `v1.1.0`.
 
 ## Package
 
 | Field | Value |
 | --- | --- |
 | Package | `zerochord` |
-| Version | `1.1.0`, from [VERSION.txt](VERSION.txt) |
+| Version | `1.2.0`, from [VERSION.txt](VERSION.txt) |
 | Architecture | `arm64` |
-| Release file | `dist/zerochord_1.1.0_arm64.deb` (not tracked by Git) |
-| Size | 811,624 bytes |
-| SHA-256 | `6ac80aa183620c048fa03b969a0426b68aee21f95b71c26489d291377905f01a` |
-| Checksum file | `dist/zerochord_1.1.0_arm64.deb.sha256` |
-| Executable SHA-256 | `5339efb2391425b618559db24f093e5bf2f8ae552939da6b730c898aaa5aa095` |
+| Release file | `dist/zerochord_1.2.0_arm64.deb` |
+| Size | 723,192 bytes |
+| SHA-256 | `0268cad6bf624b4a69e55486200923150ca1687385c70cb0d37aa89ba68b48ec` |
+| Installed candidate SHA-256 | `f4a3486acac3eb04ca45f1214771e0e96fb198d4a02773d5893aba217746babb` |
+| Checksum file | `dist/zerochord_1.2.0_arm64.deb.sha256` |
+| Executable SHA-256 | `75f3df8f3715cb9efdd51d7bfb492850c9aae1a232a76dba9f972ab9acb3177b` |
 | Maintainer configuration | Set `ZEROCHORD_MAINTAINER` locally before packaging |
 | Dependencies | `libc6 (>= 2.36), libpulse0, timgm6mb-soundfont` |
 | Source URL configuration | Optional `ZEROCHORD_HOMEPAGE`; see [.env.example](.env.example) |
 | Source/icon license | MIT; [third-party notices](THIRD_PARTY_NOTICES.md) included |
 
-The binary is cross-compiled on macOS (Zig, Linux ARM64, glibc 2.36) with a statically
-linked C++ runtime. The runtime SoundFont is a Debian dependency, not included in the
-archive; the optional Grand Piano pack is not packaged. No install hooks or credentials
-are packaged. The installed executable on the device is byte-identical to the one in this
-package; the final package differs from the one first installed only in bundled documentation.
+The binary was cross-compiled on macOS with Zig for Linux ARM64 and glibc 2.36.
+Debian supplies the runtime SoundFont as a dependency. The Grand Piano pack
+is a separate download. The final package updates the bundled documentation.
+Its executable and launcher files match the installed candidate byte for byte.
 
 ## User-facing deliverables
 
@@ -34,9 +32,10 @@ package; the final package differs from the one first installed only in bundled 
 - [User guide](docs/USER_GUIDE.md): modes, menus, presets, EQ, About and troubleshooting.
 - [Release notes](CHANGELOG.md).
 - [Original icon artwork](assets/zerochord-source.png) and [100×100 solid-background PNG](assets/share/images/zerochord.png).
-- Four 320×170 store screenshots, refreshed and inspected for 1.1.0:
+- Five dark-theme store screenshots, reviewed at 320×170 for 1.2.0.
   [playing](store/screenshots/performance.png),
   [Style](store/screenshots/style.png),
+  [Volume & effects](store/screenshots/volume-effects.png),
   [sounds](store/screenshots/sounds.png),
   [chord configuration](store/screenshots/chord-config.png).
 
@@ -53,7 +52,7 @@ On the development device use `scripts/install_release_device.sh push|install|te
 (see [development notes](docs/DEVELOPMENT.md#releasing)). Manually, on the device:
 
 ```sh
-sudo apt install ./zerochord_1.1.0_arm64.deb
+sudo apt install ./zerochord_1.2.0_arm64.deb
 systemctl --user restart APPLaunch.service
 ```
 
@@ -61,11 +60,14 @@ The app runs as the normal launcher user and keeps settings in `~/.config/zeroch
 
 ## Validation
 
-- [x] Six desktop suites and six ASan/UBSan suites pass; 26 real-app flows pass.
-- [x] Privacy scan of sources, commit metadata and package: no FAIL; one intentional WARN (public project URL in the About QR).
-- [x] Package built from the tested executable; its checksum verified on the device.
-- [x] `zerochord 1.1.0` installed on the Cardputer; `dpkg --verify` clean; launcher active.
-- [x] `scripts/test_installed.py 1.1.0` passed: evdev input, framebuffer readback, 415,200 audio frames (peak 9,116, no queue overflows), persisted settings, clean exit.
+- [x] Six desktop suites, six ASan/UBSan suites, and 27 real-app flows passed.
+- [x] Privacy scan found zero failures. Both warnings identify the public project link in About.
+- [x] The device verified the candidate checksum. The final archive contains the
+  same executable and launcher files.
+- [x] `zerochord 1.2.0` installed on the Cardputer. `dpkg --verify` was clean and the launcher resumed.
+- [x] The installed test passed evdev input, framebuffer readback, settings persistence,
+  and clean exit. Digital capture recorded 420,000 audio frames with peak 9,954
+  and zero queue overflows.
 - [x] Store screenshots inspected at native resolution.
 - [ ] About screen inspected on the device display (checked in the desktop render only).
 - [ ] Optional Grand Piano pack and other hardware scripts exercised on the device.
@@ -83,16 +85,17 @@ Portal: <https://dev.cardputer.cc/#/upload>
 - Source repository: use the public URL configured in `ZEROCHORD_HOMEPAGE`.
 - Email privacy: hide uploader email (`true`); choose a public package contact with `ZEROCHORD_MAINTAINER`.
 - Icon: use the packaged PNG.
-- Screenshots: the four files listed above, in that order.
+- Screenshots: the five files listed above, in that order.
 
 Description:
 
 > Make music with the CardputerZero keyboard. Select major, minor and seventh
 > chords, combine buttons for richer harmonies, and pick or strum seven front
 > notes. Play soft pads, clear sustained chords, rhythmic accompaniment or
-> arpeggios. Layer Chord, Pad and Arp backing with a checkbox popup. Nine editable presets include independent Front, Chord and Pad
-> sounds, envelopes, tempo and patterns. Customize chord roots, octaves, key
-> combinations and front-note layouts; shape the full mix with three-band EQ.
+> arpeggios. Combine Chord, Arp and Pad in Backing layers. Nine editable presets
+> include separate Front, Chord/Arp and Pad sounds and envelopes. Customize
+> chord roots, octaves, key combinations, and front-note layouts. Adjust the
+> mix from Volume & effects with three-band EQ and Echo.
 > Import named SoundFont packs from a TF card. Dark and light themes, printed
 > arrow-key navigation, and per-setting defaults keep setup accessible.
 
@@ -105,5 +108,4 @@ Record submission time, portal result and tracking URL here after submission.
 
 ## Git release
 
-`dev` was merged into `main` with a merge commit and tagged `v1.1.0`; only `main` and the
-tag are pushed to the public repository.
+The local release is tagged `v1.2.0` on `main`. GitHub publication is pending.

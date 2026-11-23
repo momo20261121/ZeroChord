@@ -1,5 +1,15 @@
 # Release notes
 
+## 1.2.0 - 2026-11-22
+
+- Group Master, Backing and Front volume, Echo, and EQ under App → Volume & effects.
+- Make setup hints specific to the current page and action. Show the scope under
+  the active tab and list backing layers in Chord, Arp, Pad order.
+- Separate chord keys, Roman numerals, and chord qualities on the performance
+  screen. Give Key and Preset their own labeled fields.
+- Keep picker help text clear of the last visible row and refresh the launcher icon.
+- Refresh the user guide and screenshots for the updated controls.
+
 ## 1.1.0 — 2026-11-22
 
 - Add an About settings tab with the running version, a GitHub QR code and a pointer to the user guide and details in the repository.

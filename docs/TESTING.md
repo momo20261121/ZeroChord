@@ -1,6 +1,27 @@
 # Testing ZeroChord
 
-## Current status — 1.1.0 release candidate (2026-11-22)
+## 1.2.0 release — 2026-11-22
+
+- **Local:** all six desktop suites, all six ASan/UBSan suites (macOS leak
+  detection off), and 27 real-app flows passed. The flows cover the Volume
+  & effects subpage, printed arrow navigation, save/restart, and long Esc.
+- **Package:** the ARM64 candidate was cross-built on the Mac and transferred
+  to the CardputerZero with its checksum verified. The privacy scan found zero
+  failures and flagged the public About link in the source and executable.
+  The release package adds the final documentation and keeps the tested
+  executable, launcher entry, wrapper, and icon byte-for-byte.
+- **Device:** the installed test passed version and package integrity checks,
+  launcher metadata, evdev input, and isolated save/reload of backing layer,
+  chord pattern, EQ, and tempo. The 320×170 framebuffer matched the app capture
+  within RGB565 rounding. The digital recording captured 420,000 stereo frames
+  with peak 9,954 and zero audio queue overflows. Long Esc exited cleanly,
+  APPLaunch resumed, and the installed executable matched the cross-build.
+- **Screenshots:** all six documentation screenshots were reviewed at 320×170.
+  Five of them are also in the store set.
+- **Manual checks:** physical keyboard feel and speaker or headphone listening.
+  The optional Grand Piano pack was outside the installed-device test.
+
+## 1.1.0 release candidate record (2026-11-22)
 
 - **Local:** all six desktop suites, all six ASan/UBSan suites (macOS leak
   detection off) and 26 real-app keyboard/save/restart flows pass. The sanitizer run
@@ -32,8 +53,8 @@ clipping checks. The real app passes 20 isolated keyboard/save/restart flows,
 including O and Style checkbox paths using printed F/X arrows, none/all
 selections and cancellation. The 320×170 popup and multi-layer status are
 visually checked locally. Cross-compilation runs on the development Mac.
-This iteration's own device check was one preview deployment/launch; the release
-candidate's device results are in the status section above.
+This iteration's device check was one preview deployment and launch.
+See the 1.1.0 release candidate record above for the installed-device results.
 
 ## Global EQ and sustained chord pattern
 
@@ -345,11 +366,8 @@ substitute for them:
   **0–67,059.03** in Arp. This verifies digital output and timing gaps; it does
   not measure acoustic quality, physical key rollover, or end-to-end latency.
 
-![Complete preset settings in the light theme](images/light-settings.png)
-
-![Saved user preset with its own mode and tempo](images/presets.png)
-
-![Simultaneous chord accompaniment using a saved preset](images/preset-performance.png)
+The original preset and prototype screenshots are preserved in `docs/images`
+at tag `v1.1.0`.
 
 ## Earlier prototype evidence
 
@@ -368,9 +386,9 @@ substitute for them:
   signal (peak 8,515 / 32,768); each app run reported zero command-queue
   overflows. This verifies signal reached the audio service, not acoustic quality
   or absence of every possible dropout. The launcher was restored and active.
-- The performance image below comes from independent kernel framebuffer readback;
-  the settings image comes from the native app's internal render buffer. Neither
-  image alone verifies physical panel visibility.
+- The performance capture used independent kernel framebuffer readback.
+  The settings capture used the native app's internal render buffer.
+  Physical panel visibility requires a separate check.
 - An SSH preview exposed a missed sleeping-backlight case (brightness zero).
   The launcher was restored; preview startup now wakes the backlight, and the
   regression test checks wake behavior and independent kernel framebuffer output.
@@ -392,33 +410,11 @@ substitute for them:
   measurements allow the output/capture buffers to settle. This verifies the
   electronic output, while speaker/headphone listening remains a hands-on check.
 
-![Native device performance screen](images/performance.png)
-
-![Kernel framebuffer: Arp playback mode](images/arp.png)
-
-![Native device settings screen](images/settings.png)
-
-![Kernel framebuffer: per-degree combination editor](images/combinations.png)
-
-![Kernel framebuffer: auditioning an inherited choice](images/chord-choices.png)
-
 ## Rebuild the package
 
-On the device, use the CardputerZero application skill's packaging helper
-(`make_applauncher_package.py`) as the staging contract. Copy it into `.tools/`
-for this development-only command; it is not part of the installed package:
-
-```sh
-python3 scripts/package.py --helper .tools/make_applauncher_package.py
-dpkg-deb --info dist/zerochord_0.1.0_arm64.deb
-dpkg-deb --contents dist/zerochord_0.1.0_arm64.deb
-```
-
-The packaging script uses staging-only helper flags. Neither `--install-local`
-nor `--auto-install-cardputer` is passed; package creation does not install system
-files or restart the launcher. It rejects non-AArch64 binaries, strips the staged
-binary, retains license notices, and produces `dist/zerochord_0.1.0_arm64.deb`.
-Requires Python 3.9+, GNU `strip`, and `dpkg-deb` on the packaging host.
+Follow the [local cross-build and release instructions](DEVELOPMENT.md#releasing).
+The package version comes from `VERSION.txt`. The installed-package acceptance
+test runs separately on the CardputerZero.
 
 ### Tempo, tabs and preset isolation (2026-11-21)
 

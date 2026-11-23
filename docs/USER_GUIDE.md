@@ -99,17 +99,18 @@ Press **Tab**. **Z/C** switches tabs and **F/X** moves the selection, matching
 the printed ←/→ and ↑/↓ arrows. Dedicated arrow events work too. At the
 bottom of each menu, keycaps sit beside the actions for the current selection.
 
-Press **Enter** to open an editor. Choose a value with ↑/↓ and press Enter to
-apply it. Esc cancels a preview. **Current** marks the active value, and
-**Default** marks the value Backspace selects. Sound choices also use ←/→ for
-categories. To change tempo, type 40–240 and press Enter. **R** loads the preset
-tempo for you to apply. **P** opens the same popup while playing. Tap Esc to go
-back or hold it to exit the app.
+Press **Enter** to open the highlighted page or picker. In a picker, use ↑/↓
+to choose a value, Enter to apply it, and Esc to cancel. **Current** marks the
+active value. **Default** marks the value Backspace selects. Sound pickers use
+←/→ to switch groups. On a settings page, Esc goes back. Hold Esc to exit.
 
-The caption under the active tab shows its scope. **Style** settings belong
-to the current preset. They include Tempo, Backing layers, patterns, sounds
-and envelopes. **App** settings apply to all presets. They include Theme,
-Volume & effects, Hold, Front notes and Chord config.
+Open **Style → Tempo** or press **P** while playing. Type a tempo from 40 to
+240 BPM and press Enter. **R** loads the preset tempo for you to apply.
+
+The caption under the active tab tells you what an edit affects.
+**Settings for this preset** appears under Style for Tempo, Backing layers,
+patterns, sounds, and envelopes. **Applies to all presets** appears under App
+for Theme, Volume & effects, Hold, Front notes, and Chord config.
 
 ### Presets and defaults
 
@@ -124,8 +125,10 @@ confirmation. Other presets and App settings are preserved.
 ### Volumes, EQ and Echo
 
 Open **App → Volume & effects** for Master, Backing and Front volume, Echo,
-and EQ. The volume defaults are 100%, 80% and 100%. Master controls the
-complete output, including Echo.
+and EQ. Esc returns to App. The volume defaults are 100%, 80% and 100%.
+Master controls the complete output, including Echo.
+
+![Volume & effects showing Master, Backing and Front volume, Echo, and three EQ bands](images/release-volume-effects.png)
 
 **EQ Low/Mid/High** boosts or cuts the complete mix by −12 to +12 dB per band.
 Start at 0 dB; try Low +3 dB for more bass, and compare while playing. The small
@@ -159,6 +162,8 @@ its own Octave and absolute Root. Follow All/Follow Key removes an override.
 Root, octave and combination mappings remain the same when switching presets.
 Front Scale notes have their own major/minor setting under Front notes → All.
 
+![Chord config with the shared All tab selected and individual degree tabs across the top](images/release-chord-config.png)
+
 ### About
 
 Tab → **About** (after Style and App) shows the running version, a note that the
@@ -171,6 +176,9 @@ offline; your phone needs network access to open the page. Esc returns to playin
 Copy named SoundFont packs into `ZeroChord/sounds/` on the TF card, or
 `~/ZeroChord/sounds/`, then restart the app. They appear alongside the small
 built-in sound set. Front, Chord/Arp and Pad can each choose an imported sound.
+
+![Front sound picker showing the Plucked category and the current sound's source sample rate](images/release-sounds.png)
+
 See [the sound pack guide](../sounds/README.md) for the manifest and size limits.
 Use sound files whose license permits your intended use.
 An optional, checksum-verified Grand Piano (FluidR3) pack can be fetched with

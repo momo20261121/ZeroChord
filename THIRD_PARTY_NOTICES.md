@@ -21,6 +21,11 @@ not include minichord's Teensy firmware or Omnichord assets. Minichord firmware
 copyright: 2024 Benjamin Poilvé. Piano source copyright: 2026 M5Stack CardputerZero Community.
 Reference licenses are retained conservatively for future adaptations.
 
+The optional Grand Piano (FluidR3) pack uses the piano SoundFont from the
+CardputerZero Piano repository. The download script verifies the pinned asset's
+SHA-256. The upstream repository records the SoundFont's source and license.
+[Pinned SoundFont source](https://github.com/CardputerZero/Piano/tree/703eb1e0926c9d4ab3b34997e854c06b180e2c7b/assets/soundfonts)
+
 Font Awesome Free font glyphs: copyright Fonticons, Inc.
 The full SIL OFL 1.1 text is included in `Montserrat-OFL.txt`, alongside the
 Font Awesome project's license/attribution notice in `FontAwesome5.txt`.
