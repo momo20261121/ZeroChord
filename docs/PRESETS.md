@@ -1,11 +1,12 @@
 # Presets and customization
 
-A style preset stores the enabled backing layers, independent Pad, Chord/Arp, and Front
+A style preset stores the enabled backing layers, independent Front, Chord/Arp, and Pad
 sounds, their independent envelopes, all three patterns, and BPM. The selected chord and currently pressed
 keys are performance state. Startup is silent.
 
-**App** settings are Theme, Master volume, Backing volume, Front volume, Echo, Low/Mid/High EQ,
-Hold, Chord config (Key, absolute roots, shared/per-degree octaves, combinations and recognition timing),
+**App** settings include Theme, **Volume & effects** (Master, Backing and Front
+volume, Echo and Low/Mid/High EQ), Hold, Chord config (Key, absolute roots,
+shared/per-degree octaves, combinations and recognition timing),
 and front-note modes, scale, mappings, actual octaves, K/L actions and strum times. They keep
 their values when selecting, saving, or restoring a style preset. Existing app
 values are preserved when upgrading. Preset level has been removed.
@@ -14,13 +15,13 @@ Output level is `master volume × backing/front volume`. Combined backing layers
 receive an additional 1/√(enabled layers) balance; Front stays independent. Master volume scales
 both the direct sound and echo.
 
-The app-wide three-band EQ shapes the entire Front/Chord/Pad mix including
+The app-wide three-band EQ shapes the entire Front, Chord, Arp and Pad mix including
 echo, before Master volume and the output clamp. Each band ranges from −12 to
 +12 dB in 1 dB steps, initially 0 dB (exact bypass). Low is a 250 Hz shelf,
 Mid is a broad 1 kHz peak (Q ≈ 0.707), High is a 4 kHz shelf, using
 [RBJ biquad formulas](https://www.w3.org/TR/audio-eq-cookbook/).
-Enter auditions, Enter saves, Esc cancels, and Backspace restores the selected
-band to 0 dB. EQ survives preset switching and restoration. Existing settings
+Opening the picker auditions the band. Enter applies the choice, Esc cancels,
+and Backspace selects 0 dB. EQ survives preset switching and restoration. Existing settings
 load flat; saved EQ values live only in the app settings, never preset TOML.
 
 ## On the instrument
@@ -52,20 +53,20 @@ highlighted mapping at that scope to the app default. Follow All removes a
 per-degree override. The Chord config restore action resets root/key, octave, and all four mappings
 for that scope, with confirmation; All also resets recognition timing and degree overrides. Mappings are shared across all presets.
 
-![Style settings with Preset at the top](images/style-settings.png)
+![Style settings showing Chord, Arp and Pad patterns in order](images/style-settings.png)
 
 ![App tab and app-wide controls](images/app-settings.png)
 
 ## Sound and envelope order
 
-Style rows are Preset, Tempo, Backing layers, Arp pattern, Chord pattern, Pad motion,
-Front sound / Front envelope, Chord sound / Chord envelope, Pad sound / Pad
-envelope, Save as new preset, and Restore preset. Arp uses the Chord sound/envelope.
+Style rows are Preset, Tempo, Backing layers, Chord pattern, Arp pattern, Pad motion,
+Front sound and envelope, Chord/Arp sound and envelope, Pad sound and envelope,
+Save as new preset, and Restore preset.
 
-Each envelope editor uses Front / Chord / Pad tabs and Attack, Decay, Sustain,
+Each envelope editor has Front, Chord/Arp and Pad tabs and Attack, Decay, Sustain,
 Release, and Restore envelope rows. Enter opens an auditioning choice list;
-Enter saves and Esc cancels. Attack, Decay and Release use milliseconds
-(0–5000); Sustain is 0–100%. **Sound default** preserves the sound's original
+Enter applies the choice and Esc cancels. Attack, Decay and Release use milliseconds
+(0–5000). Sustain is 0–100%. **Use sound's envelope** preserves the sound's original
 decay and sustain. Chord/Arp bound slow attacks and long releases for clarity;
 explicit envelope values override those bounds. A one-shot sample
 still ends when its recorded audio runs out; Sustain cannot make it loop.
@@ -74,7 +75,7 @@ resets only that part; Restore preset resets only the current preset.
 
 Custom preset TOML accepts optional `front_attack_ms`, `front_decay_ms`,
 `front_sustain_percent`, `front_release_ms`, with equivalent `chord_` and `pad_`
-keys. Omitted controls (or -1) use Sound default. Echo is unchanged and separate.
+keys. Omitted controls (or -1) use the sound's envelope. Echo is a separate setting.
 
 ## Chord roots and front scale
 
@@ -92,27 +93,27 @@ are 100%/80%; saved user volume values are retained on upgrade.
 ## Backing layers
 
 **O** and **Style → Backing layers** open the same checkbox popup. ↑/↓ (F/X)
-selects a row; Enter toggles Chord, Pad or Arp. Enter on **Apply** commits the
+selects a row in Chord, Arp, Pad order. Enter toggles the selected layer. **Apply** commits the
 whole selection; Esc cancels. Backspace/R selects the preset default without
 committing. With no checkboxes selected, **Front only** selects harmony silently
 for Z–M/K/L. Hold still controls whether the harmony remains selected.
 
-**Pad** sustains its own sound/envelope. Steady, Slow swell (four 4/4 bars),
-Breathe (two beats), and Pulse (one beat) modulate only the Pad layer's volume.
-
-**Chord** uses Chord sound/envelope. Manual hit strikes once per chord selection;
+**Chord** uses the shared Chord/Arp sound and envelope. Manual hit strikes once per chord selection;
 Sustained holds the chord without retriggering. Every beat, Every eighth,
 Offbeat and Syncopated trigger simultaneous chord notes. Bass/chord 3/4 plays
 low bass then two upper chord hits; Bossa accompaniment alternates low root/fifth
 under syncopated upper chords. Bass events are voiced an octave lower.
 
-**Arp** uses Chord sound/envelope but has its own independent pattern clock.
+**Arp** uses the shared Chord/Arp sound and envelope and has its own pattern clock.
 Up, Down, Up/down, Root and upper notes and Broken eighths use flowing 95% gates.
 Up/down repeats its endpoint notes at each turnaround to make a regular
 four-beat phrase. Syncopated notes deliberately includes rests. Legacy mixed
 Rock/Waltz/Bossa patterns retain their IDs and remain visible when selected in
 an older saved setup. New presets use the dedicated Chord equivalents.
 These are original accompaniment patterns, with no drums or Omnichord rhythm data.
+
+**Pad** sustains its own sound and envelope. Steady, Slow swell (four 4/4 bars),
+Breathe (two beats), and Pulse (one beat) affect only the Pad layer's volume.
 
 Layers share harmony and tempo. Backing gain is balanced by 1/√(enabled layers)
 to leave mixing headroom; Front volume and timbre stay independent. Chord/Arp
@@ -134,7 +135,7 @@ Lo-fi/Hi-fi labels or claimed sample upgrades. An optional, separately licensed 
 
 | Preset | Front | Chord / Arp | Pad | Initial backing | BPM |
 | --- | --- | --- | --- | --- | --- |
-| Dream | Music Box | Airy Pad | Warm Pad | Chord + Pad + Arp / Sustained + Slow swell + Up | 80 |
+| Dream | Music Box | Airy Pad | Warm Pad | Chord + Arp + Pad / Sustained + Up + Slow swell | 80 |
 | Harp | Harp | Nylon Guitar | Strings | Pad / Steady | 96 |
 | Keys | Piano | Piano | Warm Pad | Chord / Sustained | 100 |
 | Organ | Organ | Organ | Warm Pad | Chord / Sustained | 100 |
@@ -196,13 +197,14 @@ bpm = 112
 backing_sound = 4               # Chord/Arp; GM programs are ZERO-based: 0–127
 pad_sound = 89                  # Independent Pad timbre
 foreground_sound = 46
-arp_pattern = 'pop'
 chord_pattern = 'quarter'
+arp_pattern = 'pop'
 pad_motion = 'steady'
 ```
 
-Pad sound and Chord sound have independent defaults and remembered edits.
-Arp uses Chord sound; Z–M/K/L use Front sound. Older presets without `pad_sound`
+Preset files keep their existing `mode` spellings for compatibility. The menus
+show backing combinations in Chord, Arp, Pad order. Chord/Arp sound and Pad sound
+have independent defaults and remembered edits. Older presets without `pad_sound`
 start with their previous `backing_sound` for both, preserving their sound.
 
 BPM ranges from 40 to 240. App values live in `settings.conf`, including volumes,

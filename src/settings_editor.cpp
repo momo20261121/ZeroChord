@@ -3,8 +3,11 @@
 #include "sounds.hpp"
 #include <algorithm>
 namespace zc {
+namespace {
+const std::vector<int> volumeEffectsRows{17, 4, 5, 6, 26, 27, 28};
+}
 const char *SettingsEditor::envelopePartName(int part) {
-    static const char *names[]{"Front", "Chord", "Pad"};
+    static const char *names[]{"Front", "Chord/Arp", "Pad"};
     return names[part];
 }
 const char *SettingsEditor::envelopeControlName(int field) {
@@ -12,7 +15,7 @@ const char *SettingsEditor::envelopeControlName(int field) {
     return names[field];
 }
 std::string SettingsEditor::envelopeValueName(int field, int value) {
-    return value < 0 ? "Sound default" : std::to_string(value) + (field == 2 ? "%" : " ms");
+    return value < 0 ? "Use sound's envelope" : std::to_string(value) + (field == 2 ? "%" : " ms");
 }
 int SettingsEditor::chordOctaveValue(const Settings &s) const {
     return scope_ < 0 ? s.chordOctave : s.degreeChordOctave[scope_];
@@ -30,12 +33,13 @@ int SettingsEditor::envelopeValue(const Settings &s) const {
 }
 bool SettingsEditor::appField(int index) {
     return index == 0 || index == 1 || (index >= 3 && index <= 7) || index == 15 || index == 17 ||
-           index == 18 || index == 22 || (index >= 26 && index <= 28);
+           index == 18 || index == 22 || (index >= 26 && index <= volumeEffectsField);
 }
 const std::vector<int> &SettingsEditor::rows() const {
-    static const std::vector<int> style{2, 8, 10, 9, 11, 12, 14, 23, 13, 24, 21, 25, 19, 20};
-    static const std::vector<int> app{18, 17, 4, 5, 6, 26, 27, 28, 15, 22, 3};
+    static const std::vector<int> style{2, 8, 10, 11, 9, 12, 14, 23, 13, 24, 21, 25, 19, 20};
+    static const std::vector<int> app{18, volumeEffectsField, 15, 22, 3};
     static const std::vector<int> about;
+    if (page_ == Page::VolumeEffects) return volumeEffectsRows;
     return tab_ == Tab::About ? about : tab_ == Tab::Style ? style : app;
 }
 int SettingsEditor::rowIndex() const {
@@ -56,7 +60,7 @@ const char *SettingsEditor::settingName(int index) {
                                   "Backing layers",
                                   "Chord pattern",
                                   "Pad motion",
-                                  "Chord sound",
+                                  "Chord/Arp sound",
                                   "Front sound",
                                   "Hold",
                                   "" /* Retired field 16; preserve internal field IDs. */,
@@ -65,13 +69,24 @@ const char *SettingsEditor::settingName(int index) {
                                   "Save as new preset",
                                   "Restore preset...",
                                   "Pad sound",
-                                  "Front notes", "Front envelope", "Chord envelope", "Pad envelope",
-                                  "EQ Low", "EQ Mid", "EQ High"};
+                                  "Front notes", "Front envelope", "Chord/Arp envelope", "Pad envelope",
+                                  "EQ Low", "EQ Mid", "EQ High", "Volume & effects"};
     return names[index];
+}
+std::string SettingsEditor::backingLabel(PlaybackMode mode) {
+    // Preset files keep their existing mode names. Display layers in menu order.
+    std::string label;
+    for (const auto &row : backingLayerRows) {
+        if (!layerEnabled(mode, row.mode)) continue;
+        if (!label.empty()) label += " + ";
+        label += modeName(row.mode);
+    }
+    if (label.empty()) return modeName(PlaybackMode::FrontOnly);
+    return label;
 }
 const char *SettingsEditor::combinationName(int index) {
     static const char *names[] = {"Top + middle", "Top + bottom", "Middle + bottom", "All three",
-                                  "Restore defaults...", "Combination window", "Octave", "Key", "Root"};
+                                  "Restore defaults...", "Chord combo timing", "Octave", "Key", "Root"};
     return names[index];
 }
 std::vector<int> SettingsEditor::combinationRows() const {
@@ -98,7 +113,7 @@ std::vector<std::string> SettingsEditor::soundCategories() const {
     return categories;
 }
 const char *SettingsEditor::frontSettingName(int field) const {
-    static const char *all[]{"Front mode", "K/L action", "Strum time", "Restore all front...", "Scale"};
+    static const char *all[]{"Front mode", "K/L action", "Strum time", "Restore all front notes...", "Scale"};
     static const char *key[]{"Note", "Octave", "Restore this key..."};
     return frontKey_ < 0 ? all[field] : key[field];
 }
@@ -160,19 +175,22 @@ std::string SettingsEditor::frontValueName(const Settings &s, int field) const {
         if (field == 4) return value ? "Natural minor" : "Major";
         return std::to_string(value) + " ms";
     }
-    Chord c{s.chordRoot(6), -1, 6, Quality::Major};
-    int pitch = frontNotes(c, s)[frontKey_];
-    if (field == 1)
-        return std::to_string(pitch / 12 - 1) + (value == -2 ? " (Auto)" : "");
-    if (field == 0) {
-        int interval = ((pitch - (s.frontMode ? s.tonic : c.root)) % 12 + 12) % 12;
-        if (s.frontMode) {
-            static const char *degrees[]{"I", "II", "III", "IV", "V", "VI", "VII"};
-            return std::string(degrees[value]) + " (+" + std::to_string(interval) + ")";
-        }
-        return std::string(value >= 16 ? "Fixed +" : "Chord +") + std::to_string(interval);
+    if (field == 1) {
+        if (value != -2) return std::to_string(value);
+        Chord chord{s.chordRoot(6), -1, 6, Quality::Major};
+        int pitch = frontNotes(chord, s)[frontKey_];
+        return "Auto octave (" + std::to_string(pitch / 12 - 1) + ")";
     }
-    return "";
+    if (s.frontMode) {
+        static const char *degrees[]{"I", "II", "III", "IV", "V", "VI", "VII"};
+        Chord chord{s.chordRoot(6), -1, 6, Quality::Major};
+        int pitch = frontNotes(chord, s)[frontKey_];
+        int interval = (pitch - s.tonic + 12) % 12;
+        return std::string(degrees[value]) + " (+" + std::to_string(interval) + ")";
+    }
+    if (value < 0) return "Auto note";
+    if (value < 4) return "Chord tone " + std::to_string(value + 1);
+    return "Fixed +" + std::to_string(value - 16) + " semitones";
 }
 int SettingsEditor::valueFor(const Settings &s, int index) const {
     if (index >= 26 && index <= 28) return s.eqDb[index - 26];
@@ -212,6 +230,17 @@ int SettingsEditor::valueFor(const Settings &s, int index) const {
 int SettingsEditor::settingValueNumber() const {
     return valueFor(instrument_.settings, selection_);
 }
+int SettingsEditor::fieldValue() const {
+    const auto &s = instrument_.settings;
+    switch (page_) {
+    case Page::Setup:
+    case Page::VolumeEffects: return settingValueNumber();
+    case Page::Envelope: return envelopeValue(s);
+    case Page::FrontNotes: return frontValue(s, frontField_);
+    case Page::Combinations: return chordConfigValue(s);
+    }
+    return 0;
+}
 int SettingsEditor::defaultValue() const {
     if (page_ == Page::Envelope)
         return envelopeValue(instrument_.library.current(instrument_.settings).sound);
@@ -235,6 +264,9 @@ int SettingsEditor::defaultValue() const {
     return valueFor(copy, selection_);
 }
 bool SettingsEditor::fieldModified(int index) const {
+    if (index == volumeEffectsField)
+        return std::any_of(volumeEffectsRows.begin(), volumeEffectsRows.end(),
+                           [&](int field) { return fieldModified(field); });
     if (index >= 23 && index <= 25)
         return instrument_.settings.envelopes[index - 23] !=
                instrument_.library.current(instrument_.settings).sound.envelopes[index - 23];
@@ -292,17 +324,16 @@ std::string SettingsEditor::settingValue(int index) const {
     case 24:
     case 25:
         return "Edit >";
+    case volumeEffectsField:
+        return "Open >";
     case 7:
         return std::to_string(s.strumMs) + " ms";
     case 8:
         return std::to_string(s.bpm) + " BPM";
     case 9:
         return patterns(PlaybackMode::Arp)[s.pattern].name;
-    case 10: {
-        unsigned layers = backingLayers(s.mode);
-        int count = int(bool(layers & 1)) + int(bool(layers & 2)) + int(bool(layers & 4));
-        return count > 1 ? std::to_string(count) + " layers" : modeName(s.mode);
-    }
+    case 10:
+        return backingLabel(s.mode);
     case 21:
     case 13:
     case 14: {
@@ -320,9 +351,9 @@ std::string SettingsEditor::settingValue(int index) const {
     case 18:
         return s.theme ? "Light" : "Dark";
     case 19:
-        return "Save >";
+        return "Create >";
     case 20:
-        return "Reset >";
+        return "Restore >";
     case 11:
         return patterns(PlaybackMode::Chord)[s.chordPattern].name;
     case 12:
@@ -424,8 +455,8 @@ void SettingsEditor::buildChoices() {
     const auto &s = instrument_.settings;
     if (page_ == Page::Envelope) {
         if (envelopeField_ == 4) {
-            choices_ = {{0, "Cancel", "Keep this envelope"},
-                        {1, "Restore envelope", "Restore this part to the current preset default"}};
+            choices_ = {{0, "Keep envelope", "Keep this part's envelope"},
+                        {1, "Restore envelope", "Reset only this part's envelope to preset defaults"}};
             return;
         }
         static const char *descriptions[]{"Time to reach full volume", "Time to reach sustain level",
@@ -448,10 +479,10 @@ void SettingsEditor::buildChoices() {
     }
     if (page_ == Page::FrontNotes) {
         if (frontReset())
-            choices_ = {{0, "Cancel", "Keep front settings"},
-                        {1, "Restore defaults",
-                         frontKey_ < 0 ? "Restore both modes and all keys"
-                                       : "Restore this key in this mode"}};
+            choices_ = {{0, "Keep settings", "Keep the current front note settings"},
+                        {1, frontKey_ < 0 ? "Restore all front notes" : "Restore this key",
+                         frontKey_ < 0 ? "Reset both modes, all keys and K/L settings"
+                                       : "Reset this key's note and octave in this mode"}};
         else if (frontKey_ < 0) {
             if (frontField_ == 0)
                 choices_ = {{0, "Chord notes", "Follow the selected chord and its quality"},
@@ -477,8 +508,7 @@ void SettingsEditor::buildChoices() {
         } else if (frontField_ == 1) {
             auto copy = s;
             assignFront(copy, 1, -2);
-            choices_.push_back({-2, "Follow layout (" + frontValueName(copy, 1) + ")",
-                                "Original note octave; follows the layout"});
+            choices_.push_back({-2, frontValueName(copy, 1), "Follow the original note layout"});
             for (int octave = -1; octave <= 9; octave++)
                 choices_.push_back({octave, "Octave " + std::to_string(octave),
                                     "Actual note octave: middle C is C4"});
@@ -490,23 +520,27 @@ void SettingsEditor::buildChoices() {
                     {degree, frontValueName(copy, 0), "Degree of the selected key and scale"});
             }
         } else {
-            auto copy = s;
-            assignFront(copy, 0, -1);
-            choices_.push_back(
-                {-1, "Default: " + frontValueName(copy, 0), "Original chord-aware Z-M layout"});
-            for (int tone = 0; tone < 4; tone++) {
-                assignFront(copy, 0, tone);
-                choices_.push_back(
-                    {tone, "Tone " + std::to_string(tone + 1) + ": " + frontValueName(copy, 0),
-                     "Follow chord quality, including minor and sus"});
-            }
+            auto sample = s;
+            const Chord chord{s.chordRoot(6), -1, 6, Quality::Major};
+            auto addChordNote = [&](int value, const char *description) {
+                assignFront(sample, 0, value);
+                int pitch = frontNotes(chord, sample)[frontKey_];
+                int interval = ((pitch - chord.root) % 12 + 12) % 12;
+                choices_.push_back({value, frontValueName(sample, 0) + " (+" +
+                                               std::to_string(interval) + ")",
+                                    description});
+            };
+            addChordNote(-1, "Follow the original chord-based layout");
+            for (int tone = 0; tone < 4; tone++)
+                addChordNote(tone, "Follow the chord as its quality changes");
             static const char *intervals[]{"Root",      "Minor 2nd", "Major 2nd", "Minor 3rd",
                                            "Major 3rd", "Fourth",    "Tritone",   "Fifth",
                                            "Minor 6th", "Major 6th", "Minor 7th", "Major 7th"};
             for (int offset = 0; offset < 12; offset++)
                 choices_.push_back({16 + offset,
-                                    "Fixed +" + std::to_string(offset) + " / " + intervals[offset],
-                                    "Semitones above chord root; keeps this interval"});
+                                    "Fixed +" + std::to_string(offset) + " semitones",
+                                    offset ? std::string(intervals[offset]) + " above the chord root"
+                                           : "Play the chord root"});
         }
         return;
     }
@@ -522,13 +556,15 @@ void SettingsEditor::buildChoices() {
             for (int octave = -1; octave <= 7; octave++)
                 choices_.push_back({octave, "Octave " + std::to_string(octave), "Root note octave; chord intervals stay together"});
         } else if (combination_ == 4)
-            choices_ = {{0, "Cancel", "Keep mappings"},
-                        {1, "Restore chord config", "Restore this scope: notes, octave and combinations"}};
+            choices_ = {{0, "Keep settings", "Keep the current chord settings"},
+                        {1, "Restore chord config",
+                         scope_ < 0 ? "Reset key, roots, octaves, chord mappings and timing"
+                                    : "Follow Key, shared octave and chord mappings"}};
         else if (combination_ == 5) {
             for (int time = 0; time <= 60; time += 5)
                 choices_.push_back({time, time ? std::to_string(time) + " ms" : "Off",
-                                    time ? "Group chord buttons; front notes stay immediate"
-                                         : "Sound every chord-button press immediately"});
+                                    time ? "More time to press together, with later backing"
+                                         : "Play each chord button immediately"});
             if (s.combinationMs % 5) {
                 choices_.push_back({s.combinationMs, std::to_string(s.combinationMs) + " ms",
                                     "Current recognition window"});
@@ -560,26 +596,22 @@ void SettingsEditor::buildChoices() {
             auto value = instrument_.library.resolved(n);
             choices_.push_back(
                 {n, p.name,
-                 std::string(modeName(value.mode)) + " / " + std::to_string(value.bpm) + " BPM"});
+                 backingLabel(value.mode) + " / " + std::to_string(value.bpm) + " BPM"});
         }
     else if (selection_ == 9 || selection_ == 11 || selection_ == 12) {
         auto mode = selection_ == 11   ? PlaybackMode::Chord
                     : selection_ == 12 ? PlaybackMode::Pad
                                        : PlaybackMode::Arp;
         const auto &list = patterns(mode);
+        const int presetDefault = mode == PlaybackMode::Arp ? defaultValue() : -1;
         auto add = [&](int n) { choices_.push_back({n, list[n].name, list[n].description}); };
         for (int n = 0; n < int(list.size()); n++) {
-            if (mode == PlaybackMode::Arp && n >= 6 && s.pattern != n) continue;
+            if (mode == PlaybackMode::Arp && n >= 6 && n != s.pattern && n != presetDefault) continue;
             if (mode == PlaybackMode::Chord && n == sustainedChordPattern) continue;
             add(n);
             if (mode == PlaybackMode::Chord && n == 0) add(sustainedChordPattern);
         }
-    } else if (selection_ == 10)
-        choices_ = {{0, "Pad", "Sustained backing chord"},
-                    {1, "Chord", "All notes together; clear attack"},
-                    {2, "Arp", "Rhythmic chord-note patterns"},
-                    {3, "Front only", "Select harmony; play Z-M and K/L"}};
-    else if (selection_ == 13 || selection_ == 14 || selection_ == 21) {
+    } else if (selection_ == 13 || selection_ == 14 || selection_ == 21) {
         for (const auto &sound : soundLibrary().entries)
             if (sound.category == soundCategory_)
                 choices_.push_back(
@@ -597,14 +629,15 @@ void SettingsEditor::buildChoices() {
             }
         }
     } else if (selection_ == 15)
-        choices_ = {{0, "Off", "Release stops backing"}, {1, "On", "Keep harmony after release"}};
+        choices_ = {{0, "Off", "Clear the chord when you release its buttons"},
+                    {1, "On", "Keep the chord after you release its buttons"}};
     else if (selection_ == 18)
         choices_ = {{0, "Dark", "App-wide appearance"}, {1, "Light", "App-wide appearance"}};
     else if (selection_ == 19 || selection_ == 20)
-        choices_ = {{0, "Cancel", "Keep current preset"},
-                    {1, selection_ == 19 ? "Save new preset" : "Restore current preset",
-                     selection_ == 19 ? "Copy these settings to a new editable preset"
-                                      : "Reset only " + instrument_.library.current(s).name + "; keep other presets"}};
+        choices_ = {{0, "Keep preset", "Keep the current preset as it is"},
+                    {1, selection_ == 19 ? "Create preset copy" : "Restore preset",
+                     selection_ == 19 ? "Make a new preset from these Style settings"
+                                      : "Reset only the current preset's Style settings"}};
     else {
         int low = 0, high = selection_ == 6 ? 60 : 100, step = 5;
         std::string unit = "%";
@@ -622,17 +655,19 @@ void SettingsEditor::buildChoices() {
             step = 30;
             unit = " ms";
         }
-        if (selection_ == 8) {
-            low = 40;
-            high = 240;
-            unit = " BPM";
+        std::string description;
+        switch (selection_) {
+        case 4: description = "Volume of " + backingLabel(PlaybackMode::All); break;
+        case 5: description = "Volume of the notes played with Z-M and K/L"; break;
+        case 6: description = "Level of the repeat you hear after each note"; break;
+        case 17: description = "Overall output level"; break;
         }
         for (int n = low; n <= high; n += step)
-            choices_.push_back({n, std::to_string(n) + unit, "\xef\x81\xb7\xef\x81\xb8 choose; Enter confirms"});
+            choices_.push_back({n, std::to_string(n) + unit, description});
         for (int v : {settingValueNumber(), defaultValue()})
             if (std::none_of(choices_.begin(), choices_.end(),
                              [&](const Choice &c) { return c.value == v; }))
-                choices_.push_back({v, std::to_string(v) + unit, "Preset or current value"});
+                choices_.push_back({v, std::to_string(v) + unit, description});
         std::sort(choices_.begin(), choices_.end(),
                   [](const Choice &a, const Choice &b) { return a.value < b.value; });
     }
@@ -648,9 +683,9 @@ Chord SettingsEditor::previewChord() const {
     return {s.chordRoot(col), -1, col, q};
 }
 void SettingsEditor::preview() {
-    if (reset_ || (page_ == Page::Combinations && combination_ == 5) ||
-        (page_ == Page::Setup &&
-                   (selection_ == 17 || selection_ == 18 || selection_ == 19 || selection_ == 20)))
+    const bool setting = settingListPage();
+    if (confirmation() != Confirmation::None || (page_ == Page::Combinations && combination_ == 5) ||
+        (setting && (selection_ == 17 || selection_ == 18)))
         return;
     Settings sound = instrument_.settings;
     if (page_ == Page::Envelope) {
@@ -668,7 +703,7 @@ void SettingsEditor::preview() {
         instrument_.auditionFront(sound, std::max(frontKey_, 0));
         return;
     }
-    if (page_ == Page::Setup) {
+    if (setting) {
         if (selection_ == 2) {
             auto next = instrument_.library.resolved(choices_[choice_].value);
             applyPresetSettings(sound, next);
@@ -692,7 +727,7 @@ void SettingsEditor::preview() {
         if (selection_ == 12)
             sound.mode = PlaybackMode::Pad;
     }
-    if (page_ == Page::Setup && (selection_ == 14 || selection_ == 5)) {
+    if (setting && (selection_ == 14 || selection_ == 5)) {
         instrument_.auditionFront(sound, 0);
         return;
     }
@@ -706,7 +741,7 @@ void SettingsEditor::preview() {
     }
     auto c = previewChord();
     c.root = sound.chordRoot(c.column);
-    instrument_.audition(c, sound, page_ == Page::Setup);
+    instrument_.audition(c, sound, setting);
 }
 void SettingsEditor::openBacking() {
     backing_ = true;
@@ -719,34 +754,81 @@ void SettingsEditor::openTempo() {
     tempoInput_ = std::to_string(instrument_.settings.bpm);
     tempoError_.clear();
 }
-void SettingsEditor::openPicker() {
-    if (page_ == Page::Setup && selection_ == 10) {
+SettingsEditor::SetupDestination SettingsEditor::setupDestination() const {
+    switch (selection_) {
+    case 8: return SetupDestination::Tempo;
+    case 10: return SetupDestination::Backing;
+    case 23:
+    case 24:
+    case 25: return SetupDestination::Envelope;
+    case 22: return SetupDestination::FrontNotes;
+    case 3: return SetupDestination::Combinations;
+    case volumeEffectsField: return SetupDestination::VolumeEffects;
+    default: return SetupDestination::Picker;
+    }
+}
+SettingsEditor::Confirmation SettingsEditor::confirmation() const {
+    switch (page_) {
+    case Page::Setup:
+        if (selection_ == 19) return Confirmation::Create;
+        return selection_ == 20 ? Confirmation::Restore : Confirmation::None;
+    case Page::Envelope:
+        return envelopeField_ == 4 ? Confirmation::Restore : Confirmation::None;
+    case Page::FrontNotes:
+        return frontReset() ? Confirmation::Restore : Confirmation::None;
+    case Page::Combinations:
+        return combination_ == 4 ? Confirmation::Restore : Confirmation::None;
+    case Page::VolumeEffects:
+        return Confirmation::None;
+    }
+    return Confirmation::None;
+}
+void SettingsEditor::openSetting() {
+    switch (setupDestination()) {
+    case SetupDestination::Picker:
+        openPicker();
+        return;
+    case SetupDestination::Backing:
         openBacking();
         return;
-    }
-    if (page_ == Page::Setup && selection_ == 8) {
+    case SetupDestination::Tempo:
         openTempo();
         return;
+    case SetupDestination::Envelope:
+        envelopePart_ = selection_ - 23;
+        envelopeField_ = 0;
+        page_ = Page::Envelope;
+        break;
+    case SetupDestination::FrontNotes:
+        page_ = Page::FrontNotes;
+        break;
+    case SetupDestination::Combinations:
+        page_ = Page::Combinations;
+        break;
+    case SetupDestination::VolumeEffects:
+        page_ = Page::VolumeEffects;
+        selection_ = volumeEffectsRows[volumeEffectsRow_];
+        break;
     }
+    instrument_.panic();
+}
+void SettingsEditor::returnToSetup() {
+    if (page_ == Page::VolumeEffects) selection_ = volumeEffectsField;
+    page_ = Page::Setup;
+}
+void SettingsEditor::openPicker() {
     if (page_ == Page::Setup && (selection_ == 13 || selection_ == 14 || selection_ == 21)) {
         auto *sound = soundLibrary().choice(settingValueNumber());
         soundCategory_ = sound ? sound->category : "Saved";
     }
     buildChoices();
-    reset_ = (page_ == Page::Envelope && envelopeField_ == 4) ||
-             (page_ == Page::FrontNotes && frontReset()) ||
-             (page_ == Page::Combinations && combination_ == 4) ||
-             (page_ == Page::Setup && (selection_ == 19 || selection_ == 20));
-    int v = page_ == Page::Envelope ? envelopeValue(instrument_.settings)
-            : page_ == Page::FrontNotes ? frontValue(instrument_.settings, frontField_)
-            : page_ == Page::Setup
-                ? settingValueNumber()
-: chordConfigValue(instrument_.settings);
     choice_ = 0;
-    for (int n = 0; n < int(choices_.size()); n++)
-        if (choices_[n].value == v)
-            choice_ = n;
-    savedChoice_ = choice_;
+    if (confirmation() == Confirmation::None) {
+        const int value = fieldValue();
+        for (int n = 0; n < int(choices_.size()); n++)
+            if (choices_[n].value == value)
+                choice_ = n;
+    }
     picker_ = true;
     preview();
 }
@@ -790,7 +872,7 @@ void SettingsEditor::applyChoice(int value) {
         instrument_.configure();
         return;
     }
-    if (page_ == Page::Setup) {
+    if (settingListPage()) {
         setSettingValue(value);
         return;
     }
@@ -824,13 +906,16 @@ void SettingsEditor::applyChoice(int value) {
         s.degreeCombinations[scope_][combination_] = value;
     instrument_.configure();
 }
+bool SettingsEditor::canRestoreField() const {
+    if (confirmation() != Confirmation::None) return false;
+    if (page_ != Page::Setup) return true;
+    const auto destination = setupDestination();
+    return tab_ != Tab::About && selection_ != 2 &&
+           (destination == SetupDestination::Picker || destination == SetupDestination::Tempo ||
+            destination == SetupDestination::Backing);
+}
 void SettingsEditor::restoreField() {
-    if ((page_ == Page::Envelope && envelopeField_ == 4) ||
-        (page_ == Page::Setup && selection_ >= 23 && selection_ <= 25) ||
-        (page_ == Page::Setup && (selection_ == 2 || selection_ == 3 || selection_ == 19 ||
-                                  selection_ == 20 || selection_ == 22)) ||
-        (page_ == Page::Combinations && combination_ == 4) ||
-        (page_ == Page::FrontNotes && frontReset()))
+    if (!canRestoreField())
         return;
     int v = defaultValue();
     if (picker_) {
@@ -873,7 +958,6 @@ void SettingsEditor::cancelPending() {
     tempoError_.clear();
     if (picker_) {
         picker_ = false;
-        reset_ = false;
         instrument_.configure();
     }
 }
@@ -883,18 +967,20 @@ void SettingsEditor::key(char key, bool down) {
     if (key == '\t') {
         cancelPending();
         settingsOpen = !settingsOpen;
-        page_ = Page::Setup;
+        returnToSetup();
         instrument_.panic();
         return;
     }
     if (backing_) {
         int direction = key == 17 || key == 'f' ? -1 : key == 18 || key == 'x' ? 1 : 0;
-        if (direction) backingRow_ = (backingRow_ + direction + 4) % 4;
+        const int rows = backingApplyRow + 1;
+        if (direction) backingRow_ = (backingRow_ + direction + rows) % rows;
         if (key == 27) backing_ = false;
         else if (key == '\b' || key == 'r')
             pendingLayers_ = backingLayers(instrument_.library.current(instrument_.settings).sound.mode);
         else if (key == '\n') {
-            if (backingRow_ < 3) pendingLayers_ ^= 1u << backingRow_;
+            if (backingRow_ != backingApplyRow)
+                pendingLayers_ ^= backingLayers(backingLayerRows[backingRow_].mode);
             else {
                 instrument_.setBackingMode(modeForLayers(pendingLayers_));
                 backing_ = false;
@@ -919,7 +1005,7 @@ void SettingsEditor::key(char key, bool down) {
             tempoReplace_ = true;
         } else if (key == '\n') {
             int bpm = tempoInput_.empty() ? 0 : std::stoi(tempoInput_);
-            if (bpm < 40 || bpm > 240) tempoError_ = "Enter 40 to 240 BPM";
+            if (bpm < 40 || bpm > 240) tempoError_ = "Tempo must be 40-240 BPM";
             else {
                 instrument_.settings.bpm = bpm; // Keep the accompaniment clock running.
                 tempo_ = false;
@@ -941,7 +1027,7 @@ void SettingsEditor::key(char key, bool down) {
         if (picker_)
             cancelPending();
         else if (page_ != Page::Setup)
-            page_ = Page::Setup;
+            returnToSetup();
         else
             settingsOpen = false;
         instrument_.panic();
@@ -976,20 +1062,22 @@ void SettingsEditor::key(char key, bool down) {
             preview();
             return;
         }
-        if (direction || adjustment) {
+        if ((direction || adjustment) && choices_.size() > 1) {
             choice_ = (choice_ + (direction ? direction : adjustment) + int(choices_.size())) %
                       int(choices_.size());
             preview();
         }
         if (key == '\n') {
             try {
-                applyChoice(choices_[choice_].value);
+                const int value = choices_[choice_].value;
+                applyChoice(value);
+                if (page_ != Page::Setup && confirmation() == Confirmation::Restore && value == 1)
+                    status_ = "Defaults restored";
             } catch (const std::exception &e) {
                 status_ = e.what();
                 instrument_.configure();
             }
             picker_ = false;
-            reset_ = false;
         }
         return;
     }
@@ -1040,10 +1128,11 @@ void SettingsEditor::key(char key, bool down) {
         return;
     }
     if (direction) {
-        if (page_ == Page::Setup) {
-            int next = (rowIndex() + direction + int(rows().size())) % int(rows().size());
-            tabRows_[int(tab_)] = next;
-            selection_ = rows()[next];
+        if (settingListPage()) {
+            const auto &fields = rows();
+            int next = (rowIndex() + direction + int(fields.size())) % int(fields.size());
+            (page_ == Page::VolumeEffects ? volumeEffectsRow_ : tabRows_[int(tab_)]) = next;
+            selection_ = fields[next];
         } else {
             auto list = combinationRows();
             auto row = std::find(list.begin(), list.end(), combination_) - list.begin();
@@ -1052,19 +1141,8 @@ void SettingsEditor::key(char key, bool down) {
         instrument_.panic();
     }
     if (key == '\n') {
-        if (page_ == Page::Setup && selection_ >= 23 && selection_ <= 25) {
-            envelopePart_ = selection_ - 23;
-            envelopeField_ = 0;
-            page_ = Page::Envelope;
-            instrument_.panic();
-        } else if (page_ == Page::Setup && selection_ == 22) {
-            page_ = Page::FrontNotes;
-            instrument_.panic();
-        } else if (page_ == Page::Setup && selection_ == 3) {
-            page_ = Page::Combinations;
-            instrument_.panic();
-        } else
-            openPicker();
+        if (page_ == Page::Setup) openSetting();
+        else openPicker();
     }
 }
 } // namespace zc

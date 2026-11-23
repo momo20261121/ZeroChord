@@ -3,7 +3,7 @@
 *A dated review record, not current user documentation; see the [user guide](USER_GUIDE.md).*
 
 Backing volume now defaults to **80%**; Front remains **100%**. Existing saved
-volumes are preserved. Backspace on App → Backing volume restores 80%.
+volumes are preserved. Backspace on App → Volume & effects → Backing volume restores 80%.
 
 ## Bugs reproduced and fixed
 

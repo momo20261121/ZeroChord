@@ -39,7 +39,7 @@ def set_backing(current, desired, open_popup=True):
     """Apply checkbox masks (Chord=1, Pad=2, Arp=4) via the real modal."""
     if open_popup:
         tap(24)
-    for bit in (1, 2, 4):
+    for bit in (1, 4, 2):  # Menu rows: Chord, Arp, Pad.
         if bool(current & bit) != bool(desired & bit):
             tap(28)
         tap(108)
@@ -101,7 +101,8 @@ try:
     environment = dict(os.environ, ZEROCHORD_INPUT_DEVICE=device, XDG_CONFIG_HOME=str(output/('config-'+str(os.getpid()))))
     test_config = Path(environment['XDG_CONFIG_HOME'])/'zerochord/settings.conf'
     test_config.parent.mkdir(parents=True, exist_ok=True)
-    test_config.write_text('preset 1\necho 0\nbpm 100\n')
+    # Keep the legacy Pad/Manual setup across restarts by using an edited tempo.
+    test_config.write_text('preset 1\necho 0\nbpm 101\n')
     subprocess.run(['systemctl', '--user', 'stop', 'APPLaunch.service'], check=True)
     launcher_stopped = True
     # Reproduce an SSH preview launched while the launcher display was asleep.
@@ -224,29 +225,30 @@ try:
         tap(15)  # Tab: Style, Preset
         tap(106) # App: Theme
         tap(103); tap(28); tap(108) # Theme -> Chord config -> Key
-        tap(28); tap(108); tap(28) # Customize key C# -> D
+        tap(28); tap(108); tap(28) # Customize key C -> C#
         tap(14)  # Backspace: restore just key to C
         tap(28); tap(108); tap(108); tap(28) # D is app-wide
         tap(108); tap(6) # Key -> first combination, V scope
         framebuffer_capture(output/'global-combinations-fb.ppm')
         tap(1) # Back to App
-        tap(106) # Style, Preset
+        tap(105) # Left: App -> Style, Preset
         tap(108) # Tempo
         tap(28); tap(2); tap(11); tap(6); tap(28) # Type BPM 105
         tap(28); tap(19); tap(1) # R selects default; cancel retains 105
         tap(108) # Mode
         tap(28); set_backing(2, 1, open_popup=False) # Pad -> Chord
-        for _ in range(2): tap(108) # Mode -> Arp pattern -> Chord pattern
+        tap(108) # Backing layers -> Chord pattern
         tap(28); tap(108); tap(108); tap(28) # Manual -> Sustained -> Every beat
-        tap(108) # Pad motion
+        for _ in range(2): tap(108) # Chord pattern -> Arp pattern -> Pad motion
         tap(28); tap(108); tap(108); tap(28) # Breathe
         tap(106) # App, combinations (remembered row)
         tap(108) # Theme (wrap)
-        tap(108) # Master
+        tap(108); tap(28) # Volume & effects, Master volume
         tap(28); tap(103); tap(28) # 100 -> 95
+        tap(1) # Back to App, Volume & effects
         tap(103); tap(28); tap(108); tap(28) # Theme -> Light
         framebuffer_capture(output/'light-settings-fb.ppm')
-        tap(106) # Style, Pad motion (remembered row)
+        tap(105) # Left: App -> Style, Pad motion (remembered row)
         for _ in range(7): tap(108) # Pad motion -> Save as
         tap(28); tap(108); tap(28) # User001
         tap(1)

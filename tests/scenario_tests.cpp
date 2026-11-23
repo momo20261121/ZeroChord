@@ -46,7 +46,7 @@ struct DeviceMenu : SettingsEditor {
             CHECK(rows().empty() && selected() == -1 && !pickerOpen());
             return;
         }
-        std::vector<int> list = page() == Page::Setup ? rows() : page() == Page::Combinations ? combinationRows() : page() == Page::FrontNotes ? frontRows() : std::vector<int>{0,1,2,3,4};
+        std::vector<int> list = settingListPage() ? rows() : page() == Page::Combinations ? combinationRows() : page() == Page::FrontNotes ? frontRows() : std::vector<int>{0,1,2,3,4};
         CHECK(std::find(list.begin(), list.end(), selected()) != list.end());
         if (pickerOpen()) { CHECK(!choices().empty()); CHECK(highlighted() >= 0 && highlighted() < int(choices().size())); }
     }
@@ -61,12 +61,13 @@ int main() {
         menu.tap('x'); menu.tap(27); menu.tap(27);
         // Front volume must audition the front layer, even in Front only mode.
         player.settings.mode = PlaybackMode::FrontOnly;
+        menu.row(SettingsEditor::volumeEffectsField); menu.tap('\n');
         menu.row(5); sink.recent.clear(); menu.tap('\n');
         CHECK(std::any_of(sink.recent.begin(), sink.recent.end(), [](const Command &c) { return c.type == CommandType::On && c.part == Part::Harp; }));
         CHECK(std::none_of(sink.recent.begin(), sink.recent.end(), [](const Command &c) { return c.type == CommandType::On && c.part == Part::Chord; }));
         menu.tap(27); menu.row(4); sink.recent.clear(); menu.tap('\n');
         CHECK(std::any_of(sink.recent.begin(), sink.recent.end(), [](const Command &c) { return c.type == CommandType::On && c.part == Part::Chord; }));
-        menu.tap(27); menu.tap(27);
+        menu.tap(27); menu.tap(27); menu.tap(27);
         // Every pattern with held/released combinations and simultaneous foreground playing.
         uint64_t now = 10000; unsigned scenarios = 0;
         const char *buttons[]{"2345678", "qwertyu", "asdfghj"};

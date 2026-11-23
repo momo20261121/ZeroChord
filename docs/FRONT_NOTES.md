@@ -34,22 +34,21 @@ separate for each mode and is not saved into per-key mappings.
 
 ## Each key
 
-- **Note, in Chord notes:** displays the resolved semitone interval, such as X
-  **Chord +4** for a major chord. Choose the default chord-aware layout, one of
-  four voiced chord tones, or a fixed root-relative interval **+0–+11**. Chord
-  tones follow minor, sus, dim, aug and no3 qualities; a fixed +4 remains a major
-  third. Semitone intervals count from zero, so a major third is +4.
+- **Note, in Chord notes.** Choose **Auto note** for the original chord-based
+  layout, one of four chord tones, or a fixed interval of **0–11 semitones** above
+  the chord root. Chord tones follow the selected chord quality. A fixed +4 is
+  always a major third above the root. The example shows the resulting pitch.
 - **Note, in Scale notes:** choose degree I–VII. The shown interval follows the
   selected major or natural-minor scale.
-- **Octave:** an actual note octave, e.g. 4 means C4–B4. The default displays the
-  resolved octave followed by **(Auto)** and follows the original layout. Editing
-  Note preserves that key's automatic layout octave unless Octave is explicitly
-  set. There are no separate octave offsets or Low/High range controls.
+- **Octave.** An octave of 4 means C4–B4. **Auto octave (4)** shows that the
+  original layout puts this example pitch in octave 4. Set a specific octave to
+  choose where the note plays.
 - **Restore this key:** restores the selected key in the current front mode.
 
-The note preview uses the selected tonic's major chord in Chord notes, and the
-selected key/scale in Scale notes. Performance pitches also reflect the live K/L
-octave shift. Z–M, their on-screen pitches, and strums share the same mapping.
+The example pitch uses a major chord on the configured I root in Chord notes
+mode, or the selected key and scale in Scale notes mode. Performance pitches
+also reflect the live K/L octave shift. Z–M, their on-screen pitches, and strums
+share the same mapping.
 
 All front mappings and actions are app-wide, persist on clean exit, and survive
 preset changes/restores. Front sound remains a style setting. Older offset/range
@@ -61,7 +60,7 @@ untouched defaults retain Auto.
 Open **App → Chord config**. ←/→ switches All and the seven degree
 tabs; 1 selects All and 2–8 selects II–VII/I as on the playing keyboard.
 
-**All → Combination window** groups chord-button presses within a fixed interval
+**All → Chord combo timing** groups chord-button presses within a fixed interval
 from the first press. The trial default is **30 ms**; choose **Off** or **5–60 ms**
 in 5 ms steps. A longer window tolerates more finger stagger but adds the same
 amount of backing response delay, on top of keyboard/audio latency. This is not

@@ -173,8 +173,8 @@ int main() {
         row(editor, 10);
         press(editor, '\n');
         CHECK(editor.backingOpen());
-        press(editor, 'x'); press(editor, 'x'); press(editor, '\n'); // Arp only.
-        press(editor, 'x'); press(editor, '\n'); // Apply.
+        press(editor, 'x'); press(editor, '\n'); // Arp only.
+        press(editor, 'x'); press(editor, 'x'); press(editor, '\n'); // Apply.
         CHECK(instrument.settings.mode == PlaybackMode::Arp);
         press(editor, '\b');
         CHECK(instrument.settings.mode == PlaybackMode::FrontOnly);
@@ -191,10 +191,13 @@ int main() {
         press(editor, '\b');
         CHECK(instrument.settings.degreeCombinations[0][1] == -1);
         press(editor, 27);
+        row(editor, SettingsEditor::volumeEffectsField);
+        press(editor, '\n');
         row(editor, 17);
         instrument.settings.masterVolume = 17;
         press(editor, '\b');
         CHECK(instrument.settings.masterVolume == 100);
+        press(editor, 27);
         row(editor, 20);
         instrument.settings.tonic = 9;
         press(editor, '\n');

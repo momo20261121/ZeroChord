@@ -81,7 +81,7 @@ mapping as a working baseline; exact musical behavior remains open.
 | 9 | Previous preset |
 | 0 | Next preset |
 | I | Toggle chord hold |
-| O | Checkbox popup for Chord, Pad and Arp; none means Front only |
+| O | Checkbox popup for Chord, Arp and Pad. Clear all for Front only |
 | P | Enter tempo (40–240 BPM) |
 | Space | Stop all sound; detailed reset behavior to be specified |
 | Tab | Open/close settings |
@@ -176,7 +176,7 @@ Current milestone: validate the playable prototype on the actual device.
   A new chord cancels the unfinished sweep so it cannot play stale harmony.
 - O and Style → Backing layers share a checkbox popup: arrows select rows,
   Enter toggles a layer, Apply commits, Esc cancels. None means Front only.
-  Chord, Pad and Arp can run together; front notes remain independent.
+  Chord, Arp and Pad can run together. Front notes remain independent.
 - Chord/Arp have separate pattern state on a common sixteenth-note clock.
   Pattern edits take effect at their current pattern boundary; harmony changes
   retain phase. Applying layers/presets starts a new phrase.
