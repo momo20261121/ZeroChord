@@ -1,7 +1,10 @@
 #pragma once
 #include "instrument.hpp"
 #include <array>
+#include <functional>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 namespace zc {
 class SettingsEditor {
@@ -13,8 +16,13 @@ class SettingsEditor {
         std::string name, description;
     };
     static constexpr int volumeEffectsField = 29;
-    static constexpr int settingCount = volumeEffectsField + 1;
-    explicit SettingsEditor(Instrument &instrument) : instrument_(instrument) {}
+    static constexpr int systemVolumeField = 30;
+    static constexpr int settingCount = systemVolumeField + 1;
+    explicit SettingsEditor(Instrument &instrument,
+                            std::function<std::optional<int>()> readSystemVolume = {},
+                            std::function<bool(int)> writeSystemVolume = {})
+        : instrument_(instrument), readSystemVolume_(std::move(readSystemVolume)),
+          writeSystemVolume_(std::move(writeSystemVolume)) {}
     bool settingsOpen = false;
     void key(char key, bool down);
     void cancelPending();
@@ -47,6 +55,7 @@ class SettingsEditor {
     static const char *combinationName(int index);
 
   protected:
+    static constexpr int chordHoldField = 9;
     enum class SetupDestination { Picker, Tempo, Backing, Envelope, FrontNotes, Combinations, VolumeEffects };
     enum class Confirmation { None, Create, Restore };
     struct BackingLayerRow {
@@ -78,6 +87,7 @@ class SettingsEditor {
     int choice_ = 0;
     std::vector<Choice> choices_;
     std::string status_;
+    std::optional<int> systemVolume_;
     bool settingListPage() const { return page_ == Page::Setup || page_ == Page::VolumeEffects; }
     std::string settingValue(int index) const;
     std::string scopeName() const;
@@ -104,6 +114,10 @@ class SettingsEditor {
     std::string frontValueName(const Settings &s, int field) const;
 
   private:
+    std::function<std::optional<int>()> readSystemVolume_;
+    std::function<bool(int)> writeSystemVolume_;
+    void refreshSystemVolume();
+    void adjustVolumeEffects(int direction);
     int valueFor(const Settings &s, int index) const;
     void assign(Settings &s, int index, int value);
     void setSettingValue(int value);

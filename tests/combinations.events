@@ -4,5 +4,7 @@
 150 RIGHT up
 200 UP down
 220 UP up
+235 UP down
+255 UP up
 270 ENTER down
 290 ENTER up

@@ -148,7 +148,7 @@ void Settings::clamp() {
     for (auto &envelope : envelopes)
         for (int n = 0; n < 4; n++)
             envelope.values[n] = std::clamp(envelope.values[n], -1, n == 2 ? 100 : 5000);
-    combinationMs = std::clamp(combinationMs, 0, 60);
+    combinationMs = std::clamp(combinationMs, 0, maxCombinationMs);
     frontMode = std::clamp(frontMode, 0, 1);
     for (auto &action : frontAction)
         action = std::clamp(action, 0, 1);

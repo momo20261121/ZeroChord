@@ -212,17 +212,24 @@ void UI::drawSettingRows(int top, int limit, int spacing) {
     for (int n = first; n < int(fields.size()) && n < first + limit; n++) {
         int field = fields[n];
         int y = top + (n - first) * spacing;
+        const bool selected = field == selection_;
+        auto value = settingValue(field);
+        if (selected && page_ == Page::VolumeEffects &&
+            (field != systemVolumeField || systemVolume_))
+            value = LV_SYMBOL_LEFT "  " + value + "  " LV_SYMBOL_RIGHT;
         fieldRow(y, spacing, std::string(settingName(field)) + (fieldModified(field) ? " *" : ""),
-                 settingValue(field), field == selection_);
+                 value, selected);
     }
     scrollIndicator(top - 1, first, int(fields.size()), limit, spacing);
 }
 void UI::drawVolumeEffects() {
     label(8, 5, 222, settingName(volumeEffectsField), colors.accent, titleFont);
     label(230, 8, 84, "All presets", colors.muted, small, LV_TEXT_ALIGN_RIGHT);
-    drawSettingRows(24, 7, 15);
+    drawSettingRows(21, 8, 14);
     if (!status_.empty()) label(8, menuDetailY, 306, status_, colors.signal);
-    menuHints({rowHint, {"Enter", enterAction()}, backHint}, {defaultHint, editedHint});
+    const bool editable = selection_ != systemVolumeField || systemVolume_.has_value();
+    menuHints({rowHint, {editable ? horizontalKeys : nullptr, "Adjust"}, backHint},
+              {canRestoreField() ? defaultHint : Hint{}, editedHint});
 }
 void UI::drawEnvelope() {
     const auto &s = instrument_.settings;
@@ -306,6 +313,8 @@ void UI::drawCombinations() {
                                                        noteName(s.degreeChordRoot[scope_]);
             else if (n == 5)
                 value = s.combinationMs ? std::to_string(s.combinationMs) + " ms" : "Off";
+            else if (n == chordHoldField)
+                value = s.hold ? "On" : "Off";
             else value = "Restore >";
             fieldRow(y, rowHeight, combinationName(n), value, selected);
         }
@@ -528,7 +537,7 @@ void UI::draw() {
     for (int n = 0; n < 7; n++)
         signature << ',' << s.frontSource[n] << ',' << s.frontOffset[n] << ',' << s.frontOctave[n]
                   << ',' << s.frontDegree[n] << ',' << s.scaleOctave[n];
-    signature << ',' << s.chordOctave;
+    signature << ',' << s.chordOctave << ',' << systemVolume_.value_or(-1);
     for (int gain : s.eqDb) signature << ',' << gain;
     for (int octave : s.degreeChordOctave) signature << ',' << octave;
     for (int root : s.degreeChordRoot) signature << ',' << root;

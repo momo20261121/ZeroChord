@@ -102,13 +102,13 @@ try:
         tap(28); tap(45); tap(28) # Enter, next item after the default Sustained, Enter
         tap(1) # Esc: performance
         tap(9); time.sleep(.9)
-        # App > Volume & effects > EQ Low, using the printed C/X arrows.
+        # App > Volume & effects, using the printed Z/C/X arrows.
         tap(15); tap(46)
         tap(45); tap(28)
-        for _ in range(4): tap(45)
-        tap(28)
-        for _ in range(3): tap(45)
-        tap(28); tap(1); tap(1)
+        tap(45); tap(44) # App Vol: 100% to 95%.
+        for _ in range(4): tap(45) # App Vol to EQ Low.
+        for _ in range(3): tap(46)
+        tap(1); tap(1)
         tap(25) # P: numeric tempo
         for code in [2,4,8,28]: tap(code) # 137 Enter
         tap(9); time.sleep(.3)
@@ -117,7 +117,8 @@ try:
         emit(1,True); time.sleep(.95); emit(1,False)
         assert process.wait(timeout=5)==0
     settings=dict(line.split(maxsplit=1) for line in (config/'zerochord/settings.conf').read_text().splitlines())
-    assert settings['eqLowDb']=='3' and settings['mode']=='1' and settings['chordPattern']=='1' and settings['bpm']=='137', settings
+    expected = {'masterVolume':'95', 'eqLowDb':'3', 'mode':'1', 'chordPattern':'1', 'bpm':'137'}
+    assert {key: settings[key] for key in expected} == expected, settings
     internal=(out/'app.ppm').read_bytes().split(b'\n',3)[3]
     assert len(kernel)==len(internal) and max(abs(a-b) for a,b in zip(kernel,internal))<=8
     log=(out/'installed.log').read_text()
@@ -131,7 +132,7 @@ try:
     result={'version':version,'status':'passed','installed_wrapper':str(wrapper),
             'audio_frames':len(values)//2,'audio_peak':max(abs(v) for v in values),
             'input':'temporary evdev keyboard; printed Z/C/F/X navigation',
-            'settings':'isolated; Chord-only layer, chord pattern, EQ and tempo saved/reloaded',
+            'settings':'isolated; Chord-only layer, chord pattern, App Vol, EQ and tempo saved/reloaded',
             'framebuffer':'320x170 kernel readback matches app capture within RGB565 quantization',
             'exit':'long Esc exits cleanly; launcher restored in finally',
             'limits':'Digital audio and injected keys; physical feel and listening remain manual.'}

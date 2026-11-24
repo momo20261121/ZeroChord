@@ -16,6 +16,8 @@ or `origin dev`). Only `main` and `v<version>` may ever be pushed, and only with
 explicit approval. `scripts/install_git_guard.sh` installs a pre-push hook
 that refuses `dev`; the preflight runs it.
 
+**Follow the workspace guide** for how to run Git, GitHub, and store commands.
+
 Load private configuration in every shell that needs it: `set -a; . ./.env; set +a`.
 Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
 
@@ -39,6 +41,8 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
   confirm or override the proposed version before continuing.
 - Write it to `VERSION.txt`, then `grep -rn "<old version>"` over tracked files and fix any
   other mention (docs "currently X", CHANGELOG heading) except history.
+- Update the changelog draft, user guides, and store copy affected by the release
+  before building the candidate. Include small changes to controls and behavior.
 
 ## 2. Privacy check
 
@@ -55,6 +59,12 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
 
 ## 3. Build, package, install, test
 
+**Review the affected tests before running them.** Compare the release changes
+since the last tag with the local suites, keyboard scripts and fixtures, and
+installed-device acceptance test. Update affected key sequences and expected
+results to match the intended behavior. Add coverage when the existing tests
+miss a meaningful regression risk.
+
 1. Local checks (once, before building): desktop build, `.venv/bin/ctest --test-dir build/desktop
    --output-on-failure`, and `.venv/bin/python scripts/test_local_flows.py`. Add the sanitizer
    build (see `docs/TESTING.md`) if audio, input or lifecycle code changed since the last tag.
@@ -65,10 +75,12 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
    the package version and maintainer). Must have no FAIL.
 4. `sh scripts/install_release_device.sh push` copies the package and test script and verifies
    the checksum on the device.
-5. Install needs the device's sudo password, which Claude cannot type. First try
-   `ssh ... sudo -n true`; if it fails, ask the user to run:
-   `! set -a; . ./.env; set +a; sh scripts/install_release_device.sh install`
-   and wait for them to say it finished. Never store or pass a password.
+5. Run `sh scripts/install_release_device.sh install`. With the Cardputer
+   workspace SSH profile, it uses the existing `cardputer-sudo` helper and its
+   ignored local credential file. For other targets it uses the configured
+   SSH connection and the device's sudo policy. If a password prompt is needed,
+   ask the user to run `sh scripts/install_release_device.sh install-interactive`
+   with `.env` loaded, then wait for installation to finish.
 6. `sh scripts/install_release_device.sh test` runs `scripts/test_installed.py <version>`
    on the device (installed version, `dpkg --verify`, launcher entry, evdev input, audio,
    framebuffer, persistence, clean exit; it restores the launcher) and fetches
@@ -76,15 +88,28 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
 7. If the UI changed since the last release, refresh store screenshots with
    `scripts/release_screenshots.py` and inspect them at native 320x170.
 
-## 4. Report and wait for approval
+## 4. Finalize the documentation and package
 
 - **Fix** only bugs that are small, clearly understood, local, and do not change designed
   behavior, settings formats or presets. After a fix, rerun the affected tests; if shipped
   code changed, redo steps 3.2-3.6 so the tested binary is the packaged one.
 - **Report, do not fix**, anything larger, ambiguous, or a design question.
+- Date the release section in `CHANGELOG.md` and verify the README, guides, store
+  copy, and screenshots against the tested build. Finish these edits before
+  approval, including corrections to wording and links.
+- Record actual test results and manual checks in `docs/TESTING.md`. Prepare
+  `PUBLISH.md` with the package details, launcher notes, and validation checklist.
+- Repackage the bundled docs with `scripts/package.py` using the tested binary.
+  Compare both archives and verify that the executable and launcher files match.
+  Record the final size and SHA-256 in `PUBLISH.md`, then run
+  `scripts/privacy_check.py --deb` on the final archive. The package and docs
+  presented for approval are the ones that will be tagged and published.
+
+## 5. Report and wait for approval
+
 - Report concisely: version proposed/chosen; bugs found and fixed (what, why, which test);
   unfixed problems with severity; checks actually run and results (privacy summary, test
-  counts, installed-app result, package size/SHA-256); what was *not* validated (physical
+  counts, installed-app result, final package size/SHA-256); what was *not* validated (physical
   keyboard feel, speaker listening) - never claim hands-on validation that did not happen;
   privacy WARNs needing confirmation.
 - Ask for release approval and a publication choice. **Wait for approval.**
@@ -96,19 +121,6 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
 - A later request to publish the package on GitHub can resume step 7 from an
   existing release tag. Use the final package and checksum for that tag.
 
-## 5. Update docs
-
-- `CHANGELOG.md`: replace "(in development)" with `## <version> - <YYYY-MM-DD>`; list
-  user-facing changes in plain language, including fixes from step 4; no private data.
-- `README.md`, `docs/USER_GUIDE.md`, other docs: only where behavior or controls changed.
-- `docs/TESTING.md`: add a section with the real results and the limits from step 4.
-- `PUBLISH.md`: rewrite the release record for this version (package table with size and
-  SHA-256, validation checklist with unchecked manual items, launcher/install notes).
-- Docs are packaged inside the `.deb`, so rerun `scripts/package.py` afterwards and confirm
-  the binary hash equals the one recorded in step 3.2 (no rebuild in between), then rerun
-  `privacy_check.py --deb`. Update the SHA-256 in PUBLISH.md to the final file. Say that the
-  final package differs from the tested one only in bundled docs.
-
 ## 6. Create the local release
 
 1. Final `python3 -I scripts/privacy_check.py --deb dist/...`; no FAIL.
@@ -117,9 +129,13 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
    `Release ZeroChord <version>`. No extra branches; never amend or rewrite published history.
 3. `git switch main && git merge --no-ff dev -m "Release ZeroChord <version>"`, then
    `git tag -a v<version> -m "ZeroChord <version>"` on `main`. Verify
-   `git show main:VERSION.txt` and `git diff dev main --stat` is empty.
+   `git show main:VERSION.txt` and `git diff dev main --stat` is empty. Verify the
+   tag includes the final docs and that the archive matches the recorded checksum.
 
 ## 7. Publish to GitHub
+
+Check that the release tag contains the finalized documentation before the
+first push.
 
 1. For an approved GitHub publication or refs-only push, run
    `git push origin main v<version>`. Verify the remote tag matches the local
@@ -155,8 +171,8 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
    the downloaded package SHA-256 against the final local package.
 5. Report the tag, package path and SHA-256, and the GitHub Release URL when
    published. For a local-only release, include `git push origin main v<version>`
-   as the refs-only command. Maintain the CardputerZero Store copy and image order
-   in `store/LISTING.md` and record Store submission links in `PUBLISH.md`.
+   as the refs-only command. Complete any later documentation edits through a
+   separate change. Store submission follows the workspace guide when authorized.
 
 ## 8. Start the next development cycle
 

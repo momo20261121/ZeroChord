@@ -60,31 +60,35 @@ def run(name, keys, expected, seed='', hold_escape=False):
 
 
 volume_effects = ['TAB','c','x','ENTER']
+chord_config = ['TAB','c','x','x','ENTER']
 
 run('fresh-defaults', [], {'chordVolume':80, 'harpVolume':100, 'preset':1, 'mode':7, 'chordPattern':5, 'bpm':80})
-run('physical-volume-edit', volume_effects + ['x','ENTER','x','ENTER','x','ENTER','f','ENTER'],
+run('volume-settings', volume_effects, {'masterVolume':100})
+run('physical-volume-edit', volume_effects + ['x','x','c','x','z'],
     {'chordVolume':85, 'harpVolume':95})
-run('physical-volume-restore', volume_effects + ['x','BACKSPACE'],
+run('physical-volume-restore', volume_effects + ['x','x','BACKSPACE'],
     {'chordVolume':80, 'harpVolume':62}, 'chordVolume 37\nharpVolume 62\n')
 run('tempo-type-and-cancel', ['p','1','3','7','ENTER','p','2','4','0','ESC'], {'bpm':137})
 run('menu-tempo-type', ['TAB','x','ENTER','4','0','ENTER'], {'bpm':40})
 run('tempo-invalid-stays-open', ['p','2','4','1','ENTER'], {'bpm':80})
 run('absolute-roots-and-octaves',
-    ['TAB','c','f','ENTER','x','ENTER','x','ENTER','c','ENTER']+['x']*7+
+    chord_config + ['x','ENTER','x','ENTER','c','ENTER']+['x']*7+
     ['ENTER','c','f','ENTER']+['x']*6+['ENTER'],
     {'tonic':1, 'degreeChordRoot0':6, 'degreeChordOctave1':4})
+run('chord-hold-and-timing', chord_config + ['x','x','ENTER','f','ENTER'] + ['x']*5 +
+    ['ENTER'] + ['x']*18 + ['ENTER'], {'hold':0, 'combinationMs':120})
 run('front-scale-physical',
-    ['TAB','c','f','f','ENTER','ENTER','x','ENTER','x','ENTER','x','ENTER'],
+    ['TAB','c','f','ENTER','ENTER','x','ENTER','x','ENTER','x','ENTER'],
     {'frontMode':1,'scale':1})
 run('envelope-physical', ['TAB']+['x']*7+['ENTER','ENTER']+['x']*6+['ENTER','c','x','ENTER']+
     ['f']*4+['ENTER'], {'envelope00':100,'envelope11':50})
 run('picker-cancel-physical', ['TAB']+['x']*7+['ENTER','ENTER']+['x']*6+['ESC'], {'envelope00':-1})
-run('light-volume-editor', volume_effects + ['x','ENTER'], {'theme':1,'chordVolume':80}, 'theme 1\n')
-run('long-escape-saves', volume_effects + ['x','ENTER','x','ENTER'], {'chordVolume':85}, hold_escape=True)
-run('eq-physical-edit-cancel', volume_effects + ['x']*4+['ENTER']+['x']*6+
-    ['ENTER','x','ENTER']+['f']*3+['ENTER','x','ENTER','x','x','ESC'],
-    {'eqLowDb':6,'eqMidDb':-3,'eqHighDb':0})
-run('eq-physical-restore', volume_effects + ['x']*4+['BACKSPACE'],
+run('light-volume-editor', volume_effects + ['x','x'], {'theme':1,'chordVolume':80}, 'theme 1\n')
+run('long-escape-saves', volume_effects + ['x','x','c'], {'chordVolume':85}, hold_escape=True)
+run('eq-physical-edit', volume_effects + ['x']*5 + ['c']*6 + ['x'] + ['z']*3 +
+    ['x','RIGHT','RIGHT','RIGHT','RIGHT','ESC'], {'eqLowDb':6,'eqMidDb':-3,'eqHighDb':12},
+    'eqHighDb 10\n')
+run('eq-physical-restore', volume_effects + ['x']*5+['BACKSPACE'],
     {'eqLowDb':0,'eqMidDb':-3,'eqHighDb':2}, 'eqLowDb 6\neqMidDb -3\neqHighDb 2\ntheme 1\n')
 run('sustained-chord-physical', ['TAB']+['x']*3+['ENTER','x','ENTER'],
     {'chordPattern':5}, 'chordPattern 0\n')
@@ -100,4 +104,4 @@ run('strings-source-rate', ['TAB']+['x']*6+['ENTER','c'], {'harpProgram':10})
 run('about-dark', ['TAB','c','c','x','ENTER','BACKSPACE'], {'theme':0, 'preset':1})
 run('about-light', ['TAB','c','c'], {'theme':1}, 'theme 1\n')
 run('about-wrap', ['TAB','z','c','x','ENTER','1','3','7','ENTER'], {'bpm':137})
-print('PASS: 27 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')
+print('PASS: 28 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')

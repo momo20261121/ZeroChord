@@ -87,23 +87,52 @@ int main() {
     CHECK((chordNotes({48, -1, 6, Quality::Sus4}) == std::array<int, 4>{48, 53, 55, 60}));
     Capture sink;
     Instrument instrument(sink);
-    SettingsEditor editor(instrument);
+    std::optional<int> outputVolume = 43;
+    bool allowVolumeChange = true;
+    int volumeWrites = 0;
+    SettingsEditor editor(instrument, [&] { return outputVolume; }, [&](int value) {
+        ++volumeWrites;
+        if (!allowVolumeChange) return false;
+        outputVolume = value;
+        return true;
+    });
     press(editor, '\t');
     CHECK(editor.selected() == 2); // Preset is first on Style.
     CHECK((editor.rows() == std::vector<int>{2, 8, 10, 11, 9, 12, 14, 23, 13, 24, 21, 25, 19, 20}));
     const auto original = instrument.settings;
     press(editor, 20);
     CHECK(editor.tab() == SettingsEditor::Tab::App && editor.selected() == 18);
-    CHECK((editor.rows() == std::vector<int>{18, SettingsEditor::volumeEffectsField, 15, 22, 3}));
+    CHECK((editor.rows() == std::vector<int>{18, SettingsEditor::volumeEffectsField, 3, 22}));
     row(editor, SettingsEditor::volumeEffectsField);
     press(editor, '\n');
-    CHECK(editor.page() == SettingsEditor::Page::VolumeEffects && editor.selected() == 17);
-    CHECK((editor.rows() == std::vector<int>{17, 4, 5, 6, 26, 27, 28}));
+    CHECK(editor.page() == SettingsEditor::Page::VolumeEffects &&
+          editor.selected() == SettingsEditor::systemVolumeField);
+    CHECK((editor.rows() == std::vector<int>{SettingsEditor::systemVolumeField, 17, 4, 5, 6, 26, 27, 28}));
+    sink.events.clear();
+    press(editor, '\n');
+    CHECK(!editor.pickerOpen() && volumeWrites == 0);
+    press(editor, '\b');
+    CHECK(outputVolume == 43 && volumeWrites == 0);
+    outputVolume = 52; // The system can change the level while the page is open.
+    press(editor, 19);
+    CHECK(outputVolume == 47 && volumeWrites == 1 && sink.events.empty());
+    CHECK(instrument.settings.masterVolume == original.masterVolume);
+    allowVolumeChange = false;
+    press(editor, 'c');
+    CHECK(!editor.pickerOpen() && outputVolume == 47 && volumeWrites == 2);
+    outputVolume.reset();
+    press(editor, 19);
+    CHECK(!editor.pickerOpen() && volumeWrites == 2);
+    row(editor, 17);
+    press(editor, 'c');
+    CHECK(instrument.settings.masterVolume == 100);
+    press(editor, 'z');
+    CHECK(instrument.settings.masterVolume == 95 && volumeWrites == 2);
+    press(editor, '\b');
+    CHECK(instrument.settings.masterVolume == defaults.masterVolume);
     for (int field : {4, 5, 6}) {
         row(editor, field);
-        press(editor, '\n');
-        choose(editor, 30);
-        press(editor, '\n');
+        press(editor, 'z');
         press(editor, '\b');
     }
     CHECK(instrument.settings.chordVolume == defaults.chordVolume &&
@@ -119,7 +148,18 @@ int main() {
     press(editor, '\n');
     CHECK(editor.page() == SettingsEditor::Page::Combinations);
     CHECK(editor.selected() == 6);
-    press(editor, 18); // Octave, Key/Root, combinations.
+    press(editor, 18); // Octave -> Key -> Hold.
+    press(editor, 18);
+    press(editor, '\n');
+    choose(editor, 0);
+    press(editor, 27);
+    CHECK(instrument.settings.hold == defaults.hold);
+    press(editor, '\n');
+    choose(editor, 0);
+    press(editor, '\n');
+    CHECK(instrument.settings.hold == 0);
+    press(editor, '\b');
+    CHECK(instrument.settings.hold == defaults.hold);
     press(editor, 18);
     CHECK(editor.scope() == -1);
     press(editor, 19);
@@ -209,6 +249,7 @@ int main() {
     CHECK(instrument.settings.degreeCombinations[0][0] == int(Quality::No3));
     // Reset all requires confirmation, includes Key, and preserves unrelated sound settings.
     instrument.settings.tonic = 4;
+    instrument.settings.hold = 0;
     press(editor, '1');
     press(editor, '\n');
     choose(editor, 1);
@@ -219,21 +260,21 @@ int main() {
     press(editor, '\n');
     CHECK(instrument.settings.combinations == defaults.combinations);
     CHECK(instrument.settings.degreeCombinations == defaults.degreeCombinations);
-    CHECK(instrument.settings.tonic == 0);
+    CHECK(instrument.settings.tonic == 0 && instrument.settings.hold == defaults.hold);
     instrument.settings.tonic = 4;
     CHECK(instrument.settings.combinationMs == 30);
-    for (int n = 0; n < 7; n++)
+    for (int n = 0; n < 8; n++)
         press(editor, 18);
     CHECK(editor.selected() == 5 && editor.scope() == -1);
     sink.events.clear();
     press(editor, '\n');
-    choose(editor, 45);
+    choose(editor, Settings::maxCombinationMs);
     CHECK(sink.events.empty() && instrument.settings.combinationMs == 30);
     press(editor, 27);
     press(editor, '\n');
-    choose(editor, 45);
+    choose(editor, Settings::maxCombinationMs);
     press(editor, '\n');
-    CHECK(instrument.settings.combinationMs == 45);
+    CHECK(instrument.settings.combinationMs == 120);
     press(editor, '\b');
     CHECK(instrument.settings.combinationMs == 30);
     press(editor, 20);
@@ -435,17 +476,23 @@ int main() {
                     const auto fields = menu.visibleRows();
                     for (int field : fields) {
                         CHECK(menu.selected() == field);
-                        checkPicker();
+                        const auto before = state();
+                        press(menu, '\n');
+                        CHECK(!menu.pickerOpen() && state() == before);
+                        if (field != SettingsEditor::systemVolumeField) {
+                            const int initial = menu.currentValue();
+                            press(menu, left);
+                            CHECK(menu.currentValue() == initial - (field >= 26 ? 1 : 5));
+                            CHECK(menu.selected() == field && state() != before);
+                            press(menu, right);
+                            CHECK(state() == before);
+                        }
                         press(menu, down);
                     }
                     CHECK(menu.selected() == fields.front());
                     press(menu, up);
                     const auto before = state();
-                    press(menu, left);
-                    press(menu, right);
                     CHECK(menu.page() == SettingsEditor::Page::VolumeEffects && menu.selected() == fields.back());
-                    press(menu, '\n');
-                    press(menu, down);
                     press(menu, '\t');
                     CHECK(!menu.settingsOpen && !menu.pickerOpen() && state() == before);
                     press(menu, '\t');

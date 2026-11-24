@@ -10,6 +10,7 @@ __pycache__/
 .env.*
 !.env.example
 notes.md
+AGENTS.md
 
 # Optional checksum-verified sample download
 sounds/fluid-grand/piano.sf2

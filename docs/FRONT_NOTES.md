@@ -63,16 +63,15 @@ and the seven degree tabs. `1` selects **All**. `2`–`8` select II–VII and I,
 in the same order as on the playing keyboard.
 
 **All → Chord combo timing** groups chord-button presses within a fixed interval
-from the first press. The trial default is **30 ms**; choose **Off** or **5–60 ms**
+from the first press. The default is **30 ms**. Choose **Off** or **5–120 ms**
 in 5 ms steps. A longer window tolerates more finger stagger but adds the same
 amount of backing response delay, on top of keyboard/audio latency. This is not
 a measured optimum for this device. Front notes respond immediately using the
 latest chord selection. Releases do not retrigger partial combinations. Panic
-cancels a pending chord. Resetting All restores timing as well as mappings;
-resetting an individual degree preserves the shared timing.
+cancels a pending chord. Resetting All restores timing, Hold, and mappings.
 
-Chord config begins with Octave on each tab. All contains Key; degree tabs
-contain absolute Root overrides. Follow Key / Follow All restores inheritance.
+Chord config begins with Octave on each tab. All contains Key and Hold. Degree
+tabs contain absolute Root overrides. Follow Key / Follow All restores inheritance.
 **Front notes → All → Scale** sets major or natural minor for **Scale notes**.
 
 ### Choose a chord quality

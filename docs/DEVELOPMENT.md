@@ -5,7 +5,7 @@ Run commands from the project root. User controls are in the [user guide](USER_G
 ## Branches and releases
 
 `main` contains tested releases, identified by `v<version>` tags (starting with
-`v1.0.0`). Use `dev` for the next release (currently 1.2.0) and merge into `main`
+`v1.0.0`). Use `dev` for the next release (currently 1.2.1) and merge into `main`
 when the release is tested and ready. Preserve existing
 history. `dev` stays local and is never pushed (`scripts/install_git_guard.sh`
 installs a pre-push hook enforcing this); pushing `main` or a release tag requires
@@ -24,8 +24,6 @@ stay inside this project:
 python3 -m venv .venv
 .venv/bin/python -m pip install cmake==3.31.6
 python3 scripts/bootstrap.py
-.venv/bin/cmake -S . -B build/desktop -DCMAKE_BUILD_TYPE=Release
-.venv/bin/cmake --build build/desktop -j4
 ```
 
 Copy the device's `/usr/share/sounds/sf2/TimGM6mb.sf2` into
@@ -33,13 +31,35 @@ Copy the device's `/usr/share/sounds/sf2/TimGM6mb.sf2` into
 GM bank using `--soundfont PATH` / `ZEROCHORD_SOUNDFONT`. A substituted bank may
 sound different and keeps its own license. The bank is not checked into Git.
 
+On Debian, the `timgm6mb-soundfont` package supplies this bank at
+`/usr/share/sounds/sf2/TimGM6mb.sf2`. You can link it into the project:
+
 ```sh
-build/desktop/M5CardputerZero-ZeroChord
-.venv/bin/ctest --test-dir build/desktop --output-on-failure
+mkdir -p .tools/soundfonts
+ln -s /usr/share/sounds/sf2/TimGM6mb.sf2 .tools/soundfonts/TimGM6mb.sf2
+```
+
+Run `./scripts/check.sh` for the daily edit and test loop. It configures and
+incrementally builds the SDL preview, then runs all six CTest suites. The script
+can be called by path from any directory. Set `CMAKE_BUILD_PARALLEL_LEVEL=2` if
+you want to leave more memory available for other work.
+
+From the guest's graphical desktop, launch the preview. If you have a local
+`.env`, load it in the same subshell:
+
+```sh
+(
+    if test -f .env; then
+        set -a
+        . ./.env
+        set +a
+    fi
+    build/desktop/M5CardputerZero-ZeroChord
+)
 build/desktop/zerochord-render .tools/soundfonts/TimGM6mb.sf2 build/demo.wav
 ```
 
-### Build for the device on macOS
+### Build for the device from the Debian VM
 
 Copy [.env.example](../.env.example) to `.env` and set the SSH host, optional SSH
 config, and device directory there. Load it before deploying:
@@ -51,7 +71,7 @@ sh scripts/deploy_device.sh
 ```
 
 The first command installs checksum-verified Zig 0.15.2 inside `.tools/`, then
-cross-compiles the Linux ARM64 framebuffer app into `build/cross-device/`.
+builds the Linux ARM64 framebuffer app into `build/cross-device/`.
 Compiler caches also stay in `.tools/`; subsequent builds are incremental.
 No VM, device sysroot, or system-wide install is required. The target uses glibc
 2.36 compatibility and a statically linked C++ runtime. See the
@@ -80,7 +100,9 @@ Required third-party copyright and license notices remain intact.
 
 ## Releasing
 
-Run the `/publish` workflow (`.claude/skills/publish/SKILL.md`). It uses these tools:
+Run the `/publish` workflow (`.claude/skills/publish/SKILL.md`). Update the docs
+for the candidate, then finalize the docs and verify the repackaged archive
+before requesting release approval. The workflow uses these tools:
 
 - `scripts/privacy_check.py [--deb PACKAGE]` scans publishable files, commit
   metadata since the last tag and the package for private values from `.env`, Git
@@ -88,8 +110,9 @@ Run the `/publish` workflow (`.claude/skills/publish/SKILL.md`). It uses these t
   (comma-separated) in `.env`. FAIL blocks a release; WARN needs a human decision.
 - `scripts/package.py` builds `dist/zerochord_<version>_arm64.deb`.
 - `scripts/install_release_device.sh push|install|test` copies the package to the
-  device, installs it (the device's sudo password is typed on a terminal) and runs
-  `scripts/test_installed.py` against the installed app.
+  device, installs it through the workspace `cardputer-sudo` helper when using
+  the workspace SSH profile, and runs `scripts/test_installed.py` against the
+  installed app. Use `install-interactive` if the device needs a password prompt.
 - `scripts/release_screenshots.py` uses the desktop build to refresh the dark-theme
   screenshots in `docs/images` and copies the five store images to `store/screenshots`.
 - **Publish to GitHub** pushes `main` and the release tag, then creates a

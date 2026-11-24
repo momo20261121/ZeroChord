@@ -4,7 +4,7 @@
 namespace zc {
 class UI : public SettingsEditor {
   public:
-    explicit UI(Instrument &instrument) : SettingsEditor(instrument) {}
+    using SettingsEditor::SettingsEditor;
     void draw();
 
   private:

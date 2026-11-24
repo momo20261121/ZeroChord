@@ -93,7 +93,7 @@ changes. The default octave is 3. Each degree can use an absolute octave or
 `Backspace` restores the highlighted mapping at its current scope. The
 **Restore defaults...** action resets the key or root, octave, and four chord
 combinations for that scope after confirmation. On **All**, it also resets
-recognition timing and degree overrides. See the
+Hold, recognition timing, and degree overrides. See the
 [chord configuration reference](FRONT_NOTES.md#chord-config) for details.
 
 App → Front notes → All shows **Scale** immediately after Front mode when
@@ -182,7 +182,7 @@ start with their previous `backing_sound` for both, preserving their sound.
 
 BPM ranges from 40 to 240. App values live in `settings.conf`, including volumes,
 echo (0–60%), front modes/mappings and strum times (60–600 ms), key/scale, Hold,
-and combinations with their recognition window (0–60 ms). Legacy
+and combinations with their recognition window (0–120 ms). Legacy
 preset volume, level, echo, and sweep fields are accepted but ignored.
 Version 1 preset files remain readable, but their former app fields no longer
 change the keyboard or key when selecting/restoring a preset. Newly saved
@@ -234,22 +234,21 @@ and when upgrading ZeroChord. The **App** tab remembers the last selected row.
 | Menu | Default |
 | --- | --- |
 | **Theme** | Dark |
-| **Volume & effects** | Master 100%, Backing 80%, Front 100%, Echo 15%, EQ 0 dB |
-| **Hold** | On |
+| **Volume & effects** | System Vol uses the current system level. App Vol 100%, Backing 80%, Front 100%, Echo 15%, EQ 0 dB |
+| **Chord config** | Hold on, key of C, 30 ms combination window, shared minichord mappings inherited by each degree |
 | **Front notes** | Chord notes, with a 210 ms strum |
-| **Chord config** | Key of C, 30 ms combination window, shared minichord mappings inherited by each degree |
 
-Output level is `master volume × backing/front volume`. Combined backing layers
-receive an additional 1/√(enabled layers) balance; Front stays independent. Master volume scales
-both the direct sound and echo.
+ZeroChord's output level is `App Vol × Backing or Front volume`. Combined backing
+layers receive an additional 1/√(enabled layers) balance. App Vol scales both the
+direct sound and echo. System Vol sets the device's playback level.
 
 The app-wide three-band EQ shapes the entire Front, Chord, Arp and Pad mix including
-echo, before Master volume and the output clamp. Each band ranges from −12 to
+echo, before App Vol and the output clamp. Each band ranges from −12 to
 +12 dB in 1 dB steps, initially 0 dB (exact bypass). Low is a 250 Hz shelf,
 Mid is a broad 1 kHz peak (Q ≈ 0.707), High is a 4 kHz shelf, using
 [RBJ biquad formulas](https://www.w3.org/TR/audio-eq-cookbook/).
-Opening the picker auditions the band. `Enter` applies the choice, `Esc` cancels,
-and `Backspace` selects 0 dB. EQ settings live in the app settings file.
+Use `Z` / `C` (← / →) on the band to adjust it and hear a sample. `Backspace`
+resets it to 0 dB. EQ settings live in the app settings file.
 
 ## Factory sound details
 

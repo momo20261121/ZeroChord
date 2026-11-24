@@ -74,6 +74,7 @@ struct Settings : PerformanceSettings {
     std::array<int, 7> degreeChordRoot{-1, -1, -1, -1, -1, -1, -1}; // -1 follows Key; otherwise absolute pitch class.
     std::array<int, 7> degreeChordOctave{-2, -2, -2, -2, -2, -2, -2}; // -2 inherits All.
     int chordRoot(int column) const;
+    static constexpr int maxCombinationMs = 120;
     int combinationMs = 30; // Fixed recognition window from the first chord button.
     int frontMode = 0;                    // 0 chord notes, 1 selected key/scale
     std::array<int, 2> frontAction{0, 1}; // 0 strum, 1 octave shift, per front mode

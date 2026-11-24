@@ -1,12 +1,15 @@
 # ZeroChord development
 
+> **Read the [workspace guide](../../AGENTS.md) first.** Its rules apply to this project
+> and take precedence over this guide, especially for Git, GitHub, and the store.
+
 Prioritize short, playable iterations. The user's latest request defines the
 scope; preserve previously agreed behavior unless the request changes it.
 
 ## Branches
 
 - Keep `main` for tested releases; tag each release as `v<version>`.
-- Use `dev` for development toward the next release (currently 1.2.0).
+- Use `dev` for development toward the next release (currently 1.2.1).
   Switch to it before changing application code while on `main`.
 - Merge into `main` only when the release is tested and ready.
 - `dev` is local-only: never push it or set it to track a remote. Only `main` and
@@ -48,7 +51,7 @@ scope; preserve previously agreed behavior unless the request changes it.
   the implementation.
 - Check a layout locally at 320×170 before sending it to the device. Docs-only
   edits need no compilation, audio tests, or hardware run.
-- After local checks pass, cross-compile on the Mac with
+- After local checks pass, cross-compile in the Debian VM with
   `scripts/build_device.py`, then transfer the binary with
   `scripts/deploy_device.sh`. Keep the incremental build and compiler caches.
   Do not compile on the device during normal development. Build only the app
@@ -63,8 +66,8 @@ scope; preserve previously agreed behavior unless the request changes it.
 
 ## Device turnaround
 
-- The project-local Zig toolchain produces Linux ARM64 executables on macOS.
-  Use it by default; it does not need a VM, device sysroot, or global install.
+- The project-local Zig toolchain produces Linux ARM64 executables in the Debian VM.
+  Use it by default. It needs neither a device sysroot nor a global install.
   If it fails, fix the cross-build rather than silently falling back to native
   compilation. Native builds are only a deliberate diagnostic fallback: the
   device has about 352 MiB usable RAM and needs `--target ZeroChord -j1`.

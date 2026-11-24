@@ -10,6 +10,7 @@ import argparse
 import getpass
 import io
 import os
+import pwd
 from pathlib import Path
 import re
 import socket
@@ -60,10 +61,26 @@ for key in ['ZEROCHORD_SSH_HOST', 'ZEROCHORD_SSH_CONFIG', 'GIT_AUTHOR_EMAIL', 'G
     add(private, key, env.get(key))
 if env.get('ZEROCHORD_REMOTE_DIR', 'ZeroChord') != 'ZeroChord':
     add(private, 'ZEROCHORD_REMOTE_DIR', env.get('ZEROCHORD_REMOTE_DIR'))
-add(private, 'git user.email', git('config', 'user.email'))
-add(private, 'git user.name', git('config', 'user.name'))
-add(private, 'local account', getpass.getuser())
-add(private, 'home directory', str(Path.home()))
+# The Mac account's own identity, read straight from the system so it is still known
+# when HOME and Git's settings point somewhere else.
+mac = pwd.getpwuid(os.getuid())
+origin_account = re.search(r'[:/]([^/:]+)/[^/]+?(?:\.git)?$', git('remote', 'get-url', 'origin'))
+origin_account = origin_account.group(1) if origin_account else ''
+
+
+def add_identity(label, value):
+    value = (value or '').strip()
+    is_public = value.endswith('@users.noreply.github.com') or (origin_account and value == origin_account)
+    add(public if is_public else private, label, value)
+
+
+for key in ('user.email', 'user.name'):
+    add_identity(f'git {key}', git('config', key))
+    add_identity(f'Mac git {key}', git('config', '--file', str(Path(mac.pw_dir)/'.gitconfig'), key))
+add(private, 'Mac account name', mac.pw_gecos)
+add(private, 'local account', mac.pw_name)
+add(private, 'home directory', mac.pw_dir)
+add(private, 'current home', str(Path.home()))
 add(private, 'project path', str(root))
 add(private, 'hostname', socket.gethostname().split('.')[0])
 for number, extra in enumerate(filter(None, env.get('ZEROCHORD_PRIVATE_TERMS', '').split(','))):

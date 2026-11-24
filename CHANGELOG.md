@@ -1,5 +1,13 @@
 # Release notes
 
+## 1.2.1 - 2026-11-24
+
+- Adjust volume, Echo, and EQ directly with the left and right arrows under
+  App → Volume & effects. System Vol controls the device output when available.
+- Find Chord config before Front notes. Move Hold into Chord config → All and
+  extend Chord combo timing to 120 ms.
+- Shorten the store description and link to the user guide after the quick start.
+
 ## 1.2.0 - 2026-11-22
 
 - Group Master, Backing and Front volume, Echo, and EQ under App → Volume & effects.
