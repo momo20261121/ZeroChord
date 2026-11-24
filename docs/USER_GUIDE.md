@@ -76,7 +76,7 @@ Open **App → Chord config**. Use `Z` / `C` (← / →) to switch tabs, `1` for
 
 | Scope | What you can change |
 | --- | --- |
-| **All** | Key, shared octave, chord combinations, and combo timing |
+| **All** | Key, shared octave, Hold, chord combinations, and combo timing (Off or 5–120 ms) |
 | **A degree** | Its octave, absolute root, and chord combinations |
 
 **Follow All** restores the shared octave. **Follow Key** restores the root
@@ -122,7 +122,7 @@ Press `P` or open **Style → Tempo**. Type a value from 40 to 240 BPM and press
 ### Keep a chord ringing after release
 
 1. Enable **Chord** in **Backing layers**.
-2. Turn on **Hold** with `I` if it's off.
+2. Turn on **Hold** with `I` or open **App → Chord config → All → Hold**.
 3. Choose **Style → Chord pattern → Sustained**.
 
 **Hold** keeps the harmony selected after you release the chord buttons.
@@ -162,7 +162,7 @@ move between rows. The hint row shows the keys for the current page. In a picker
 | Tab | What it affects |
 | --- | --- |
 | **Style** | **Settings for this preset** covers tempo, backing layers, patterns, sounds, and envelopes |
-| **App** | **Applies to all presets** covers theme, volume and effects, Hold, front notes, and chord config |
+| **App** | **Applies to all presets** covers theme, volume and effects, chord config, and front notes |
 | **About** | The installed version and a QR code to the repository and documentation |
 
 The About QR code works in either theme. Open it on a phone with internet access.
@@ -184,18 +184,24 @@ See the [preset guide](PRESETS.md) for editable files and built-in defaults.
 
 Open **App → Volume & effects**. These controls apply to every preset.
 
-![Volume & effects showing Master, Backing and Front volume, Echo, and three EQ bands](images/release-volume-effects.png)
+![Volume & effects settings](images/release-volume-effects.png)
 
 | Control | What it changes | Default |
 | --- | --- | --- |
-| **Master volume** | Complete output, including Echo | 100% |
+| **System Vol** | Device output, including other apps, on PulseAudio-compatible systems | Current system level |
+| **App Vol** | Complete ZeroChord output, including Echo | 100% |
 | **Backing volume** | Chord, Arp, and Pad together | 80% |
 | **Front volume** | Picked notes and strums | 100% |
 | **Echo** | Level of the repeat, about 230 ms after the original note | 15% |
 | **EQ Low / Mid / High** | Bass, middle, and treble of the whole mix, from −12 to +12 dB | 0 dB |
 
+Use `F` / `X` (↑ / ↓) to select a row and `Z` / `C` (← / →) to adjust it.
+Changes apply immediately in 5-point steps for volume and Echo, or 1 dB steps
+for EQ. The audio system manages **System Vol**. ZeroChord saves **App Vol**
+with its app settings.
+
 Try **Low +3 dB** for a fuller sound. If the small speaker distorts, reduce the
-boost or lower **Master volume**. Press `Backspace` to reset the selected EQ
+boost or lower **App Vol**. Press `Backspace` to reset the selected EQ
 band. Set **Echo** to **0%** for a dry sound.
 
 ### Control how a note starts and ends
@@ -254,7 +260,7 @@ that allow your intended use.
 
 | Key | Action |
 | --- | --- |
-| `Z` / `C` (← / →) | Switch tabs or sound groups |
+| `Z` / `C` (← / →) | Switch tabs or sound groups, or adjust the selected Volume & effects value |
 | `F` / `X` (↑ / ↓) | Move between rows or choices |
 | `Enter` | Open a page or confirm a choice |
 | `Esc` | Cancel a choice or go back |
@@ -267,10 +273,10 @@ Dedicated arrow keys also work in settings. Hold `Esc` to exit from any page.
 | Symptom | Try |
 | --- | --- |
 | **Silent on startup** | Press `8`. ZeroChord starts silently. |
-| **Chord button is silent** | Press `O` to check the backing layers. Check **Backing volume** and **Master volume**. |
+| **Chord button is silent** | Press `O` to check the backing layers. Check **Backing volume**, **App Vol**, and **System Vol**. |
 | **Chord fades with Hold on** | Set **Style → Chord pattern → Sustained**. **Manual hit** plays once. |
 | **Bass is hard to hear** | Try **EQ Low +3 dB**, or compare through headphones. |
-| **Sound distorts** | Reduce EQ boosts or turn down **Master volume**. |
+| **Sound distorts** | Reduce EQ boosts or turn down **App Vol**. |
 | **A chord combination attacks twice** | In **App → Chord config → All**, increase **Chord combo timing** slightly. |
 | **An imported sound is missing** | Restart and check the [sound pack formats and limits](../sounds/README.md). |
 | **Recent edits disappeared** | Hold `Esc` to exit and save settings before turning off the device. |

@@ -4,6 +4,7 @@ from pathlib import Path
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 
 root = Path(__file__).resolve().parents[1]
@@ -13,9 +14,9 @@ docs = root/'docs/images'
 store_scenes = {
     'performance': ['8','v'],
     'style': ['TAB','x','x','x'],
-    'volume-effects': ['TAB','c','x','ENTER'],
+    'volume-effects': ['TAB','c','x','ENTER','x'],
     'sounds': ['TAB']+['x']*6+['ENTER'],
-    'chord-config': ['TAB','c','f','ENTER'],
+    'chord-config': ['TAB','c','x','x','ENTER'],
 }
 docs_scenes = {'app-settings': ['TAB','c','x']}
 with tempfile.TemporaryDirectory(prefix='zerochord-release-') as temporary:
@@ -36,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix='zerochord-release-') as temporary:
             raise SystemExit('Screenshot is not 320x170')
         prefix = 'release-' if name in store_scenes else ''
         destination = docs/(prefix+name+'.png')
-        subprocess.run(['sips', '-s', 'format', 'png', str(ppm), '--out', str(destination)],
+        subprocess.run([sys.executable, str(root/'scripts/ppm_to_png.py'), str(ppm), str(destination)],
                        check=True, stdout=subprocess.DEVNULL)
         if name in store_scenes:
             shutil.copy2(destination, out/(name+'.png'))

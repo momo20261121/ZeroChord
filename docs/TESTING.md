@@ -1,5 +1,24 @@
 # Testing ZeroChord
 
+## 1.2.1 release — 2026-11-24
+
+- **Local:** all six desktop suites, all six ASan/UBSan suites with leak
+  detection, and 28 real-app flows passed. Coverage includes direct volume and
+  EQ edits, Hold and the 120 ms chord window, persistence, and long Esc. The
+  audio suite verified linear App Vol gain with EQ and Echo enabled.
+- **Package:** the Debian VM cross-built the Linux ARM64 candidate with Zig.
+  The CardputerZero verified the candidate checksum before installation. The
+  final archive uses the same executable and launcher files with updated docs.
+- **Device:** the installed test passed package integrity, launcher metadata,
+  evdev input, save and reload of App Vol, EQ, backing layer, chord pattern, and
+  tempo, and long-Esc exit. The kernel framebuffer matched the 320×170 app
+  capture within RGB565 quantization. Digital audio captured 420,000 stereo
+  frames with peak 10,381 and zero queue overflows. The launcher resumed.
+- **Screenshots:** inspected all five store screenshots and the App settings
+  screenshot at 320×170.
+- **Manual checks:** physical keyboard feel, speaker or headphone listening,
+  and optional sound packs remain outside the automated acceptance test.
+
 ## 1.2.0 release — 2026-11-22
 
 - **Local:** all six desktop suites, all six ASan/UBSan suites (macOS leak
@@ -226,9 +245,10 @@ that need known defaults should also use an isolated `XDG_CONFIG_HOME`.
 
 ### 3. Cross-build locally, validate the launch on device
 
-After the relevant desktop checks, run on the Mac:
+After running `./scripts/check.sh`, load the device settings and build from the Debian VM:
 
 ```sh
+set -a; . ./.env; set +a
 .venv/bin/python scripts/build_device.py
 sh scripts/deploy_device.sh
 ```
@@ -305,10 +325,10 @@ keyboard for diagnostics. `SYN_DROPPED`, focus loss, and disconnect cause panic.
 ## Install and launcher checks
 
 The package installs its desktop entry, wrapper, binary, and icon under
-`/usr/share/APPLaunch`. Installation needs root. The current development unit
-requires an interactive sudo password; do not put that password in scripts or
-chat. Install the prepared package in a device terminal, then restart the user's
-launcher service:
+`/usr/share/APPLaunch`. Use `scripts/install_release_device.sh install` with
+`.env` loaded. The script uses the workspace `cardputer-sudo` helper on the
+configured Cardputer and restarts the launcher. To install manually in a device
+terminal, run the following commands with the prepared package:
 
 ```sh
 sudo dpkg -i ~/ZeroChord/dist/zerochord_0.1.0_arm64.deb

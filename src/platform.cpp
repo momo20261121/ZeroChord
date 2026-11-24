@@ -2,10 +2,13 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <charconv>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <vector>
 #if ZEROCHORD_DESKTOP
@@ -20,6 +23,43 @@
 #endif
 
 namespace zc {
+std::optional<int> Platform::systemVolume() const {
+#if defined(__linux__)
+    auto *pipe = popen("LC_ALL=C pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null", "r");
+    if (!pipe) return std::nullopt;
+
+    // pactl reports a percentage for each channel. Display the loudest channel.
+    std::optional<int> volume;
+    char line[4096];
+    while (std::fgets(line, sizeof(line), pipe)) {
+        std::istringstream fields(line);
+        for (std::string field; fields >> field;) {
+            if (field.back() != '%') continue;
+            const char *end = field.data() + field.size() - 1;
+            int percent = 0;
+            const auto parsed = std::from_chars(field.data(), end, percent);
+            if (parsed.ec == std::errc{} && parsed.ptr == end && percent >= 0)
+                volume = std::max(volume.value_or(0), percent);
+        }
+    }
+    if (pclose(pipe) == 0) return volume;
+#endif
+    return std::nullopt;
+}
+
+bool Platform::setSystemVolume(int percent) const {
+#if defined(__linux__)
+    if (percent >= 0 && percent <= 100) {
+        const std::string command = "pactl set-sink-volume @DEFAULT_SINK@ " +
+                                    std::to_string(percent) + "% 2>/dev/null";
+        return std::system(command.c_str()) == 0;
+    }
+#else
+    (void)percent;
+#endif
+    return false;
+}
+
 struct Platform::Impl {
     bool headless;
     lv_display_t *display = nullptr;

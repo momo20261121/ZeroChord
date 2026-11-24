@@ -126,7 +126,8 @@ int main(int argc, char **argv) {
         if (!instrument.library.warning.empty())
             std::cerr << instrument.library.warning;
         instrument.configure();
-        zc::UI ui(instrument);
+        zc::UI ui(instrument, [&] { return platform.systemVolume(); },
+                  [&](int percent) { return platform.setSystemVolume(percent); });
         const auto start = std::chrono::steady_clock::now();
         uint64_t previous = 0, escAt = 0;
         bool escDown = false, quit = false;

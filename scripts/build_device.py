@@ -12,15 +12,27 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = '0.15.2'
-SHA256 = {
-    'arm64': '3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b',
-    'x86_64': '375b6909fc1495d16fc2c7db9538f707456bfc3373b14ee83fdd3e22b3d43f7f',
+HOST_ARCHIVES = {
+    ('Darwin', 'arm64'): (
+        'aarch64-macos', '3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b',
+    ),
+    ('Darwin', 'x86_64'): (
+        'x86_64-macos', '375b6909fc1495d16fc2c7db9538f707456bfc3373b14ee83fdd3e22b3d43f7f',
+    ),
+    ('Linux', 'aarch64'): (
+        'aarch64-linux', '958ed7d1e00d0ea76590d27666efbf7a932281b3d7ba0c6b01b0ff26498f667f',
+    ),
+    ('Linux', 'x86_64'): (
+        'x86_64-linux', '02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239',
+    ),
 }
 
 
 def compiler():
-    if platform.system() != 'Darwin' or platform.machine() not in SHA256:
-        raise SystemExit('This local cross-build supports Apple Silicon and Intel Macs.')
+    host = (platform.system(), platform.machine())
+    if host not in HOST_ARCHIVES:
+        raise SystemExit('This build supports ARM64 and x86-64 on macOS and Linux.')
+    archive_platform, expected_sha256 = HOST_ARCHIVES[host]
     tools = ROOT / '.tools'
     zig = tools / 'zig'
     if (zig / 'zig').exists():
@@ -28,8 +40,7 @@ def compiler():
         if actual != VERSION:
             raise SystemExit(f'Expected Zig {VERSION}, found {actual} in {zig}')
         return
-    arch = 'aarch64' if platform.machine() == 'arm64' else 'x86_64'
-    name = f'zig-{arch}-macos-{VERSION}'
+    name = f'zig-{archive_platform}-{VERSION}'
     archive = tools / 'downloads' / f'{name}.tar.xz'
     archive.parent.mkdir(parents=True, exist_ok=True)
     if not archive.exists():
@@ -40,7 +51,7 @@ def compiler():
             while chunk := response.read(1024 * 1024):
                 out.write(chunk)
         temporary.replace(archive)
-    if hashlib.sha256(archive.read_bytes()).hexdigest() != SHA256[platform.machine()]:
+    if hashlib.sha256(archive.read_bytes()).hexdigest() != expected_sha256:
         raise SystemExit(f'Compiler checksum mismatch: remove {archive} and retry.')
     with tarfile.open(archive) as package:
         # The official archive's SHA256 was verified before extraction.

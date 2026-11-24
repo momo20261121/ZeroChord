@@ -62,12 +62,12 @@ int main() {
         // Front volume must audition the front layer, even in Front only mode.
         player.settings.mode = PlaybackMode::FrontOnly;
         menu.row(SettingsEditor::volumeEffectsField); menu.tap('\n');
-        menu.row(5); sink.recent.clear(); menu.tap('\n');
+        menu.row(5); sink.recent.clear(); menu.tap('z');
         CHECK(std::any_of(sink.recent.begin(), sink.recent.end(), [](const Command &c) { return c.type == CommandType::On && c.part == Part::Harp; }));
         CHECK(std::none_of(sink.recent.begin(), sink.recent.end(), [](const Command &c) { return c.type == CommandType::On && c.part == Part::Chord; }));
-        menu.tap(27); menu.row(4); sink.recent.clear(); menu.tap('\n');
+        menu.row(4); sink.recent.clear(); menu.tap('z');
         CHECK(std::any_of(sink.recent.begin(), sink.recent.end(), [](const Command &c) { return c.type == CommandType::On && c.part == Part::Chord; }));
-        menu.tap(27); menu.tap(27); menu.tap(27);
+        menu.tap(27); menu.tap(27);
         // Every pattern with held/released combinations and simultaneous foreground playing.
         uint64_t now = 10000; unsigned scenarios = 0;
         const char *buttons[]{"2345678", "qwertyu", "asdfghj"};

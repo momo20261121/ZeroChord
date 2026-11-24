@@ -159,7 +159,7 @@ try:
         tap(15)  # Tab settings
         framebuffer_capture(output/'style-settings-fb.ppm')
         tap(106) # Right: App tab, no setting changes
-        tap(103); tap(28); tap(108) # Theme -> Chord config -> Key
+        tap(108); tap(108); tap(28); tap(108) # Theme -> Chord config -> Key
         tap(28); tap(108); tap(28) # C -> C#
         tap(1); tap(1) # short Esc returns through config/settings; app remains alive
         assert process.poll() is None, 'short Esc incorrectly exited'
@@ -169,7 +169,7 @@ try:
         # Edit shared no3 and a V-only sus4 override using actual evdev arrows.
         tap(15)  # Tab
         tap(28) # Reopen Chord config
-        tap(108) # Key -> first combination
+        tap(108); tap(108) # Key -> Hold -> first combination
         tap(2)   # 1: All
         tap(28)
         tap(108)  # dim -> aug
@@ -224,11 +224,11 @@ try:
         time.sleep(1.5)
         tap(15)  # Tab: Style, Preset
         tap(106) # App: Theme
-        tap(103); tap(28); tap(108) # Theme -> Chord config -> Key
+        tap(108); tap(108); tap(28); tap(108) # Theme -> Chord config -> Key
         tap(28); tap(108); tap(28) # Customize key C -> C#
         tap(14)  # Backspace: restore just key to C
         tap(28); tap(108); tap(108); tap(28) # D is app-wide
-        tap(108); tap(6) # Key -> first combination, V scope
+        tap(108); tap(108); tap(6) # Key -> first combination, V scope
         framebuffer_capture(output/'global-combinations-fb.ppm')
         tap(1) # Back to App
         tap(105) # Left: App -> Style, Preset
@@ -242,9 +242,9 @@ try:
         for _ in range(2): tap(108) # Chord pattern -> Arp pattern -> Pad motion
         tap(28); tap(108); tap(108); tap(28) # Breathe
         tap(106) # App, combinations (remembered row)
-        tap(108) # Theme (wrap)
-        tap(108); tap(28) # Volume & effects, Master volume
-        tap(28); tap(103); tap(28) # 100 -> 95
+        tap(108); tap(108) # Chord config -> Front notes -> Theme
+        tap(108); tap(28); tap(108) # Volume & effects, System Vol -> App Vol
+        tap(105) # Left: 100 -> 95
         tap(1) # Back to App, Volume & effects
         tap(103); tap(28); tap(108); tap(28) # Theme -> Light
         framebuffer_capture(output/'light-settings-fb.ppm')

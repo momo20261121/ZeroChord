@@ -79,7 +79,7 @@ Maintainer: {maintainer}
 Section: sound
 Priority: optional
 {homepage_field}Installed-Size: {(installed_size+1023)//1024}
-Depends: libc6 (>= 2.36), libpulse0, timgm6mb-soundfont
+Depends: libc6 (>= 2.36), libpulse0, pulseaudio-utils, timgm6mb-soundfont
 Description: Pocket chord and harp instrument for CardputerZero
  Play chords, front notes, strums and arpeggios on the CardputerZero keyboard.
  Includes nine editable styles, independent sounds and envelopes, global EQ,

@@ -4,7 +4,7 @@
 #include <algorithm>
 namespace zc {
 namespace {
-const std::vector<int> volumeEffectsRows{17, 4, 5, 6, 26, 27, 28};
+const std::vector<int> volumeEffectsRows{SettingsEditor::systemVolumeField, 17, 4, 5, 6, 26, 27, 28};
 }
 const char *SettingsEditor::envelopePartName(int part) {
     static const char *names[]{"Front", "Chord/Arp", "Pad"};
@@ -24,6 +24,7 @@ int SettingsEditor::chordConfigValue(const Settings &s) const {
     if (combination_ == 6) return chordOctaveValue(s);
     if (combination_ == 7) return s.tonic;
     if (combination_ == 8) return s.degreeChordRoot[scope_];
+    if (combination_ == chordHoldField) return s.hold;
     if (combination_ == 5) return s.combinationMs;
     if (combination_ == 4) return 0;
     return scope_ < 0 ? s.combinations[combination_] : s.degreeCombinations[scope_][combination_];
@@ -32,12 +33,12 @@ int SettingsEditor::envelopeValue(const Settings &s) const {
     return envelopeField_ == 4 ? 0 : s.envelopes[envelopePart_].values[envelopeField_];
 }
 bool SettingsEditor::appField(int index) {
-    return index == 0 || index == 1 || (index >= 3 && index <= 7) || index == 15 || index == 17 ||
-           index == 18 || index == 22 || (index >= 26 && index <= volumeEffectsField);
+    return index == 0 || index == 1 || (index >= 3 && index <= 7) || index == 17 ||
+           index == 18 || index == 22 || (index >= 26 && index <= systemVolumeField);
 }
 const std::vector<int> &SettingsEditor::rows() const {
     static const std::vector<int> style{2, 8, 10, 11, 9, 12, 14, 23, 13, 24, 21, 25, 19, 20};
-    static const std::vector<int> app{18, volumeEffectsField, 15, 22, 3};
+    static const std::vector<int> app{18, volumeEffectsField, 3, 22};
     static const std::vector<int> about;
     if (page_ == Page::VolumeEffects) return volumeEffectsRows;
     return tab_ == Tab::About ? about : tab_ == Tab::Style ? style : app;
@@ -62,15 +63,15 @@ const char *SettingsEditor::settingName(int index) {
                                   "Pad motion",
                                   "Chord/Arp sound",
                                   "Front sound",
-                                  "Hold",
+                                  "" /* Hold moved to Chord config. */,
                                   "" /* Retired field 16; preserve internal field IDs. */,
-                                  "Master volume",
+                                  "App Vol",
                                   "Theme",
                                   "Save as new preset",
                                   "Restore preset...",
                                   "Pad sound",
                                   "Front notes", "Front envelope", "Chord/Arp envelope", "Pad envelope",
-                                  "EQ Low", "EQ Mid", "EQ High", "Volume & effects"};
+                                  "EQ Low", "EQ Mid", "EQ High", "Volume & effects", "System Vol"};
     return names[index];
 }
 std::string SettingsEditor::backingLabel(PlaybackMode mode) {
@@ -86,11 +87,12 @@ std::string SettingsEditor::backingLabel(PlaybackMode mode) {
 }
 const char *SettingsEditor::combinationName(int index) {
     static const char *names[] = {"Top + middle", "Top + bottom", "Middle + bottom", "All three",
-                                  "Restore defaults...", "Chord combo timing", "Octave", "Key", "Root"};
+                                  "Restore defaults...", "Chord combo timing", "Octave", "Key",
+                                  "Root", "Hold"};
     return names[index];
 }
 std::vector<int> SettingsEditor::combinationRows() const {
-    return scope_ < 0 ? std::vector<int>{6, 7, 0, 1, 2, 3, 5, 4}
+    return scope_ < 0 ? std::vector<int>{6, 7, chordHoldField, 0, 1, 2, 3, 5, 4}
                       : std::vector<int>{6, 8, 0, 1, 2, 3, 4};
 }
 std::string SettingsEditor::scopeName() const {
@@ -217,7 +219,7 @@ int SettingsEditor::valueFor(const Settings &s, int index) const {
                           s.padMotion,
                           s.chordProgram,
                           s.harpProgram,
-                          s.hold,
+                          0,
                           0,
                           s.masterVolume,
                           s.theme,
@@ -228,6 +230,7 @@ int SettingsEditor::valueFor(const Settings &s, int index) const {
     return values[index];
 }
 int SettingsEditor::settingValueNumber() const {
+    if (selection_ == systemVolumeField) return systemVolume_.value_or(0);
     return valueFor(instrument_.settings, selection_);
 }
 int SettingsEditor::fieldValue() const {
@@ -264,6 +267,7 @@ int SettingsEditor::defaultValue() const {
     return valueFor(copy, selection_);
 }
 bool SettingsEditor::fieldModified(int index) const {
+    if (index == systemVolumeField) return false;
     if (index == volumeEffectsField)
         return std::any_of(volumeEffectsRows.begin(), volumeEffectsRows.end(),
                            [&](int field) { return fieldModified(field); });
@@ -284,6 +288,7 @@ bool SettingsEditor::fieldModified(int index) const {
     if (index == 3) {
         const Settings d;
         return d.combinations != instrument_.settings.combinations ||
+               d.hold != instrument_.settings.hold ||
                d.combinationMs != instrument_.settings.combinationMs ||
                d.chordOctave != instrument_.settings.chordOctave ||
                d.tonic != instrument_.settings.tonic ||
@@ -326,6 +331,8 @@ std::string SettingsEditor::settingValue(int index) const {
         return "Edit >";
     case volumeEffectsField:
         return "Open >";
+    case systemVolumeField:
+        return systemVolume_ ? std::to_string(*systemVolume_) + "%" : "Unavailable";
     case 7:
         return std::to_string(s.strumMs) + " ms";
     case 8:
@@ -346,8 +353,6 @@ std::string SettingsEditor::settingValue(int index) const {
                                    : index == 21 ? s.padSound
                                                  : s.chordSound);
     }
-    case 15:
-        return s.hold ? "On" : "Off";
     case 18:
         return s.theme ? "Light" : "Dark";
     case 19:
@@ -415,9 +420,6 @@ void SettingsEditor::assign(Settings &s, int index, int value) {
     case 14:
         s.harpProgram = value;
         break;
-    case 15:
-        s.hold = value;
-        break;
     case 17:
         s.masterVolume = value;
         break;
@@ -433,6 +435,16 @@ void SettingsEditor::assign(Settings &s, int index, int value) {
     }
 }
 void SettingsEditor::setSettingValue(int value) {
+    if (selection_ == systemVolumeField) {
+        if (value == systemVolume_) return;
+        if (writeSystemVolume_(value)) {
+            systemVolume_ = value;
+        } else {
+            refreshSystemVolume();
+            status_ = "Could not change system volume";
+        }
+        return;
+    }
     auto &s = instrument_.settings;
     if (selection_ == 2)
         instrument_.library.select(s, value);
@@ -558,10 +570,13 @@ void SettingsEditor::buildChoices() {
         } else if (combination_ == 4)
             choices_ = {{0, "Keep settings", "Keep the current chord settings"},
                         {1, "Restore chord config",
-                         scope_ < 0 ? "Reset key, roots, octaves, chord mappings and timing"
+                         scope_ < 0 ? "Reset Hold, key, roots, octaves, mappings and timing"
                                     : "Follow Key, shared octave and chord mappings"}};
+        else if (combination_ == chordHoldField)
+            choices_ = {{0, "Off", "Clear the chord when you release its buttons"},
+                        {1, "On", "Keep the chord after you release its buttons"}};
         else if (combination_ == 5) {
-            for (int time = 0; time <= 60; time += 5)
+            for (int time = 0; time <= Settings::maxCombinationMs; time += 5)
                 choices_.push_back({time, time ? std::to_string(time) + " ms" : "Off",
                                     time ? "More time to press together, with later backing"
                                          : "Play each chord button immediately"});
@@ -628,49 +643,13 @@ void SettingsEditor::buildChoices() {
                         {value, soundLibrary().name(value, ""), soundLibrary().sampleRateLabel(value)});
             }
         }
-    } else if (selection_ == 15)
-        choices_ = {{0, "Off", "Clear the chord when you release its buttons"},
-                    {1, "On", "Keep the chord after you release its buttons"}};
-    else if (selection_ == 18)
+    } else if (selection_ == 18)
         choices_ = {{0, "Dark", "App-wide appearance"}, {1, "Light", "App-wide appearance"}};
     else if (selection_ == 19 || selection_ == 20)
         choices_ = {{0, "Keep preset", "Keep the current preset as it is"},
                     {1, selection_ == 19 ? "Create preset copy" : "Restore preset",
                      selection_ == 19 ? "Make a new preset from these Style settings"
                                       : "Reset only the current preset's Style settings"}};
-    else {
-        int low = 0, high = selection_ == 6 ? 60 : 100, step = 5;
-        std::string unit = "%";
-        if (selection_ >= 26 && selection_ <= 28) {
-            static const char *descriptions[]{"Bass shelf at 250 Hz", "Broad mid band at 1 kHz",
-                                               "Treble shelf at 4 kHz"};
-            for (int gain = -12; gain <= 12; gain++)
-                choices_.push_back({gain, (gain > 0 ? "+" : "") + std::to_string(gain) + " dB",
-                                     descriptions[selection_ - 26]});
-            return;
-        }
-        if (selection_ == 7) {
-            low = 60;
-            high = 600;
-            step = 30;
-            unit = " ms";
-        }
-        std::string description;
-        switch (selection_) {
-        case 4: description = "Volume of " + backingLabel(PlaybackMode::All); break;
-        case 5: description = "Volume of the notes played with Z-M and K/L"; break;
-        case 6: description = "Level of the repeat you hear after each note"; break;
-        case 17: description = "Overall output level"; break;
-        }
-        for (int n = low; n <= high; n += step)
-            choices_.push_back({n, std::to_string(n) + unit, description});
-        for (int v : {settingValueNumber(), defaultValue()})
-            if (std::none_of(choices_.begin(), choices_.end(),
-                             [&](const Choice &c) { return c.value == v; }))
-                choices_.push_back({v, std::to_string(v) + unit, description});
-        std::sort(choices_.begin(), choices_.end(),
-                  [](const Choice &a, const Choice &b) { return a.value < b.value; });
-    }
 }
 Chord SettingsEditor::previewChord() const {
     const auto &s = instrument_.settings;
@@ -683,9 +662,10 @@ Chord SettingsEditor::previewChord() const {
     return {s.chordRoot(col), -1, col, q};
 }
 void SettingsEditor::preview() {
-    const bool setting = settingListPage();
-    if (confirmation() != Confirmation::None || (page_ == Page::Combinations && combination_ == 5) ||
-        (setting && (selection_ == 17 || selection_ == 18)))
+    const bool setting = page_ == Page::Setup;
+    if (confirmation() != Confirmation::None ||
+        (page_ == Page::Combinations && (combination_ == 5 || combination_ == chordHoldField)) ||
+        (setting && selection_ == 18))
         return;
     Settings sound = instrument_.settings;
     if (page_ == Page::Envelope) {
@@ -710,12 +690,6 @@ void SettingsEditor::preview() {
             sound.preset = choices_[choice_].value;
         } else
             assign(sound, selection_, choices_[choice_].value);
-        if (selection_ >= 26 && selection_ <= 28) {
-            sound.mode = PlaybackMode::Chord;
-            sound.chordPattern = sustainedChordPattern;
-        }
-        if (selection_ == 4 && sound.mode == PlaybackMode::FrontOnly)
-            sound.mode = PlaybackMode::Chord;
         if (selection_ == 21)
             sound.mode = PlaybackMode::Pad;
         if (selection_ == 13)
@@ -727,7 +701,7 @@ void SettingsEditor::preview() {
         if (selection_ == 12)
             sound.mode = PlaybackMode::Pad;
     }
-    if (setting && (selection_ == 14 || selection_ == 5)) {
+    if (setting && selection_ == 14) {
         instrument_.auditionFront(sound, 0);
         return;
     }
@@ -808,6 +782,7 @@ void SettingsEditor::openSetting() {
     case SetupDestination::VolumeEffects:
         page_ = Page::VolumeEffects;
         selection_ = volumeEffectsRows[volumeEffectsRow_];
+        refreshSystemVolume();
         break;
     }
     instrument_.panic();
@@ -815,6 +790,34 @@ void SettingsEditor::openSetting() {
 void SettingsEditor::returnToSetup() {
     if (page_ == Page::VolumeEffects) selection_ = volumeEffectsField;
     page_ = Page::Setup;
+}
+void SettingsEditor::refreshSystemVolume() {
+    systemVolume_ = readSystemVolume_ && writeSystemVolume_ ? readSystemVolume_() : std::nullopt;
+}
+void SettingsEditor::adjustVolumeEffects(int direction) {
+    if (selection_ == systemVolumeField) {
+        refreshSystemVolume();
+        if (!systemVolume_) return;
+    }
+    const bool equalizer = selection_ >= 26 && selection_ <= 28;
+    const int low = equalizer ? -12 : 0;
+    const int high = equalizer ? 12 : selection_ == 6 ? 60 : 100;
+    const int current = settingValueNumber();
+    if (direction > 0 && current >= high) return;
+    const int value = std::clamp(current + direction * (equalizer ? 1 : 5), low, high);
+    if (value == current) return;
+
+    if (selection_ == systemVolumeField || selection_ == 17) {
+        setSettingValue(value);
+        return;
+    }
+    auto &s = instrument_.settings;
+    assign(s, selection_, value);
+    // Audition with the saved mix so returning to playing needs no audio reconfiguration.
+    if (selection_ == 5 || selection_ == 6)
+        instrument_.auditionFront(s, 0);
+    else
+        instrument_.audition(previewChord(), s, false);
 }
 void SettingsEditor::openPicker() {
     if (page_ == Page::Setup && (selection_ == 13 || selection_ == 14 || selection_ == 21)) {
@@ -887,6 +890,7 @@ void SettingsEditor::applyChoice(int value) {
                 s.degreeChordOctave = d.degreeChordOctave;
                 s.tonic = d.tonic;
                 s.degreeChordRoot = d.degreeChordRoot;
+                s.hold = d.hold;
             } else {
                 s.degreeCombinations[scope_] = d.degreeCombinations[scope_];
                 s.degreeChordOctave[scope_] = d.degreeChordOctave[scope_];
@@ -898,6 +902,7 @@ void SettingsEditor::applyChoice(int value) {
         else s.degreeChordOctave[scope_] = value;
     } else if (combination_ == 7) s.tonic = value;
     else if (combination_ == 8) s.degreeChordRoot[scope_] = value;
+    else if (combination_ == chordHoldField) s.hold = value;
     else if (combination_ == 5)
         s.combinationMs = value;
     else if (scope_ < 0)
@@ -908,6 +913,7 @@ void SettingsEditor::applyChoice(int value) {
 }
 bool SettingsEditor::canRestoreField() const {
     if (confirmation() != Confirmation::None) return false;
+    if (page_ == Page::VolumeEffects) return selection_ != systemVolumeField;
     if (page_ != Page::Setup) return true;
     const auto destination = setupDestination();
     return tab_ != Tab::About && selection_ != 2 &&
@@ -1111,17 +1117,14 @@ void SettingsEditor::key(char key, bool down) {
             openPicker();
         return;
     }
-    if (page_ == Page::Combinations && adjustment) {
-        scope_ = (scope_ + 1 + adjustment + 8) % 8 - 1;
-        if (scope_ >= 0 && combination_ == 5)
-            combination_ = 0;
-        if (combination_ == 7 || combination_ == 8) combination_ = scope_ < 0 ? 7 : 8;
-        instrument_.panic();
+    if (page_ == Page::VolumeEffects && adjustment) {
+        adjustVolumeEffects(adjustment);
         return;
     }
-    if (page_ == Page::Combinations && key >= '1' && key <= '8') {
-        scope_ = key == '1' ? -1 : key - '2';
-        if (scope_ >= 0 && combination_ == 5)
+    const bool scopeShortcut = key >= '1' && key <= '8';
+    if (page_ == Page::Combinations && (adjustment || scopeShortcut)) {
+        scope_ = scopeShortcut ? key - '2' : (scope_ + 1 + adjustment + 8) % 8 - 1;
+        if (scope_ >= 0 && (combination_ == 5 || combination_ == chordHoldField))
             combination_ = 0;
         if (combination_ == 7 || combination_ == 8) combination_ = scope_ < 0 ? 7 : 8;
         instrument_.panic();
@@ -1142,7 +1145,7 @@ void SettingsEditor::key(char key, bool down) {
     }
     if (key == '\n') {
         if (page_ == Page::Setup) openSetting();
-        else openPicker();
+        else if (page_ == Page::Combinations) openPicker();
     }
 }
 } // namespace zc

@@ -214,32 +214,33 @@ int main(int argc, char **argv) {
             sustainedEnergy += x * x;
         if (sustainedEnergy < 0.0001)
             throw std::runtime_error("rapid harp playing stole the held chord");
-        // Master volume scales the entire output, including echoes.
-        Renderer full(argv[1]), scaled(argv[1]);
+        // App Vol is a linear amplitude control for the complete mix with EQ and echo.
+        Renderer full(argv[1]);
         Command volume{CommandType::Configure};
         volume.settings.echo = 40;
+        volume.settings.eqDb = {3, -2, 2};
         full.send(volume);
-        volume.settings.masterVolume = 50;
-        scaled.send(volume);
-        for (auto *renderer : {&full, &scaled}) {
-            renderer->send({CommandType::On, 4000, 60, 400, Part::Chord});
-            renderer->send({CommandType::On, 4001, 72, 800, Part::Harp});
-        }
+        auto playMix = [](Renderer &renderer) {
+            renderer.send({CommandType::On, 4000, 60, 400, Part::Chord});
+            renderer.send({CommandType::On, 4001, 72, 800, Part::Harp});
+        };
         std::vector<float> reference(48000 * 2), quiet(48000 * 2);
+        playMix(full);
         full.render(reference.data(), 48000);
-        scaled.render(quiet.data(), 48000);
-        for (size_t n = 0; n < reference.size(); n++)
-            if (std::abs(quiet[n] - reference[n] * .5f) > 1e-6f)
-                throw std::runtime_error("master volume did not scale dry and wet audio together");
-        volume.settings.masterVolume = 0;
-        scaled.send(volume);
-        scaled.render(quiet.data(), 48000);
-        for (float v : quiet)
-            if (v != 0)
-                throw std::runtime_error("zero master volume was audible");
+        for (int percent : {95, 75, 50, 25, 10, 5, 0}) {
+            Renderer attenuated(argv[1]);
+            volume.settings.masterVolume = percent;
+            attenuated.send(volume);
+            playMix(attenuated);
+            attenuated.render(quiet.data(), 48000);
+            for (size_t n = 0; n < reference.size(); n++)
+                if (std::abs(quiet[n] - reference[n] * (percent / 100.f)) > 1e-6f)
+                    throw std::runtime_error("App Vol did not scale the mix at " +
+                                             std::to_string(percent) + "%");
+        }
         // Pad motion changes only the backing layer, never the foreground.
         full.send(Command{});
-        scaled.send(Command{});
+        Renderer scaled(argv[1]);
         volume.settings = Settings{};
         full.send(volume);
         scaled.send(volume);
