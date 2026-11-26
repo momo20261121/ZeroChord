@@ -53,7 +53,8 @@ Audio::Audio(const std::string &path) : impl_(new Impl(path)) {
     config.playback.format = ma_format_f32;
     config.playback.channels = 2;
     config.sampleRate = 48000;
-    config.periodSizeInFrames = 256;
+    // About 8 ms of buffering (PulseAudio's share was 16 ms); a 128-frame block renders in ~1 ms.
+    config.periodSizeInFrames = 128;
     config.periods = 3;
     config.dataCallback = Impl::callback;
     config.pUserData = &s;

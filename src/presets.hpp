@@ -25,10 +25,14 @@ class PresetLibrary {
     void restore(Settings &settings);
     void saveAs(Settings &settings);
     const PresetDefinition &current(const Settings &settings) const;
+    int indexOf(const std::string &id) const; // Dream when the ID is not available.
 };
 bool samePresetSettings(const Settings &a, const Settings &b);
 void applyPresetSettings(Settings &target, const Settings &source);
 std::string programName(int program);
 void writePreset(const PresetDefinition &preset, const std::string &path);
 PresetDefinition readPreset(const std::string &path);
+// Built-in presets as shipped: 0 first release, 1 first tuning, 2 1.2, 3 1.3, 4 and 5 1.4
+// development builds, 6 current. Saved copies equal to an older release upgrade on load.
+std::vector<PresetDefinition> stockPresets(int release);
 } // namespace zc

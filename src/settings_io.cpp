@@ -41,6 +41,26 @@ template <class F> void fields(Settings &s, F field) {
     field("chordMix", s.layerMix[0]);
     field("arpMix", s.layerMix[1]);
     field("padMix", s.layerMix[2]);
+    field("drumMix", s.mix(PlaybackMode::Drums));
+    field("bassMix", s.mix(PlaybackMode::Bass));
+    field("bass", s.bass);
+    field("bassProgram", s.bassProgram);
+    field("bassPattern", s.bassPattern);
+    field("swingMode", s.swingMode);
+    field("swingAmount", s.swingAmount);
+    field("chordVoicing", s.chordVoicing);
+    field("padVoicing", s.padVoicing);
+    field("reverbMs", s.reverbMs);
+    field("frontMix", s.frontMix);
+    for (int n = 0; n < fxPartCount; n++) {
+        field("pan" + std::to_string(n), s.pan[n]);
+        field("reverbSend" + std::to_string(n), s.reverbSend[n]);
+        field("echoSend" + std::to_string(n), s.echoSend[n]);
+    }
+    field("output", s.output);
+    field("drums", s.drums);
+    field("drumKit", s.drumKit);
+    field("drumPattern", s.drumPattern);
     field("chordScale", s.chordScale);
     field("frontFollow", s.frontFollow);
     field("frontTonic", s.frontTonic);
@@ -55,7 +75,7 @@ template <class F> void fields(Settings &s, F field) {
     field("strumMs", s.strumMs);
     field("bpm", s.bpm);
     field("pattern", s.pattern);
-    for (int part = 0; part < 4; part++)
+    for (int part = 0; part < 5; part++)
         for (int control = 0; control < 4; control++)
             field("envelope" + std::to_string(part) + std::to_string(control),
                   s.envelopes[part].values[control]);
@@ -93,6 +113,14 @@ void loadSettings(Settings &s, const std::string &path) {
         }
         if (name == "arpSound") {
             s.arpSound = text;
+            continue;
+        }
+        if (name == "drumSound") {
+            s.drumSound = text;
+            continue;
+        }
+        if (name == "bassSound") {
+            s.bassSound = text;
             continue;
         }
         int value;
@@ -169,7 +197,9 @@ void saveSettings(const Settings &settings, const std::string &path) {
     for (auto pair : {std::pair{"padSound", settings.padSound},
                       {"chordSound", settings.chordSound},
                       {"frontSound", settings.frontSound},
-                      {"arpSound", settings.arpSound}})
+                      {"arpSound", settings.arpSound},
+                      {"drumSound", settings.drumSound},
+                      {"bassSound", settings.bassSound}})
         if (!pair.second.empty())
             out << pair.first << ' ' << pair.second << '\n';
     out.close();

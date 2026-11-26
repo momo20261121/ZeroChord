@@ -4,12 +4,16 @@
 #include <cstdint>
 #include <vector>
 namespace zc {
-enum class Part { Chord, Harp, Pad, Arp };
-enum class CommandType { On, Off, Panic, Configure, StopChord, ChordGain };
+struct PatternStep;
+enum class Part { Chord, Harp, Pad, Arp, Drums, Bass };
+// Tempo carries the BPM in `pitch` (for the echo time); Route sets `pitch` 1 when the
+// headphone jack is in use, 0 for the speaker.
+enum class CommandType { On, Off, Panic, Configure, StopChord, ChordGain, Tempo, Route };
 struct Command {
     CommandType type = CommandType::Panic;
     uint32_t id = 0;
     int pitch = 0, durationMs = 0;
+    int delayUs = 0; // On: start this much later (strums and humanized timing).
     Part part = Part::Harp;
     float gain = 1.f;
     Settings settings;
@@ -39,12 +43,19 @@ class Instrument {
     void panic();
     void configure();
     void setBackingMode(PlaybackMode mode);
-    void setBacking(PlaybackMode mode, const std::array<int, 3> &mix); // Live, keeps the chord.
+    // Live layer and mix changes (layers as Settings::enabledLayers); keeps the chord.
+    void setBacking(unsigned layers, const std::array<int, 5> &mix);
     void clearKeys();
     void auditionFront(const Settings &settings, int key);
     void audition(const Chord &chord, const Settings &settings, bool loop = false);
     void stopAudition(); // End a running preview, if any, keeping live playing intact.
     bool auditioning() const { return previewUntil_ || frontAudition_; }
+    // Headphone jack: -1 unknown (Auto plays full range), 0 speaker, 1 headphones.
+    int jack = -1;
+    void setJack(int state);
+    // Notes a backing part plays for the current chord: [0] root or slash bass, [1]-[3] upper
+    // voices (Chord and Pad voicings), or the chord tones an octave up for Arp. -1 is silent.
+    std::array<int, 4> partNotes(Part part);
 
   private:
     Sink &sink_;
@@ -54,12 +65,12 @@ class Instrument {
     bool chordPending_ = false, chordStarting_ = false;
     uint64_t chordDue_ = 0;
     int baseColumn_ = -1;
-    std::array<int, 2> playingPatterns_{};
+    std::array<int, 4> playingPatterns_{}; // Chord, Arp, Drums, Bass.
     uint32_t nextId_ = 0;
     uint64_t lastTick_ = 0, now_ = 0;
     double phase_ = 0;
     int64_t nextTick_ = 0;
-    std::array<int64_t, 2> patternStarts_{};
+    std::array<int64_t, 4> patternStarts_{};
     float lastGain_ = -1;
     uint64_t lastGainAt_ = 0;
     Settings previewSettings_;
@@ -78,9 +89,23 @@ class Instrument {
     void soundChord();
     void stopChord();
     void resetTransport();
+    void sendSettings(const Settings &s); // Configure, with the sounds' levels measured.
     void runTick(uint64_t now);
-    void hit(unsigned mask, int duration, float accent = 1.f, Part part = Part::Chord, bool bass = false);
+    void hit(unsigned mask, int duration, float accent = 1.f, Part part = Part::Chord, bool bass = false,
+             int transpose = 0, int tick = -1);
+    struct Voiced {
+        Chord chord;
+        int voicing = -1;
+        std::array<int, 4> notes{-1, -1, -1, -1};
+    };
+    std::array<Voiced, 2> voiced_{}; // Chord, Pad: voice leading follows the last voicing.
+    uint32_t random_ = 0x2545f491u;
+    float random(); // 0-1, deterministic per session.
+    int sentBpm_ = 0;
+    bool strummed() const; // Chord sound is a plucked string: strum its hits.
+    double swingOffset(int64_t tick) const; // Late shift of a 16th step, in ticks.
     void pluck(int pitch, int index, uint64_t now, bool held = false);
+    void bassHit(const PatternStep &step, int duration);
     unsigned mask(int column) const;
     bool anyChordKey() const;
 };

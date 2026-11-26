@@ -53,6 +53,25 @@ std::optional<std::array<int, 4>> soundfontEnvelopeDefaults(tsf *synth, int bank
                               int(std::lround(std::clamp(e.sustain, 0.f, 1.f) * 100)),
                               int(std::lround(e.release * 1000))};
 }
+float soundfontLoudness(tsf *source, int bank, int program) {
+    tsf *synth = tsf_copy(source);
+    if (!synth) return 0;
+    constexpr int rate = 24000, window = rate / 10;
+    tsf_set_output(synth, TSF_MONO, rate, 0);
+    float loudest = 0;
+    if (tsf_channel_set_bank_preset(synth, 0, bank, program)) {
+        tsf_channel_note_on(synth, 0, 60, .68f);
+        std::array<float, window> buffer{};
+        for (int n = 0; n < 8; n++) {
+            tsf_render_float(synth, buffer.data(), window, 0);
+            double sum = 0;
+            for (float x : buffer) sum += double(x) * x;
+            loudest = std::max(loudest, float(std::sqrt(sum / window)));
+        }
+    }
+    tsf_close(synth);
+    return loudest;
+}
 void soundfontPanic(tsf *synth) {
     for (int n = 0; n < synth->voiceNum; n++)
         synth->voices[n].playingPreset = -1;

@@ -22,9 +22,32 @@ int rowFor(char key) {
         return 2;
     return -1;
 }
+const ScaleInfo &scaleInfo(int scale) {
+    static const ScaleInfo scales[scaleCount]{
+        {"Major", "major", "maj", {0, 2, 4, 5, 7, 9, 11}, 7},
+        {"Natural minor", "minor", "min", {0, 2, 3, 5, 7, 8, 10}, 7},
+        {"Harmonic minor", "harmonic minor", "hmin", {0, 2, 3, 5, 7, 8, 11}, 7},
+        {"Melodic minor", "melodic minor", "mmin", {0, 2, 3, 5, 7, 9, 11}, 7},
+        {"Dorian", "dorian", "dor", {0, 2, 3, 5, 7, 9, 10}, 7},
+        {"Phrygian", "phrygian", "phr", {0, 1, 3, 5, 7, 8, 10}, 7},
+        {"Lydian", "lydian", "lyd", {0, 2, 4, 6, 7, 9, 11}, 7},
+        {"Mixolydian", "mixolydian", "mix", {0, 2, 4, 5, 7, 9, 10}, 7},
+        {"Major pentatonic", "major pentatonic", "maj pent", {0, 2, 4, 7, 9}, 5},
+        {"Minor pentatonic", "minor pentatonic", "min pent", {0, 3, 5, 7, 10}, 5},
+        {"Blues", "blues", "blues", {0, 3, 5, 6, 7, 10}, 6}};
+    return scales[std::clamp(scale, 0, scaleCount - 1)];
+}
+std::vector<int> scaleMenu(bool chordOnly) {
+    if (chordOnly) return {0, 1, 2, 3, 4, 7, 6, 5};
+    return {0, 1, 8, 9, 10, 2, 3, 4, 7, 6, 5};
+}
+int scaleStep(int scale, int degree) {
+    const auto &info = scaleInfo(scale);
+    degree = std::max(degree, 0);
+    return info.steps[degree % info.size] + 12 * (degree / info.size);
+}
 int rootFor(int tonic, int scale, int column) {
-    static constexpr int intervals[2][7] = {{0, 2, 4, 5, 7, 9, 11}, {0, 2, 3, 5, 7, 8, 10}};
-    return 48 + (tonic + intervals[scale != 0][(column + 1) % 7]) % 12;
+    return 48 + (tonic + scaleStep(std::clamp(scale, 0, chordScaleCount - 1), (column + 1) % 7)) % 12;
 }
 Quality qualityFor(unsigned mask) {
     switch (mask) {
@@ -91,6 +114,63 @@ std::array<int, 4> chordNotes(const Chord &c) {
     }
     return n;
 }
+const char *swingModeName(int mode) {
+    static const char *names[]{"Off", "8ths", "16ths"};
+    return names[std::clamp(mode, 0, swingModeCount - 1)];
+}
+const char *voicingName(int voicing) {
+    static const char *names[]{"Close", "Open", "Power", "Rich"};
+    return names[std::clamp(voicing, 0, voicingCount - 1)];
+}
+std::array<int, 4> voicedChord(const Chord &c, int voicing, const std::array<int, 4> &previous) {
+    // Upper voices as intervals above the root, by quality: close triads and 7th chords
+    // (the root is below them), power chords, and rich 9th colors without the root.
+    static constexpr int close[qualityCount][3] = {
+        {0, 4, 7}, {0, 3, 7}, {4, 7, 10}, {4, 7, 11}, {3, 7, 10},
+        {0, 3, 6}, {0, 4, 8}, {0, 7, 12}, {0, 2, 7}, {0, 5, 7}};
+    static constexpr int rich[qualityCount][3] = {
+        {4, 7, 14}, {3, 10, 14}, {4, 10, 14}, {4, 11, 14}, {3, 10, 14},
+        {3, 6, 9},  {4, 8, 14},  {7, 12, 14}, {2, 7, 12}, {5, 7, 10}};
+    const int q = int(c.quality);
+    const int rootClass = ((c.root % 12) + 12) % 12;
+    const int low = c.root - rootClass + 4; // Upper voices start from E above the octave's C.
+    auto place = [](int pitchClass, int from) { // Lowest pitch >= from with this class.
+        return from + ((pitchClass - from) % 12 + 12) % 12;
+    };
+    std::array<int, 4> out{};
+    const int bassClass = c.bass >= 0 ? ((c.bass % 12) + 12) % 12 : rootClass;
+    out[0] = place(bassClass, low - 12);
+    if (voicing == VoicingPower) {
+        const int fifth = c.quality == Quality::Diminished ? 6 : c.quality == Quality::Augmented ? 8 : 7;
+        const int root = place(rootClass, low - 7);
+        out = {root - 12, root, root + fifth, root + 12};
+    } else {
+        const auto &intervals = voicing == VoicingRich ? rich[q] : close[q];
+        const bool hasPrevious = previous[1] >= 0 && previous[2] >= 0 && previous[3] >= 0;
+        int best = -1;
+        std::array<int, 3> chosen{};
+        for (int rotation = 0; rotation < 3; ++rotation) {
+            std::array<int, 3> notes{};
+            int from = low;
+            for (int n = 0; n < 3; ++n) {
+                const int interval = intervals[(rotation + n) % 3];
+                notes[n] = place((rootClass + interval) % 12, from);
+                if (n && notes[n] == notes[n - 1]) notes[n] += 12; // Doubled class: an octave up.
+                from = notes[n] + 1;
+            }
+            if (voicing == VoicingOpen) notes = {notes[0], notes[2], notes[1] + 12}; // Spread.
+            int cost = 0;
+            if (hasPrevious)
+                for (int n = 0; n < 3; ++n) cost += std::abs(notes[n] - previous[n + 1]);
+            else
+                cost = std::abs(notes[0] + notes[1] + notes[2] - 3 * (low + 9));
+            if (best < 0 || cost < best) best = cost, chosen = notes;
+        }
+        out[1] = chosen[0], out[2] = chosen[1], out[3] = chosen[2];
+    }
+    for (auto &note : out) note = std::clamp(note, 0, 127);
+    return out;
+}
 std::array<int, 7> harpNotes(const Chord &c) {
     auto notes = chordNotes(Chord{c.root, -1, c.column, c.quality});
     const bool seventh = c.quality == Quality::Seventh || c.quality == Quality::Major7 ||
@@ -114,8 +194,8 @@ const char *degreeName(int column) {
     return names[column];
 }
 unsigned backingLayers(PlaybackMode mode) {
-    static constexpr unsigned masks[]{2, 1, 4, 0, 3, 5, 6, 7};
-    return masks[std::clamp(int(mode), 0, 7)];
+    static constexpr unsigned masks[]{2, 1, 4, 0, 3, 5, 6, 7, 8, 16};
+    return masks[std::clamp(int(mode), 0, 9)];
 }
 PlaybackMode modeForLayers(unsigned layers) {
     for (int n = 0; n < 8; ++n)
@@ -126,26 +206,41 @@ bool layerEnabled(PlaybackMode selection, PlaybackMode layer) {
     return (backingLayers(selection) & backingLayers(layer)) != 0;
 }
 const char *modeName(PlaybackMode mode) {
-    static const char *names[] = {"Pad", "Chord", "Arp", "Front only", "Chord + Pad",
-                                 "Chord + Arp", "Pad + Arp", "Chord + Pad + Arp"};
-    return names[std::clamp(int(mode), 0, 7)];
+    static const char *names[] = {"Pad",         "Chord",     "Arp",
+                                  "Front only",  "Chord + Pad", "Chord + Arp",
+                                  "Pad + Arp",   "Chord + Pad + Arp", "Drums", "Bass"};
+    return names[std::clamp(int(mode), 0, 9)];
 }
 int layerIndex(PlaybackMode layer) {
-    return layer == PlaybackMode::Chord ? 0 : layer == PlaybackMode::Arp ? 1 : 2;
+    return layer == PlaybackMode::Chord   ? 0
+           : layer == PlaybackMode::Arp   ? 1
+           : layer == PlaybackMode::Bass  ? 3
+           : layer == PlaybackMode::Drums ? 4
+                                          : 2;
+}
+void PerformanceSettings::setEnabledLayers(unsigned layers) {
+    mode = modeForLayers(layers);
+    drums = (layers & 8u) != 0;
+    bass = (layers & 16u) != 0;
 }
 unsigned PerformanceSettings::audibleLayers() const {
     unsigned result = 0;
     for (auto layer : backingLayerOrder)
-        if (layerEnabled(mode, layer) && mix(layer) > 0) result |= backingLayers(layer);
+        if (enabled(layer) && mix(layer) > 0) result |= backingLayers(layer);
     return result;
 }
 bool PerformanceSettings::operator==(const PerformanceSettings &b) const {
     return std::tie(mode, chordProgram, harpProgram, padProgram, arpProgram, chordSound, padSound,
                     frontSound, arpSound, layerMix, chordPattern, padMotion, bpm, pattern,
-                    envelopes) ==
+                    envelopes, drums, drumKit, drumPattern, drumSound, bass, bassProgram,
+                    bassPattern, bassSound, swingMode, swingAmount, chordVoicing, padVoicing,
+                    pan, reverbSend, echoSend, reverbMs, frontMix) ==
            std::tie(b.mode, b.chordProgram, b.harpProgram, b.padProgram, b.arpProgram, b.chordSound,
                     b.padSound, b.frontSound, b.arpSound, b.layerMix, b.chordPattern, b.padMotion,
-                    b.bpm, b.pattern, b.envelopes);
+                    b.bpm, b.pattern, b.envelopes, b.drums, b.drumKit, b.drumPattern,
+                    b.drumSound, b.bass, b.bassProgram, b.bassPattern, b.bassSound, b.swingMode,
+                    b.swingAmount, b.chordVoicing, b.padVoicing, b.pan, b.reverbSend, b.echoSend,
+                    b.reverbMs, b.frontMix);
 }
 int Settings::chordRoot(int column) const {
     int octave = degreeChordOctave[column] == -2 ? chordOctave : degreeChordOctave[column];
@@ -172,8 +267,8 @@ void Settings::clamp() {
         scaleOctave[n] = std::clamp(scaleOctave[n], -2, 9);
     }
     tonic = std::clamp(tonic, 0, 11);
-    scale = std::clamp(scale, 0, 1);
-    chordScale = std::clamp(chordScale, 0, 1);
+    scale = std::clamp(scale, 0, scaleCount - 1);
+    chordScale = std::clamp(chordScale, 0, chordScaleCount - 1);
     frontFollow = !!frontFollow;
     frontTonic = std::clamp(frontTonic, 0, 11);
     preset = std::clamp(preset, 0, 127);
@@ -183,7 +278,23 @@ void Settings::clamp() {
     padProgram = std::clamp(padProgram, -1, 127);
     arpProgram = std::clamp(arpProgram, -1, 127);
     for (auto &level : layerMix) level = std::clamp(level, 0, 100);
-    chordPattern = std::clamp(chordPattern, 0, 7);
+    drums = !!drums;
+    drumKit = std::clamp(drumKit, 0, 127);
+    drumPattern = std::clamp(drumPattern, 0, drumPatternCount - 1);
+    bass = !!bass;
+    bassProgram = std::clamp(bassProgram, 0, 127);
+    bassPattern = std::clamp(bassPattern, 0, bassPatternCount - 1);
+    swingMode = std::clamp(swingMode, 0, swingModeCount - 1);
+    swingAmount = std::clamp(swingAmount, 0, 100);
+    chordVoicing = std::clamp(chordVoicing, 0, voicingCount - 1);
+    padVoicing = std::clamp(padVoicing, 0, voicingCount - 1);
+    for (auto &p : pan) p = std::clamp(p, -50, 50);
+    for (auto &v : reverbSend) v = std::clamp(v, 0, 100);
+    for (auto &v : echoSend) v = std::clamp(v, 0, 100);
+    reverbMs = std::clamp(reverbMs, 300, 8000);
+    frontMix = std::clamp(frontMix, 0, 100);
+    output = std::clamp(output, 0, 2);
+    chordPattern = std::clamp(chordPattern, 0, chordPatternCount - 1);
     padMotion = std::clamp(padMotion, 0, 3);
     hold = !!hold;
     masterVolume = std::clamp(masterVolume, 0, 100);
@@ -194,7 +305,7 @@ void Settings::clamp() {
     echo = std::clamp(echo, 0, 60);
     strumMs = std::clamp(strumMs, 60, 600);
     bpm = std::clamp(bpm, 40, 240);
-    pattern = std::clamp(pattern, 0, 8);
+    pattern = std::clamp(pattern, 0, 10);
     for (int n = 0; n < 4; n++) {
         if (combinations[n] < 0 || combinations[n] >= qualityCount)
             combinations[n] = int(qualityFor(combinationMasks[n]));
@@ -210,8 +321,7 @@ std::array<int, 7> frontNotes(const Chord &chord, const Settings &s) {
     for (int n = 0; n < 7; n++) {
         int octave = s.frontMode ? s.scaleOctave[n] : s.frontOctave[n];
         if (s.frontMode) {
-            static constexpr int scale[2][7]{{0, 2, 4, 5, 7, 9, 11}, {0, 2, 3, 5, 7, 8, 10}};
-            result[n] = 60 + s.frontKeyTonic() + scale[s.frontKeyScale() != 0][s.frontDegree[n]];
+            result[n] = 60 + s.frontKeyTonic() + scaleStep(s.frontKeyScale(), s.frontDegree[n]);
         } else {
             if (s.frontSource[n] >= 0 && s.frontSource[n] < 4)
                 result[n] = tones[s.frontSource[n]] + 12;

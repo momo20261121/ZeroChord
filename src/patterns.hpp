@@ -7,6 +7,7 @@ struct PatternStep {
     int tick, notes;
     float gate, accent;
     bool bass = false; // Place this event an octave below the chord voicing.
+    int transpose = 0; // Semitones added to these notes (Arp and Bass octave leaps).
 };
 struct Pattern {
     const char *id, *name, *description;

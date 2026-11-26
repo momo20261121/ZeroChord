@@ -9,7 +9,7 @@ scope; preserve previously agreed behavior unless the request changes it.
 ## Branches
 
 - Keep `main` for tested releases; tag each release as `v<version>`.
-- Use `dev` for development toward the next release (currently 1.3.0).
+- Use `dev` for development toward the next release (currently 1.4.0).
   Switch to it before changing application code while on `main`.
 - Merge into `main` only when the release is tested and ready.
 - `dev` is local-only: never push it or set it to track a remote. Only `main` and

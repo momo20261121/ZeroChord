@@ -40,6 +40,9 @@ add_test(NAME physical_key_scenarios COMMAND scenario_tests)
 add_executable(zerochord-render tools/render_demo.cpp)
 target_link_libraries(zerochord-render PRIVATE zerochord_renderer)
 
+add_executable(zerochord-styles tools/style_lab.cpp)
+target_link_libraries(zerochord-styles PRIVATE zerochord_renderer)
+
 add_executable(zerochord-compare tools/compare_audio.cpp)
 target_link_libraries(zerochord-compare PRIVATE zerochord_renderer)
 target_include_directories(zerochord-compare SYSTEM PRIVATE "${ZEROCHORD_DEPS}/TinySoundFont")

@@ -1,0 +1,43 @@
+file = 'bank.sf2'
+
+[[sounds]]
+id = 'square-lead'
+name = 'Square Lead (FluidR3)'
+category = 'Synths'
+program = 80
+bank = 0
+
+[[sounds]]
+id = 'saw-lead'
+name = 'Saw Lead (FluidR3)'
+category = 'Synths'
+program = 81
+bank = 0
+
+[[sounds]]
+id = 'synth-bass'
+name = 'Synth Bass (FluidR3)'
+category = 'Synths'
+program = 38
+bank = 0
+
+[[sounds]]
+id = 'synth-brass'
+name = 'Synth Brass (FluidR3)'
+category = 'Synths'
+program = 62
+bank = 0
+
+[[sounds]]
+id = 'polysynth'
+name = 'Polysynth (FluidR3)'
+category = 'Synths'
+program = 90
+bank = 0
+
+[[sounds]]
+id = 'synth-strings'
+name = 'Synth Strings (FluidR3)'
+category = 'Strings'
+program = 50
+bank = 0

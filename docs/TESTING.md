@@ -1,5 +1,49 @@
 # Testing ZeroChord
 
+## 1.4.0 release — 2026-11-26
+
+- **Local:** all six desktop suites, 43 real-app flows and the playing-screen check passed. The
+  tempo-swing flow was redone for the Swing and Swing amount rows, and output-speaker
+  is new. New tests cover the Close, Open, Power, and Rich voicings, voice
+  leading between chords, the bass taking the root from Chord and Pad, sound
+  level matching, 8ths and 16ths swing, and the upgrade from the second 1.4
+  development build, including its old `swing` key.
+- **Device:** cross-built and deployed. With all layers playing, Dream uses
+  about 30% of one CPU core, Pop 39%, and Dance 42%, with 66 MB RSS and no
+  audio queue overflows.
+- **Screenshots:** regenerated with `scripts/release_screenshots.py` and
+  checked at 320×170.
+- **Latency (device, scripted playing with chords, front keys, strums and
+  preset changes):** before, each chord or front-key redraw took 60–90 ms
+  (widget rebuild 36–54 ms, render 28–31 ms) and the main loop averaged 8 ms of
+  work; keys waited up to 96 ms. After the in-place playing screen, the loop
+  averages 0.5 ms; only preset changes still rebuild the screen (36–53 ms).
+  With the 128 × 3 audio request, callbacks arrive every 2.7 ms (gaps at most
+  3.9 ms), each renders in 0.7–2.8 ms, and PipeWire counted no xruns. A new
+  flow checks that the playing screen after busy playing matches a fresh
+  drawing in both themes.
+- **Release run:** all six desktop suites, all six ASan/UBSan suites (leak
+  detection off), 43 real-app flows and the playing-screen check passed. Because
+  the playing screen now keeps its widgets between redraws, the desktop app was
+  also built with ASan/UBSan: the same flows passed with no reports, and 13
+  playing-screen states matched the 1.3-style full redraw pixel for pixel.
+- **Installed test:** `zerochord 1.4.0` installed over 1.3.0 on the
+  CardputerZero; `scripts/test_installed.py` passed (version, `dpkg --verify`,
+  launcher entry, injected evdev keys, settings saved and reloaded, kernel
+  framebuffer matching the app capture, clean long-Esc exit). Digital capture
+  recorded 424,800 stereo frames with peak 29,164 and no queue overflows. The
+  test now also expects Bass and Drums to stay on after muting Arp and Pad, and
+  its comments describe the 1.4 Backing layers page.
+- **Screenshots:** `scripts/release_screenshots.py` reproduced the committed
+  1.4 images byte for byte; the store set was inspected at 320×170.
+- **Final package:** repackaged after the installed test to date the changelog
+  and add this record. Outside `usr/share/doc/zerochord/` its files and modes
+  match the tested package, and only `Installed-Size` changed in the control
+  fields, so the installed test was not repeated. The final package was
+  installed on the device with a clean `dpkg --verify` and the same executable.
+- **Not yet done:** listening, a hands-on check that Auto detects the headphone
+  jack correctly, and the feel of the lower latency with physical keys.
+
 ## 1.3.0 release — 2026-11-25
 
 - **Local:** all six desktop suites, all six ASan/UBSan suites (leak detection

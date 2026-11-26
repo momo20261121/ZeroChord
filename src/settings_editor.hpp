@@ -25,8 +25,19 @@ class SettingsEditor {
     static constexpr int arpEnvelopeField = 32;
     static constexpr int chordMixField = 33; // Chord, Arp, Pad mix rows: 33-35.
     static constexpr int frontSoundField = 36;
-    static constexpr int settingCount = frontSoundField + 1;
-    static constexpr int backingTabCount = 4; // Layers, Chord, Arp, Pad.
+    static constexpr int drumMixField = 37;
+    static constexpr int drumKitField = 38;
+    static constexpr int drumPatternField = 39;
+    static constexpr int bassMixField = 40;
+    static constexpr int bassSoundField = 41;
+    static constexpr int bassPatternField = 42;
+    static constexpr int bassEnvelopeField = 43;
+    static constexpr int outputField = 44;
+    static constexpr int chordVoicingField = 45;
+    static constexpr int padVoicingField = 46;
+    static constexpr int frontMixField = 47;
+    static constexpr int settingCount = frontMixField + 1;
+    static constexpr int backingTabCount = 6; // Layers, Chord, Arp, Pad, Bass, Drums.
     explicit SettingsEditor(Instrument &instrument,
                             std::function<std::optional<int>()> readSystemVolume = {},
                             std::function<bool(int)> writeSystemVolume = {})
@@ -49,6 +60,7 @@ class SettingsEditor {
     bool backingOpen() const { return settingsOpen && page_ == Page::Backing && fromPlay_; }
     int backingTab() const { return backingTab_; }
     bool tempoOpen() const { return tempo_; }
+    int tempoRow() const { return tempoRow_; } // 0 Tempo, 1 Swing, 2 Amount.
     const std::string &tempoText() const { return tempoInput_; }
     const std::string &tempoError() const { return tempoError_; }
     const std::vector<Choice> &choices() const { return choices_; }
@@ -76,7 +88,7 @@ class SettingsEditor {
     enum class Confirmation { None, Create, Restore };
     RowKind rowKind(int field) const;
     RowKind selectedKind() const;
-    static std::string backingLabel(PlaybackMode mode);
+    static std::string backingLabel(unsigned layers);
     static std::string backingLabel(const Settings &settings);
     Instrument &instrument_;
     Page page_ = Page::Setup;
@@ -95,6 +107,7 @@ class SettingsEditor {
     std::string soundCategory_;
     bool picker_ = false;
     bool tempo_ = false, tempoReplace_ = true;
+    int tempoRow_ = 0;
     std::string tempoInput_, tempoError_;
     int choice_ = 0;
     std::vector<Choice> choices_;
@@ -104,13 +117,26 @@ class SettingsEditor {
         return page_ == Page::Setup || page_ == Page::VolumeEffects || page_ == Page::Backing ||
                page_ == Page::FrontSound;
     }
-    static bool mixField(int index) { return index >= chordMixField && index < chordMixField + 3; }
-    static bool envelopeRow(int index) { return (index >= 23 && index <= 25) || index == arpEnvelopeField; }
+    static bool mixField(int index) {
+        return (index >= chordMixField && index < chordMixField + 3) || index == drumMixField ||
+               index == bassMixField;
+    }
+    static bool envelopeRow(int index) {
+        return (index >= 23 && index <= 25) || index == arpEnvelopeField || index == bassEnvelopeField;
+    }
+    static bool voicingField(int index) {
+        return index == chordVoicingField || index == padVoicingField;
+    }
     static bool soundField(int index) {
-        return index == 13 || index == 14 || index == 21 || index == arpSoundField;
+        return index == 13 || index == 14 || index == 21 || index == arpSoundField ||
+               index == bassSoundField;
     }
     static int envelopePartFor(int field);
-    static PlaybackMode mixLayer(int field) { return backingLayerOrder[field - chordMixField]; }
+    static PlaybackMode mixLayer(int field) {
+        return field == drumMixField   ? PlaybackMode::Drums
+               : field == bassMixField ? PlaybackMode::Bass
+                                       : backingLayerOrder[field - chordMixField];
+    }
     std::string rowName(int index) const;
     std::string rowDescription() const;
     std::string settingValue(int index) const;
@@ -157,6 +183,8 @@ class SettingsEditor {
     void nextTab();
     void jumpTab(int tab);
     void adjustMix(int direction);
+    void adjustSwing(int direction);
+    void restoreSwing();
     void toggleLayer();
     void restoreLayer();
     void selectBackingTab(int tab);

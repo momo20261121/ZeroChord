@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
                 std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     try {
         auto &sounds = soundLibrary();
-        CHECK(sounds.entries.size() == 14 && sounds.categories().size() == 4);
+        CHECK(sounds.entries.size() == 39 && sounds.categories().size() == 6);
         for (const auto &sound : sounds.entries)
             CHECK(!sound.name.empty() && !sound.category.empty());
         CHECK(sounds.sampleRateLabel(0) == "Source rate unavailable");
@@ -64,13 +64,20 @@ int main(int argc, char **argv) {
         std::ofstream(pack / "pack.toml")
             << "file='bank.sf2'\n[[sounds]]\nid='velvet'\nname='Velvet "
                "Pad'\ncategory='Pads'\nprogram=89\n[[sounds]]\nid='glass'\nname='Glass "
-               "Harp'\ncategory='Custom'\nprogram=46\n";
+               "Harp'\ncategory='Custom'\nprogram=46\n[[sounds]]\nid='kit'\nname='Pack Kit'\n"
+               "category='Drums'\nprogram=25\nbank=128\n";
         std::ofstream(dir / "sounds/invalid.sf2") << "not a SoundFont";
         fs::create_directories(dir / "sounds/broken");
         std::ofstream(dir / "sounds/broken/pack.toml") << "file='../outside.sf2'\n";
         sounds.load(dir.string(), argv[1]);
-        CHECK(sounds.entries.size() == 16 && sounds.find("my-pack/velvet") &&
-              sounds.categories().size() == 5);
+        CHECK(sounds.entries.size() == 42 && sounds.find("my-pack/velvet") &&
+              sounds.categories().size() == 7);
+        // Every named built-in sound exists in the built-in bank; pack kits come from bank 128.
+        for (const auto &sound : sounds.entries)
+            if (sound.bank.empty())
+                CHECK(sounds.sampleRateLabel(sound.choice) != "Source rate unavailable");
+        CHECK(sounds.find("my-pack/kit")->bankNumber == 128 &&
+              sounds.find("my-pack/kit")->category == "Drums");
         CHECK(sounds.sampleRateLabel(0) == "Source 22.05 kHz");
         CHECK(sounds.sampleRateLabel(48) == "Source 12 kHz");
         CHECK(sounds.sampleRateLabel(10) == "Source 22.321 kHz");

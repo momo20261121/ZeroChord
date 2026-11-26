@@ -96,12 +96,12 @@ try:
         for code in [44,45,46,47,48,49,50,38]: tap(code) # Z-M and L
         time.sleep(.3)
         tap(24) # O: Backing layers, Layers tab; all layers start on
-        tap(45); tap(28); tap(45); tap(28) # Mute Arp and Pad at once: Chord only
+        tap(45); tap(28); tap(45); tap(28) # Mute Arp and Pad: Chord, Bass and Drums stay on
         tap(1) # Esc: back to playing
         tap(15) # Tab: settings, Style
         tap(45); tap(45); tap(28) # X X -> Backing layers, Enter
         tap(3) # 2: Chord tab, Pattern
-        tap(28); tap(45); tap(28) # Enter, next item after the default Sustained, Enter
+        tap(28); tap(45); tap(28) # Enter, X, Enter: the second pattern in the list
         tap(1); tap(1) # Esc Esc: performance
         tap(9); time.sleep(.9)
         # App > Volume & effects, using the printed Z/C/X arrows.
@@ -119,7 +119,8 @@ try:
         emit(1,True); time.sleep(.95); emit(1,False)
         assert process.wait(timeout=5)==0
     settings=dict(line.split(maxsplit=1) for line in (config/'zerochord/settings.conf').read_text().splitlines())
-    expected = {'masterVolume':'95', 'eqLowDb':'3', 'mode':'1', 'chordPattern':'1', 'bpm':'137'}
+    expected = {'masterVolume':'95', 'eqLowDb':'3', 'mode':'1', 'chordPattern':'1', 'bpm':'137',
+                'bass':'1', 'drums':'1'}
     assert {key: settings[key] for key in expected} == expected, settings
     internal=(out/'app.ppm').read_bytes().split(b'\n',3)[3]
     assert len(kernel)==len(internal) and max(abs(a-b) for a,b in zip(kernel,internal))<=8

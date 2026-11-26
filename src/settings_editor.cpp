@@ -6,13 +6,25 @@
 #include <tuple>
 namespace zc {
 namespace {
-const std::vector<int> volumeEffectsRows{SettingsEditor::systemVolumeField, 17, 4, 5, 6, 26, 27, 28};
-const char *scaleName(int scale) { return scale ? "Natural minor" : "Major"; }
+const std::vector<int> volumeEffectsRows{SettingsEditor::systemVolumeField, 17, 4, 5, 6, 26, 27, 28,
+                                        SettingsEditor::outputField};
+const char *scaleName(int scale) { return scaleInfo(scale).name; }
+// Built-in General MIDI kits (drum bank 128).
+const std::vector<std::pair<int, const char *>> drumKits{
+    {0, "Standard"}, {8, "Room"},  {16, "Power"}, {24, "Electronic"},
+    {25, "TR-808"},  {32, "Jazz"}, {40, "Brush"}, {48, "Orchestra"}};
+std::string drumKitName(const Settings &s) {
+    if (auto *sound = soundLibrary().find(s.drumSound); sound && !sound->bank.empty())
+        return sound->name; // A missing pack plays the same built-in kit.
+    for (const auto &[kit, name] : drumKits)
+        if (kit == s.drumKit) return name;
+    return "Kit " + std::to_string(s.drumKit + 1);
+}
 std::string milliseconds(int value) { return std::to_string(value) + " ms"; }
 constexpr uint64_t repeatDelayMs = 400, repeatMs = 80, fastRepeatAfterMs = 1500, fastRepeatMs = 40;
 } // namespace
 const char *SettingsEditor::envelopePartName(int part) {
-    static const char *names[]{"Front", "Chord", "Pad", "Arp"};
+    static const char *names[]{"Front", "Chord", "Pad", "Arp", "Bass"};
     return names[part];
 }
 const char *SettingsEditor::envelopeControlName(int field) {
@@ -20,11 +32,13 @@ const char *SettingsEditor::envelopeControlName(int field) {
     return names[field];
 }
 int SettingsEditor::envelopeField(int part) {
-    static constexpr int fields[]{23, 24, 25, arpEnvelopeField};
+    static constexpr int fields[]{23, 24, 25, arpEnvelopeField, bassEnvelopeField};
     return fields[part];
 }
 int SettingsEditor::envelopePartFor(int field) {
-    return field == arpEnvelopeField ? ArpEnvelope : field - 23;
+    return field == arpEnvelopeField    ? ArpEnvelope
+           : field == bassEnvelopeField ? BassEnvelope
+                                        : field - 23;
 }
 std::pair<int, std::string> SettingsEditor::soundSource(const Settings &s, int field) const {
     const auto &preset = presets[std::clamp(s.preset, 0, 3)];
@@ -33,10 +47,11 @@ std::pair<int, std::string> SettingsEditor::soundSource(const Settings &s, int f
     if (field == 21)
         return {s.padProgram < 0 ? preset.chordProgram : s.padProgram, s.padSound};
     if (field == arpSoundField && s.arpProgram >= 0) return {s.arpProgram, s.arpSound};
+    if (field == bassSoundField) return {s.bassProgram, s.bassSound};
     return {s.chordProgram < 0 ? preset.chordProgram : s.chordProgram, s.chordSound};
 }
 std::optional<std::array<int, 4>> SettingsEditor::soundEnvelope(const Settings &s, int part) const {
-    static constexpr int fields[]{14, 13, 21, arpSoundField};
+    static constexpr int fields[]{14, 13, 21, arpSoundField, bassSoundField};
     auto [program, id] = soundSource(s, fields[part]);
     auto values = soundLibrary().envelope(program, id);
     if (values && (part == ChordEnvelope || part == ArpEnvelope)) {
@@ -85,7 +100,8 @@ int SettingsEditor::envelopeValue(const Settings &s) const {
 }
 bool SettingsEditor::appField(int index) {
     return index == 0 || index == 1 || (index >= 3 && index <= 7) || index == 17 ||
-           index == 18 || index == 22 || (index >= 26 && index <= systemVolumeField);
+           index == 18 || index == 22 || (index >= 26 && index <= systemVolumeField) ||
+           index == outputField;
 }
 bool SettingsEditor::appPage() const {
     return page_ == Page::Combinations || page_ == Page::FrontNotes ||
@@ -96,11 +112,13 @@ const std::vector<int> &SettingsEditor::rows() const {
     static const std::vector<int> app{18, volumeEffectsField, 3, 22};
     static const std::vector<int> about;
     static const std::vector<int> backing[backingTabCount]{
-        {chordMixField, chordMixField + 1, chordMixField + 2},
-        {11, 13, 24},
+        {chordMixField, chordMixField + 1, chordMixField + 2, bassMixField, drumMixField},
+        {11, 13, 24, chordVoicingField},
         {9, arpSoundField, arpEnvelopeField},
-        {12, 21, 25}};
-    static const std::vector<int> frontSound{14, 23};
+        {12, 21, 25, padVoicingField},
+        {bassPatternField, bassSoundField, bassEnvelopeField},
+        {drumKitField, drumPatternField}};
+    static const std::vector<int> frontSound{14, 23, frontMixField};
     if (page_ == Page::VolumeEffects) return volumeEffectsRows;
     if (page_ == Page::Backing) return backing[backingTab_];
     if (page_ == Page::FrontSound) return frontSound;
@@ -136,7 +154,9 @@ const char *SettingsEditor::settingName(int index) {
                                   "Front notes", "Front envelope", "Chord envelope", "Pad envelope",
                                   "EQ Low", "EQ Mid", "EQ High", "Volume & effects", "System Vol",
                                   "Arp sound", "Arp envelope", "Chord mix", "Arp mix", "Pad mix",
-                                  "Front sound"};
+                                  "Front sound", "Drum mix", "Drum kit", "Drum pattern",
+                                  "Bass mix", "Bass sound", "Bass pattern", "Bass envelope",
+                                  "Output", "Chord voicing", "Pad voicing", "Front level"};
     return names[index];
 }
 std::string SettingsEditor::rowName(int index) const {
@@ -145,7 +165,11 @@ std::string SettingsEditor::rowName(int index) const {
         if (soundField(index)) return "Sound";
         if (envelopeRow(index)) return "Envelope";
         if (index == 12) return "Motion";
-        if (index == 9 || index == 11) return "Pattern";
+        if (index == 9 || index == 11 || index == drumPatternField || index == bassPatternField)
+            return "Pattern";
+        if (index == drumKitField) return "Kit";
+        if (voicingField(index)) return "Voicing";
+        if (index == frontMixField) return "Level";
     }
     return settingName(index);
 }
@@ -162,7 +186,7 @@ std::string SettingsEditor::rowDescription() const {
                                  "Strum, or shift the front octave",
                                  "Time from the first to the last note",
                                  "Reset both modes, every key and K/L",
-                                 "Major or natural minor scale notes",
+                                 "Scale of the front notes",
                                  "Tonic of the scale notes"};
         static const char *key[]{"Pitch this key plays", "Octave this key plays",
                                  "Reset this key in this mode"};
@@ -177,14 +201,14 @@ std::string SettingsEditor::rowDescription() const {
                                   "Tonic of the chord grid",
                                   "Fixed root for this degree",
                                   "Keep the chord after releasing its buttons",
-                                  "Major or natural minor chord roots"};
+                                  "Seven-note scale of the chord roots"};
         return text[combination_];
     }
     default: break;
     }
     switch (selection_) {
     case 2: return "Switch to another saved style";
-    case 8: return "Speed of patterns; Enter to type a tempo";
+    case 8: return "Speed and swing of patterns";
     case backingField: return "Layers, mix, patterns, sounds and envelopes";
     case frontSoundField: return "Sound and envelope of Z-M and strums";
     case 19: return "Copy these Style settings to a new preset";
@@ -197,34 +221,45 @@ std::string SettingsEditor::rowDescription() const {
     case 17: return "Overall ZeroChord level";
     case 4: return "Chord, Arp and Pad together";
     case 5: return "Z-M notes and strums";
-    case 6: return "A repeat about 230 ms after each note";
+    case 6: return "Repeats in time with the tempo";
+    case outputField: return "Speaker adds bass harmonics; Auto follows the jack";
+    case chordVoicingField: case padVoicingField: return "How the chord notes are spread";
+    case frontMixField: return "Level of Z-M and strums in this style";
     case 26: return "Bass of the whole mix";
     case 27: return "Middle of the whole mix";
     case 28: return "Treble of the whole mix";
     case chordMixField: return "Chord notes together. Enter mutes or unmutes.";
     case chordMixField + 1: return "Chord tones one at a time. Enter mutes or unmutes.";
     case chordMixField + 2: return "Sustained harmony. Enter mutes or unmutes.";
+    case drumMixField: return "Drum groove on the beat. Enter mutes or unmutes.";
+    case bassMixField: return "Bass line under the chord. Enter mutes or unmutes.";
+    case bassPatternField: return "Rhythm and notes of the bass line";
+    case drumKitField: return "Drum set for the groove";
+    case drumPatternField: return "Rhythm the drums play";
     case 11: return "How the chord notes are struck";
     case 9: return "Order and rhythm of the chord tones";
     case 12: return "Volume movement of the pad";
-    case 13: case 14: case 21: case arpSoundField: return "Instrument for this part";
-    case 23: case 24: case 25: case arpEnvelopeField: return "Attack, decay, sustain and release";
+    case 13: case 14: case 21: case arpSoundField: case bassSoundField:
+        return "Instrument for this part";
+    case 23: case 24: case 25: case arpEnvelopeField: case bassEnvelopeField:
+        return "Attack, decay, sustain and release";
     }
     return "";
 }
-std::string SettingsEditor::backingLabel(PlaybackMode mode) {
+std::string SettingsEditor::backingLabel(unsigned layers) {
     // Preset files keep their existing mode names. Display layers in menu order.
     std::string label;
     for (auto layer : backingLayerOrder) {
-        if (!layerEnabled(mode, layer)) continue;
+        if (!(layers & backingLayers(layer))) continue;
         if (!label.empty()) label += " + ";
         label += modeName(layer);
     }
     if (label.empty()) return modeName(PlaybackMode::FrontOnly);
+    if ((layers & allLayers) == allLayers) return "All layers";
     return label;
 }
 std::string SettingsEditor::backingLabel(const Settings &s) {
-    return backingLabel(modeForLayers(s.audibleLayers()));
+    return backingLabel(s.audibleLayers());
 }
 const char *SettingsEditor::combinationName(int index) {
     static const char *names[] = {"Top + middle", "Top + bottom", "Middle + bottom", "All three",
@@ -345,7 +380,12 @@ std::string SettingsEditor::frontValueName(const Settings &s, int field) const {
         Chord chord{s.chordRoot(6), -1, 6, Quality::Major};
         int pitch = frontNotes(chord, s)[frontKey_];
         int interval = (pitch - s.frontKeyTonic() + 12) % 12;
-        return std::string(degrees[value]) + " (+" + std::to_string(interval) + ")";
+        // Pentatonic and blues have fewer notes than keys: number them and mark the octave up.
+        const int size = scaleInfo(s.frontKeyScale()).size;
+        std::string name = size == 7 ? degrees[value]
+                                     : "Note " + std::to_string(value % size + 1) +
+                                           (value >= size ? " up" : "");
+        return name + " (+" + std::to_string(interval) + ")";
     }
     if (value < 0) return "Auto note";
     if (value < 4) return "Chord tone " + std::to_string(value + 1);
@@ -358,6 +398,13 @@ int SettingsEditor::valueFor(const Settings &s, int index) const {
         auto [program, id] = soundSource(s, index);
         return soundLibrary().selected(program, id);
     }
+    if (index == drumKitField) return soundLibrary().selected(s.drumKit, s.drumSound);
+    if (index == drumPatternField) return s.drumPattern;
+    if (index == bassPatternField) return s.bassPattern;
+    if (index == outputField) return s.output;
+    if (index == frontMixField) return s.frontMix;
+    if (index == chordVoicingField) return s.chordVoicing;
+    if (index == padVoicingField) return s.padVoicing;
     const int values[] = {s.tonic,
                           s.scale,
                           s.preset,
@@ -426,16 +473,20 @@ bool SettingsEditor::fieldModified(int index) const {
         return s.envelopes[envelopePartFor(index)] != preset.envelopes[envelopePartFor(index)];
     if (mixField(index)) {
         auto layer = mixLayer(index);
-        return s.mix(layer) != preset.mix(layer) ||
-               layerEnabled(s.mode, layer) != layerEnabled(preset.mode, layer);
+        return s.mix(layer) != preset.mix(layer) || s.enabled(layer) != preset.enabled(layer);
     }
+    if (index == drumKitField)
+        return s.drumKit != preset.drumKit || s.drumSound != preset.drumSound;
     if (index == backingField) {
-        for (int field : {chordMixField, chordMixField + 1, chordMixField + 2, 11, 13, 24, 9,
-                          arpSoundField, arpEnvelopeField, 12, 21, 25})
+        for (int field : {chordMixField, chordMixField + 1, chordMixField + 2, bassMixField,
+                          drumMixField, 11, 13, 24, 9, arpSoundField, arpEnvelopeField, 12, 21, 25,
+                          bassPatternField, bassSoundField, bassEnvelopeField, drumKitField,
+                          drumPatternField, chordVoicingField, padVoicingField})
             if (fieldModified(field)) return true;
         return false;
     }
-    if (index == frontSoundField) return fieldModified(14) || fieldModified(23);
+    if (index == frontSoundField)
+        return fieldModified(14) || fieldModified(23) || fieldModified(frontMixField);
     if (index == 2)
         return instrument_.library.modified(s);
     if (index == 22) {
@@ -458,6 +509,9 @@ bool SettingsEditor::fieldModified(int index) const {
     }
     if (index >= 19 && index <= 20)
         return false;
+    if (index == 8)
+        return s.bpm != preset.bpm || s.swingMode != preset.swingMode ||
+               s.swingAmount != preset.swingAmount;
     if (soundField(index))
         return valueFor(s, index) != valueFor(preset, index) ||
                soundSource(s, index).second != soundSource(preset, index).second;
@@ -485,7 +539,7 @@ std::string SettingsEditor::settingValue(int index) const {
     case 2:
         return instrument_.library.current(s).name;
     case 3:
-        return noteName(s.tonic) + " " + (s.chordScale ? "minor" : "major");
+        return noteName(s.tonic) + " " + scaleInfo(s.chordScale).lower;
     case 22:
         return s.frontMode ? "Scale notes" : "Chord notes";
     case frontSoundField:
@@ -499,7 +553,17 @@ std::string SettingsEditor::settingValue(int index) const {
     case 7:
         return milliseconds(s.strumMs);
     case 8:
-        return std::to_string(s.bpm) + " BPM";
+        return std::to_string(s.bpm) + " BPM" +
+               (s.swingMode ? std::string(", ") + swingModeName(s.swingMode) + " swing " +
+                                  std::to_string(s.swingAmount) + "%"
+                            : "");
+    case outputField:
+        if (s.output != OutputAuto) return s.output == OutputSpeaker ? "Speaker" : "Headphones";
+        return instrument_.jack < 0 ? "Auto" : instrument_.jack ? "Auto (headphones)" : "Auto (speaker)";
+    case chordVoicingField:
+        return voicingName(s.chordVoicing);
+    case padVoicingField:
+        return voicingName(s.padVoicing);
     case 9:
         return patterns(PlaybackMode::Arp)[s.pattern].name;
     case backingField:
@@ -510,6 +574,12 @@ std::string SettingsEditor::settingValue(int index) const {
         return patterns(PlaybackMode::Chord)[s.chordPattern].name;
     case 12:
         return patterns(PlaybackMode::Pad)[s.padMotion].name;
+    case drumKitField:
+        return drumKitName(s);
+    case drumPatternField:
+        return patterns(PlaybackMode::Drums)[s.drumPattern].name;
+    case bassPatternField:
+        return patterns(PlaybackMode::Bass)[s.bassPattern].name;
     default:
         return std::to_string(valueFor(s, index)) + "%";
     }
@@ -526,9 +596,11 @@ void SettingsEditor::assign(Settings &s, int index, int value) {
     if (soundField(index)) {
         auto &id = index == 14 ? s.frontSound
                    : index == 21 ? s.padSound
+                   : index == bassSoundField ? s.bassSound
                    : index == arpSoundField ? s.arpSound : s.chordSound;
         auto &program = index == 14 ? s.harpProgram
                         : index == 21 ? s.padProgram
+                        : index == bassSoundField ? s.bassProgram
                         : index == arpSoundField ? s.arpProgram : s.chordProgram;
         if (auto *sound = soundLibrary().choice(value); sound && !sound->bank.empty()) {
             id = sound->id;
@@ -579,6 +651,34 @@ void SettingsEditor::assign(Settings &s, int index, int value) {
     case 12:
         s.padMotion = value;
         break;
+    case drumKitField:
+        if (auto *sound = soundLibrary().choice(value); sound && !sound->bank.empty())
+            s.drumSound = sound->id; // drumKit stays as the built-in fallback.
+        else if (value == s.drumKit && !soundLibrary().find(s.drumSound)) {
+            // The kit already playing while its pack is missing: keep the pack preference.
+        } else {
+            s.drumSound.clear();
+            s.drumKit = value;
+        }
+        break;
+    case drumPatternField:
+        s.drumPattern = value;
+        break;
+    case bassPatternField:
+        s.bassPattern = value;
+        break;
+    case outputField:
+        s.output = value;
+        break;
+    case chordVoicingField:
+        s.chordVoicing = value;
+        break;
+    case padVoicingField:
+        s.padVoicing = value;
+        break;
+    case frontMixField:
+        s.frontMix = value;
+        break;
     }
 }
 void SettingsEditor::setSettingValue(int value) {
@@ -616,6 +716,12 @@ void SettingsEditor::setSettingValue(int value) {
 void SettingsEditor::buildChoices() {
     choices_.clear();
     const auto &s = instrument_.settings;
+    if (page_ == Page::VolumeEffects && selection_ == outputField) {
+        choices_ = {{OutputAuto, "Auto", "Speaker sound unless headphones are plugged in"},
+                    {OutputSpeaker, "Speaker", "Bass harmonics and a little click for small speakers"},
+                    {OutputHeadphones, "Headphones", "Full range with no extra processing"}};
+        return;
+    }
     if (page_ == Page::VolumeEffects) {
         const bool equalizer = selection_ >= 26 && selection_ <= 28;
         const int low = equalizer ? -12 : 0, high = equalizer ? 12 : selection_ == 6 ? 60 : 100;
@@ -685,10 +791,15 @@ void SettingsEditor::buildChoices() {
                 choices_ = {{0, "Chord notes", "Follow the selected chord and its quality"},
                             {1, "Scale notes", "I-VII of the front key; independent of chords"}};
             else if (frontField_ == 4)
+            {
                 choices_ = {{-1, std::string("Follow chord (") + scaleName(s.chordScale) + ")",
-                             "Use the Chord config key and scale"},
-                            {0, "Major", "Scale notes only; chord roots stay independent"},
-                            {1, "Natural minor", "Scale notes only; chord roots stay independent"}};
+                             "Use the Chord config key and scale"}};
+                for (int scale : scaleMenu(false))
+                    choices_.push_back({scale, scaleName(scale),
+                                        scaleInfo(scale).size == 7
+                                            ? "Scale notes only; chord roots stay independent"
+                                            : "Fewer notes than keys; continues an octave up"});
+            }
             else if (frontField_ == frontKeyField) {
                 choices_.push_back({-1, "Follow chord (" + noteName(s.tonic) + ")",
                                     "Use the Chord config key and scale"});
@@ -755,8 +866,12 @@ void SettingsEditor::buildChoices() {
             for (int pitch = 0; pitch < 12; pitch++)
                 choices_.push_back({pitch, noteName(pitch), combination_ == 7 ? "Transpose degrees that follow Key" : "Absolute root; stays fixed when Key changes"});
         } else if (combination_ == chordScaleField)
-            choices_ = {{0, "Major", "Roots of I-VII in the major scale"},
-                        {1, "Natural minor", "Roots of i-VII in natural minor: bIII, bVI, bVII"}};
+            for (int scale : scaleMenu(true)) {
+                std::string roots;
+                for (int column : {6, 0, 1, 2, 3, 4, 5})
+                    roots += (roots.empty() ? "" : " ") + noteName(rootFor(s.tonic, scale, column));
+                choices_.push_back({scale, scaleName(scale), "Roots " + roots});
+            }
         else if (combination_ == 6) {
             if (scope_ >= 0)
                 choices_.push_back({-2, "Follow All (" + std::to_string(s.chordOctave) + ")", "Use the shared chord root octave"});
@@ -801,15 +916,31 @@ void SettingsEditor::buildChoices() {
             choices_.push_back(
                 {n, p.name, backingLabel(value) + " / " + std::to_string(value.bpm) + " BPM"});
         }
-    else if (selection_ == 9 || selection_ == 11 || selection_ == 12) {
-        auto mode = selection_ == 11   ? PlaybackMode::Chord
-                    : selection_ == 12 ? PlaybackMode::Pad
-                                       : PlaybackMode::Arp;
+    else if (selection_ == drumKitField) {
+        for (const auto &[kit, name] : drumKits)
+            choices_.push_back({kit, name, "Built-in General MIDI kit"});
+        for (const auto &sound : soundLibrary().entries)
+            if (sound.category == "Drums")
+                choices_.push_back({sound.choice, sound.name, "Sound pack / " + sound.bank});
+        const int current = valueFor(s, drumKitField);
+        if (std::none_of(choices_.begin(), choices_.end(),
+                         [&](const Choice &c) { return c.value == current; }))
+            choices_.push_back({current, drumKitName(s), "Saved kit"});
+    } else if (selection_ == 9 || selection_ == 11 || selection_ == 12 ||
+               selection_ == drumPatternField || selection_ == bassPatternField) {
+        auto mode = selection_ == 11                 ? PlaybackMode::Chord
+                    : selection_ == 12               ? PlaybackMode::Pad
+                    : selection_ == drumPatternField ? PlaybackMode::Drums
+                    : selection_ == bassPatternField ? PlaybackMode::Bass
+                                                     : PlaybackMode::Arp;
         const auto &list = patterns(mode);
         const int presetDefault = mode == PlaybackMode::Arp ? defaultValue() : -1;
         auto add = [&](int n) { choices_.push_back({n, list[n].name, list[n].description}); };
         for (int n = 0; n < int(list.size()); n++) {
-            if (mode == PlaybackMode::Arp && n >= 6 && n != s.pattern && n != presetDefault) continue;
+            // Older mixed Arp patterns stay available to presets that use them.
+            if (mode == PlaybackMode::Arp && (n == 6 || n == 8) && n != s.pattern &&
+                n != presetDefault)
+                continue;
             if (mode == PlaybackMode::Chord && n == sustainedChordPattern) continue;
             add(n);
             if (mode == PlaybackMode::Chord && n == 0) add(sustainedChordPattern);
@@ -831,6 +962,18 @@ void SettingsEditor::buildChoices() {
                         {value, soundLibrary().name(value, ""), soundLibrary().sampleRateLabel(value)});
             }
         }
+    } else if (selection_ == frontMixField) {
+        for (int v = 0; v <= 100; v += 5) choices_.push_back({v, std::to_string(v) + "%", ""});
+        if (s.frontMix % 5) {
+            choices_.push_back({s.frontMix, std::to_string(s.frontMix) + "%", ""});
+            std::sort(choices_.begin(), choices_.end(),
+                      [](const Choice &a, const Choice &b) { return a.value < b.value; });
+        }
+    } else if (voicingField(selection_)) {
+        choices_ = {{VoicingClose, "Close", "Near middle C, moving to the nearest notes"},
+                    {VoicingOpen, "Open", "Spread wide, for strings and pads"},
+                    {VoicingPower, "Power", "Root, fifth and octave, for rock guitar"},
+                    {VoicingRich, "Rich", "Adds 9ths and 7ths; the bass keeps the root"}};
     } else if (selection_ == 18)
         choices_ = {{0, "Dark", "App-wide appearance"}, {1, "Light", "App-wide appearance"}};
     else if (selection_ == 19 || selection_ == 20)
@@ -872,7 +1015,7 @@ void SettingsEditor::preview() {
     Settings sound = instrument_.settings;
     auto solo = [&](PlaybackMode layer) {
         // Audition one layer at full mix, even if it is muted or quiet in the preset.
-        sound.mode = layer;
+        sound.setEnabledLayers(backingLayers(layer));
         sound.mix(layer) = 100;
     };
     if (page_ == Page::Envelope) {
@@ -880,8 +1023,10 @@ void SettingsEditor::preview() {
         sound.envelopes[envelopePart_].values[envelopeField_] = choices_[choice_].value;
         if (envelopePart_ == FrontEnvelope) instrument_.auditionFront(sound, 0);
         else {
-            solo(envelopePart_ == PadEnvelope   ? PlaybackMode::Pad
-                 : envelopePart_ == ArpEnvelope ? PlaybackMode::Arp : PlaybackMode::Chord);
+            solo(envelopePart_ == PadEnvelope    ? PlaybackMode::Pad
+                 : envelopePart_ == ArpEnvelope  ? PlaybackMode::Arp
+                 : envelopePart_ == BassEnvelope ? PlaybackMode::Bass
+                                                 : PlaybackMode::Chord);
             instrument_.audition(previewChord(), sound, true);
         }
         return;
@@ -899,10 +1044,14 @@ void SettingsEditor::preview() {
         } else
             assign(sound, selection_, choices_[choice_].value);
         if (selection_ == 21 || selection_ == 12) solo(PlaybackMode::Pad);
-        if (selection_ == 13 || selection_ == 11) solo(PlaybackMode::Chord);
+        if (selection_ == 13 || selection_ == 11 || selection_ == chordVoicingField)
+            solo(PlaybackMode::Chord);
+        if (selection_ == padVoicingField) solo(PlaybackMode::Pad);
         if (selection_ == arpSoundField || selection_ == 9) solo(PlaybackMode::Arp);
+        if (selection_ == drumKitField || selection_ == drumPatternField) solo(PlaybackMode::Drums);
+        if (selection_ == bassSoundField || selection_ == bassPatternField) solo(PlaybackMode::Bass);
     }
-    if (setting && selection_ == 14) {
+    if (setting && (selection_ == 14 || selection_ == frontMixField)) {
         instrument_.auditionFront(sound, 0);
         return;
     }
@@ -936,6 +1085,7 @@ void SettingsEditor::selectBackingTab(int tab) {
 }
 void SettingsEditor::openTempo() {
     tempo_ = true;
+    tempoRow_ = 0;
     tempoReplace_ = true;
     tempoInput_ = std::to_string(instrument_.settings.bpm);
     tempoError_.clear();
@@ -1061,10 +1211,11 @@ SettingsEditor::RowKind SettingsEditor::rowKind(int field) const {
     case Page::Combinations:
         return field == 5 || field == 6 ? RowKind::Number : RowKind::Opens;
     case Page::VolumeEffects:
+        if (field == outputField) return RowKind::Opens;
         return field == systemVolumeField && !systemVolume_ ? RowKind::Plain : RowKind::Number;
     default: break;
     }
-    if (mixField(field) || field == 8) return RowKind::Number;
+    if (mixField(field) || field == 8 || field == frontMixField) return RowKind::Number;
     if (field == 19 || field == 20 || field == backingField || field == frontSoundField ||
         field == volumeEffectsField || field == 3 || field == 22 || envelopeRow(field))
         return RowKind::Opens;
@@ -1077,6 +1228,19 @@ SettingsEditor::RowKind SettingsEditor::selectedKind() const {
 void SettingsEditor::adjust(int direction) {
     if (page_ == Page::Backing && mixField(selection_)) {
         adjustMix(direction);
+        return;
+    }
+    if (page_ == Page::FrontSound && selection_ == frontMixField) { // Steps of 5, like a mix.
+        auto &level = instrument_.settings.frontMix;
+        const int next = std::clamp(level + direction * 5, 0, 100);
+        if (next == level) return;
+        level = next;
+        instrument_.configure();
+        buildChoices();
+        choice_ = 0;
+        for (int n = 0; n < int(choices_.size()); n++)
+            if (choices_[n].value == next) choice_ = n;
+        preview();
         return;
     }
     const auto kind = selectedKind();
@@ -1145,34 +1309,46 @@ void SettingsEditor::jumpTab(int tab) {
     }
     instrument_.panic();
 }
+void SettingsEditor::adjustSwing(int direction) {
+    // Swing applies live, like a mix level; typing still sets the tempo on Enter.
+    auto &s = instrument_.settings;
+    if (tempoRow_ == 1) s.swingMode = (s.swingMode + direction + swingModeCount) % swingModeCount;
+    if (tempoRow_ == 2) s.swingAmount = std::clamp(s.swingAmount + direction * 5, 0, 100);
+}
+void SettingsEditor::restoreSwing() {
+    auto &s = instrument_.settings;
+    const auto &preset = instrument_.library.current(s).sound;
+    s.swingMode = preset.swingMode;
+    s.swingAmount = preset.swingAmount;
+}
 void SettingsEditor::adjustMix(int direction) {
     auto s = instrument_.settings;
     const auto layer = mixLayer(selection_);
     const int value = std::clamp(s.mix(layer) + direction * 5, 0, 100);
-    const bool unmute = direction > 0 && !layerEnabled(s.mode, layer); // Raising unmutes.
+    const bool unmute = direction > 0 && !s.enabled(layer); // Raising unmutes.
     if (value == s.mix(layer) && !unmute) return;
-    if (unmute) s.mode = modeForLayers(backingLayers(s.mode) | backingLayers(layer));
+    if (unmute) s.setEnabledLayers(s.enabledLayers() | backingLayers(layer));
     s.mix(layer) = value;
-    instrument_.setBacking(s.mode, s.layerMix);
+    instrument_.setBacking(s.enabledLayers(), s.layerMix);
 }
 void SettingsEditor::toggleLayer() {
     auto s = instrument_.settings;
     const auto layer = mixLayer(selection_);
-    s.mode = modeForLayers(backingLayers(s.mode) ^ backingLayers(layer));
-    if (layerEnabled(s.mode, layer) && s.mix(layer) == 0) {
+    s.setEnabledLayers(s.enabledLayers() ^ backingLayers(layer));
+    if (s.enabled(layer) && s.mix(layer) == 0) {
         const int preset = instrument_.library.current(s).sound.mix(layer);
-        s.mix(layer) = preset > 0 ? preset : 100;
+        s.mix(layer) = preset > 0 ? preset : layer == PlaybackMode::Drums ? 60 : 100;
     }
-    instrument_.setBacking(s.mode, s.layerMix);
+    instrument_.setBacking(s.enabledLayers(), s.layerMix);
 }
 void SettingsEditor::restoreLayer() {
     auto s = instrument_.settings;
     const auto &d = instrument_.library.current(s).sound;
     const auto layer = mixLayer(selection_);
     const unsigned bit = backingLayers(layer);
-    s.mode = modeForLayers((backingLayers(s.mode) & ~bit) | (backingLayers(d.mode) & bit));
+    s.setEnabledLayers((s.enabledLayers() & ~bit) | (d.enabledLayers() & bit));
     s.mix(layer) = d.mix(layer);
-    instrument_.setBacking(s.mode, s.layerMix);
+    instrument_.setBacking(s.enabledLayers(), s.layerMix);
 }
 void SettingsEditor::openPicker() {
     if (soundField(selection_) && (page_ == Page::Backing || page_ == Page::FrontSound)) {
@@ -1328,9 +1504,21 @@ void SettingsEditor::restoreField() {
                 s.arpProgram = d.arpProgram;
                 s.arpSound = d.arpSound;
             }
+            if (selection_ == bassSoundField) {
+                s.bassProgram = d.bassProgram;
+                s.bassSound = d.bassSound;
+            }
             instrument_.configure();
-        } else
+        } else if (selection_ == drumKitField) {
+            auto &s = instrument_.settings;
+            const auto &d = instrument_.library.current(s).sound;
+            s.drumKit = d.drumKit;
+            s.drumSound = d.drumSound;
+            instrument_.configure();
+        } else {
+            if (selection_ == 8) restoreSwing(); // Tempo restores its swing too.
             applyChoice(v);
+        }
         status_ = "Restored to default";
     }
 }
@@ -1345,7 +1533,8 @@ void SettingsEditor::cancelPending() {
     }
 }
 bool SettingsEditor::repeatable(char key) const {
-    if (!settingsOpen || tempo_) return false;
+    if (tempo_) return tempoRow_ == 2 && (key == 19 || key == 20 || key == 'z' || key == 'c');
+    if (!settingsOpen) return false;
     return key == 17 || key == 18 || key == 'f' || key == 'x' || key == 19 || key == 20 ||
            key == 'z' || key == 'c';
 }
@@ -1413,20 +1602,32 @@ void SettingsEditor::handleKey(char key, bool down) {
         return;
     }
     if (tempo_) {
+        // Rows: Tempo (typed, applied with Enter), Swing (Off / 8ths / 16ths) and Amount.
+        // Swing changes apply at once; Esc keeps them and drops an unapplied tempo.
         tempoError_.clear();
         if (key == 27) {
             tempo_ = false;
         } else if (key >= '0' && key <= '9') {
+            tempoRow_ = 0;
             if (tempoReplace_) tempoInput_.clear();
             tempoReplace_ = false;
             if (tempoInput_.size() < 3) tempoInput_ += key;
         } else if (key == '\b') {
+            tempoRow_ = 0;
             if (tempoReplace_) tempoInput_.clear();
             else if (!tempoInput_.empty()) tempoInput_.pop_back();
             tempoReplace_ = false;
+        } else if (key == 17 || key == 'f' || key == 18 || key == 'x') {
+            tempoRow_ = std::clamp(tempoRow_ + (key == 18 || key == 'x' ? 1 : -1), 0, 2);
+        } else if (key == 19 || key == 'z' || key == 20 || key == 'c') {
+            adjustSwing(key == 19 || key == 'z' ? -1 : 1);
         } else if (key == 'r') {
-            tempoInput_ = std::to_string(instrument_.library.current(instrument_.settings).sound.bpm);
+            const auto &preset = instrument_.library.current(instrument_.settings).sound;
+            tempoInput_ = std::to_string(preset.bpm);
             tempoReplace_ = true;
+            restoreSwing();
+        } else if (key == '\n' && tempoRow_ == 1) {
+            adjustSwing(1);
         } else if (key == '\n') {
             int bpm = tempoInput_.empty() ? 0 : std::stoi(tempoInput_);
             if (bpm < 40 || bpm > 240) tempoError_ = "Tempo must be 40-240 BPM";
@@ -1533,7 +1734,7 @@ void SettingsEditor::handleKey(char key, bool down) {
     }
     if (key == '\n') {
         if (page_ == Page::Setup || page_ == Page::Backing || page_ == Page::FrontSound) openSetting();
-        else if (page_ != Page::VolumeEffects) openPicker();
+        else if (page_ != Page::VolumeEffects || selection_ == outputField) openPicker();
     }
 }
 } // namespace zc

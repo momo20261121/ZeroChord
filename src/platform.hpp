@@ -13,6 +13,8 @@ class Platform {
     void capture(const std::string &path) const;
     std::optional<int> systemVolume() const;
     bool setSystemVolume(int percent) const;
+    // Headphone jack switch: 1 plugged in, 0 not, -1 unknown (no jack switch, or desktop).
+    int headphones() const;
 
   private:
     struct Impl;
