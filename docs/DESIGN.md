@@ -81,8 +81,8 @@ mapping as a working baseline; exact musical behavior remains open.
 | 9 | Previous preset |
 | 0 | Next preset |
 | I | Toggle chord hold |
-| O | Checkbox popup for Chord, Arp and Pad. Clear all for Front only |
-| P | Enter tempo (40–240 BPM) |
+| O | Backing layers: mute and mix Chord, Arp, Pad, Bass and Drums. None audible is Front only |
+| P | Tempo page: Tempo (typed, 40–240 BPM), Swing (Off / 8ths / 16ths) and Swing amount (0–100%) |
 | Space | Stop all sound; detailed reset behavior to be specified |
 | Tab | Open/close settings |
 | Esc | Back/close the current panel; long press returns home |
@@ -180,24 +180,35 @@ Current milestone: validate the playable prototype on the actual device.
   and confirmations (rows marked >), Esc backs out. Leaving an option (row, tab,
   list, page, or settings) stops its preview.
 - O and Style → Backing layers open one page: a Layers tab (Enter mutes, ←/→ mix, both
-  live) and Chord / Arp / Pad tabs for pattern, sound, and envelope. No layer
-  audible means Front only.
-  Chord, Arp and Pad can run together. Front notes remain independent.
-- Chord/Arp have separate pattern state on a common sixteenth-note clock.
+  live), Chord / Arp / Pad / Bass tabs for pattern, sound, and envelope (Chord
+  and Pad end with Voicing: Close, Open, Power, Rich), and a Drums tab for kit and
+  pattern. No layer audible means Front only. Front sound has Sound, Envelope and
+  Level (the front's mix in this style).
+- The Tempo page has three rows: Tempo (digits, Enter applies), Swing (Off /
+  8ths / 16ths; Enter or ←/→) and Swing amount (←/→, 5% steps, dimmed while Off). Swing
+  rows apply live; Esc keeps them and drops an unapplied tempo.
+- App → Volume & effects ends with Output (Auto / Speaker / Headphones, a list).
+  Auto follows the headphone jack where the device reports it.
+  All five layers can run together. Front notes remain independent.
+- Chord/Arp/Bass/Drums have separate pattern state on a common sixteenth-note
+  clock; 8ths swing delays the "and", 16ths swing every second 16th. Bass follows the chord's lowest note
+  (root or slash bass) in a low register. Drums play General MIDI kits (bank 128)
+  and ignore the chord's notes.
   Pattern edits take effect at their current pattern boundary; harmony changes
   retain phase. Starting/stopping layers or presets starts a new phrase; mix
   changes update ringing notes.
 - Chord patterns include Manual hit, Sustained, Every beat, Every eighth,
-  Offbeat, Syncopated, Bass/chord 3/4, and Bossa accompaniment. Bass events use
+  Offbeat, Syncopated, Bass/chord 3/4, Bossa accompaniment, Pop strum, Chords on
+  2 and 3, and Rock eighths. Bass events use
   a lower octave. Arps use descriptive names; legacy saved IDs remain readable.
 - Pad motion (Steady, Slow swell, Breathe, Pulse) modulates only Pad gain.
-  Each layer plays at its mix; loud combinations are balanced by
-  1/√(sum of squared mixes). Front gain is independent.
-- Chord/Arp bound attack to 10 ms and release to 200 ms (250 ms for Sustained),
+  Each layer mix is an independent fader over level-matched sounds; a limiter
+  provides the headroom. Front gain is independent.
+- Chord/Arp/Bass bound attack to 10 ms and release to 200 ms (250 ms for Sustained),
   preserve native decay/sustain, then apply explicit envelope overrides.
-  Chord, Arp, and Pad each keep a separate sound and envelope. Layer changes release backing without
+  Chord, Arp, Pad, and Bass each keep a separate sound and envelope. Layer changes release backing without
   silencing Front. Panic removes all synth voices and echo.
-- Style presets include BPM, enabled layers, patterns, and independent sounds. Each has
+- Style presets include BPM, swing, enabled layers, patterns, and independent sounds. Each has
   editable TOML defaults plus a remembered working snapshot. Individual fields
   and entire presets can be restored; save-as creates a new user default.
   App-wide theme, master/backing/front volume, echo, sweep, key/scale, Hold and chord mappings survive

@@ -65,7 +65,7 @@ volume_effects = ['TAB','TAB','x','ENTER']
 chord_config = ['TAB','TAB','x','x','ENTER']
 front_envelope = ['TAB','x','x','x','ENTER','x','ENTER']
 
-run('fresh-defaults', [], {'chordVolume':80, 'harpVolume':100, 'preset':1, 'mode':7, 'chordPattern':5, 'bpm':80})
+run('fresh-defaults', [], {'chordVolume':80, 'harpVolume':100, 'preset':0, 'mode':7, 'chordPattern':5, 'bpm':70, 'drums':1, 'drumMix':100, 'bass':1, 'bassMix':71, 'swingMode':0, 'swingAmount':50})
 run('volume-settings', volume_effects, {'masterVolume':100})
 run('physical-volume-edit', volume_effects + ['x','x','c','x','z'],
     {'chordVolume':85, 'harpVolume':95})
@@ -73,8 +73,11 @@ run('physical-volume-restore', volume_effects + ['x','x','BACKSPACE'],
     {'chordVolume':80, 'harpVolume':62}, 'chordVolume 37\nharpVolume 62\n')
 run('tempo-type-and-cancel', ['p','1','3','7','ENTER','p','2','4','0','ESC'], {'bpm':137})
 run('menu-tempo-type', ['TAB','x','ENTER','4','0','ENTER'], {'bpm':40})
-run('menu-tempo-arrows', ['TAB','x','c','c','c','z'], {'bpm':82})
-run('tempo-invalid-stays-open', ['p','2','4','1','ENTER'], {'bpm':80})
+run('menu-tempo-arrows', ['TAB','x','c','c','c','z'], {'bpm':72})
+run('tempo-invalid-stays-open', ['p','2','4','1','ENTER'], {'bpm':70})
+run('tempo-swing', ['p','DOWN','ENTER','DOWN','RIGHT','RIGHT','c','z','ESC'],
+    {'bpm':70, 'swingMode':1, 'swingAmount':60})
+run('output-speaker', volume_effects + ['x']*8 + ['ENTER','x','ENTER'], {'output':1})
 run('absolute-roots-and-octaves',
     chord_config + ['x','ENTER','x','ENTER','2','ENTER'] + ['x']*7 + ['ENTER','3','f'] + ['c']*6,
     {'tonic':1, 'degreeChordRoot0':6, 'degreeChordOctave1':4})
@@ -100,17 +103,21 @@ run('sustained-chord-physical', ['TAB','x','x','ENTER','2','ENTER','x','ENTER'],
     {'chordPattern':5}, 'chordPattern 0\n')
 run('backing-live-mute', ['o','ENTER','ESC'], {'mode':6})
 run('backing-mute-and-unmute', ['o','ENTER','ENTER','ESC'], {'mode':7})
-run('backing-mix', ['o','z','z','x','c'], {'chordMix':90, 'arpMix':100, 'mode':7})
+run('backing-mix', ['o','z','z','x','c'], {'chordMix':27, 'arpMix':77, 'mode':7})
 run('backing-front-only', ['o','ENTER','x','ENTER','x','ENTER'], {'mode':3})
 run('backing-arp-row', ['o','x','ENTER'], {'mode':4})
 run('backing-style-page', ['TAB','x','x','ENTER','x','x','ENTER'], {'mode':5})
 run('backing-two-layers', ['o','ENTER','x','x','ENTER'], {'mode':2})
-run('restore-preset-confirm', ['TAB','f','ENTER','ENTER'], {'bpm':80}, 'bpm 120\n')
+run('backing-bass-mute', ['o','x','x','x','ENTER','ESC'], {'mode':7, 'bass':0, 'drums':1})
+run('backing-drums-mute', ['o','x','x','x','x','ENTER','ESC'], {'mode':7, 'drums':0, 'bass':1})
+run('backing-drum-kit', ['o','6','ENTER','x','ENTER','ESC'], {'drumKit':8, 'drums':1})
+run('backing-bass-pattern', ['o','5','ENTER','x','ENTER','ESC'], {'bassPattern':2, 'bass':1})
+run('restore-preset-confirm', ['TAB','f','ENTER','ENTER'], {'bpm':70}, 'bpm 120\n')
 run('restore-preset-keep', ['TAB','f','ENTER','ESC'], {'bpm':120}, 'bpm 120\n')
-run('front-source-rate', ['TAB','x','x','x','ENTER','ENTER'], {'harpProgram':10})
-run('mixed-source-rate', ['TAB','x','x','ENTER','2','x','ENTER'], {'chordProgram':88})
-run('strings-source-rate', ['TAB','x','x','x','ENTER','ENTER','TAB'], {'harpProgram':10})
-run('about-dark', ['TAB','TAB','TAB','x','ENTER','BACKSPACE'], {'theme':0, 'preset':1})
+run('front-source-rate', ['TAB','x','x','x','ENTER','ENTER'], {'harpProgram':11})
+run('mixed-source-rate', ['TAB','x','x','ENTER','2','x','ENTER'], {'chordProgram':49})
+run('strings-source-rate', ['TAB','x','x','x','ENTER','ENTER','TAB'], {'harpProgram':11})
+run('about-dark', ['TAB','TAB','TAB','x','ENTER','BACKSPACE'], {'theme':0, 'preset':0})
 run('about-light', ['TAB','3'], {'theme':1}, 'theme 1\n')
 run('about-wrap', ['TAB','3','TAB','x','ENTER','1','3','7','ENTER'], {'bpm':137})
-print('PASS: 37 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')
+print('PASS: 43 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')

@@ -173,8 +173,13 @@ unadapted envelope. No shared SoundFont regions are changed.
 Regular eighth-note arps use a 1.9-sixteenth gate for each two-sixteenth interval
 (95%), avoiding the former 40% gate gap. Deliberately syncopated patterns keep
 rests. Independent Chord and Arp schedulers share one transport; Pad motion
-modulates only Pad channels. Combined backing layers use 1/√(layer count) gain
-for headroom. Front remains independent.
+modulates only Pad channels. Layer mixes are independent faders; each melodic
+sound is level-matched to the built-in Piano, and a look-ahead limiter at
+−1 dBFS provides the headroom. Front remains independent. The
+[preset guide](PRESETS.md#app-settings-and-mixing) describes the buses, reverb,
+echo, and Output stage; `zerochord-styles`
+([development guide](DEVELOPMENT.md#style-balance)) measures each style's
+layer levels.
 
 The adapter uses TinySoundFont internals at the pinned revision above; recheck
 its envelope setup when updating that dependency. Local tests cover finite,

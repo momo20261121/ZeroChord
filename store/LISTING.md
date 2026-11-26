@@ -16,7 +16,7 @@
 ```text
 Inspired by minichord and the Suzuki Omnichord, ZeroChord turns your CardputerZero keyboard into a pocket instrument. Choose a chord with one hand and pick or strum its notes with the other.
 
-Play solo or add backing layers. Nine editable presets give you different sounds and rhythms to start with.
+Play solo or add backing layers. Seven editable presets give you different sounds and rhythms to start with.
 
 Try it
 1. Press 8 for C major.

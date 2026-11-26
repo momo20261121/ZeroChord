@@ -18,6 +18,13 @@ default in a list.
   the front's own key and scale together. `Backspace` follows the chord again.
   The notes can play before you choose a backing chord. Holding `1`
   raises new scale notes by one semitone, including custom notes and octaves.
+- **Scale.** **Follow chord** uses the Chord config scale. The front's own
+  scale can be Major, Natural minor, Major pentatonic, Minor pentatonic, Blues,
+  Harmonic minor, Melodic minor, Dorian, Mixolydian, Lydian, or Phrygian.
+  Pentatonic scales have five notes and Blues six, fewer than the seven keys,
+  so the remaining keys continue an octave up: with a pentatonic scale, `N` and
+  `M` play notes 1 and 2 an octave higher; with Blues, `M` plays note 1 an
+  octave higher. A key set to a fixed Octave stays in that octave.
 - **Sharpen chord notes.** Holding `1` raises new front notes one semitone above the
   selected chord's notes, including when that chord was already sharp. The
   backing chord stays unchanged. Ringing notes and queued strums keep their
@@ -46,7 +53,9 @@ separate for each mode and is not saved into per-key mappings.
   the chord root. Chord tones follow the selected chord quality. A fixed +4 is
   always a major third above the root. The example shows the resulting pitch.
 - **Note, in Scale notes:** choose degree I–VII. The shown interval follows the
-  selected major or natural-minor scale.
+  selected scale. For a pentatonic or Blues scale, the choices read **Note 1**,
+  **Note 2**, and so on, and those past the scale's last note add **up**, such
+  as **Note 1 up**, for the next octave.
 - **Octave.** An octave of 4 means C4–B4. **Auto octave (4)** shows that the
   original layout puts this example pitch in octave 4. Set a specific octave to
   choose where the note plays.
@@ -78,9 +87,12 @@ latest chord selection. Releases do not retrigger partial combinations. Panic
 cancels a pending chord. Resetting All restores timing, Hold, and mappings.
 
 Chord config begins with Octave on each tab. All contains Key, Scale, and Hold.
-**Scale** places the degree roots in major or natural minor, where III, VI, and
-VII sit a semitone lower. Degree tabs contain absolute Root overrides. Follow
-Key / Follow All restores inheritance.
+**Scale** places the degree roots in one of eight seven-note scales: Major,
+Natural minor, Harmonic minor, Melodic minor, Dorian, Mixolydian, Lydian, or
+Phrygian. Each choice lists its roots in the current key; in Natural minor, III,
+VI, and VII sit a semitone lower. Pentatonic and Blues are front-only, because
+the chord grid needs seven roots. Degree tabs contain absolute Root overrides.
+Follow Key / Follow All restores inheritance.
 
 ### Choose a chord quality
 

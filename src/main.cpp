@@ -159,6 +159,7 @@ int main(int argc, char **argv) {
             else
                 instrument.key(key, down, now);
         };
+        uint64_t nextJackCheck = 0;
         while (!stopping && !quit) {
             uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
                                std::chrono::steady_clock::now() - start)
@@ -176,6 +177,10 @@ int main(int argc, char **argv) {
             }
             if (escDown && now - escAt >= 800)
                 quit = true;
+            if (now >= nextJackCheck) { // Auto output follows the headphone jack.
+                instrument.setJack(platform.headphones());
+                nextJackCheck = now + 1000;
+            }
             instrument.tick(now);
             ui.tick(now);
             ui.draw();

@@ -11,11 +11,17 @@ inline void tap(SettingsEditor &e, char key) {
 }
 // Backing tab holding a field, or -1 when the field is not on the Backing page.
 inline int backingTabFor(int field) {
-    if (field >= SettingsEditor::chordMixField && field < SettingsEditor::chordMixField + 3) return 0;
+    if ((field >= SettingsEditor::chordMixField && field < SettingsEditor::chordMixField + 3) ||
+        field == SettingsEditor::drumMixField || field == SettingsEditor::bassMixField)
+        return 0;
     if (field == 11 || field == 13 || field == 24) return 1;
     if (field == 9 || field == SettingsEditor::arpSoundField || field == SettingsEditor::arpEnvelopeField)
         return 2;
     if (field == 12 || field == 21 || field == 25) return 3;
+    if (field == SettingsEditor::bassPatternField || field == SettingsEditor::bassSoundField ||
+        field == SettingsEditor::bassEnvelopeField)
+        return 4;
+    if (field == SettingsEditor::drumKitField || field == SettingsEditor::drumPatternField) return 5;
     return -1;
 }
 inline void selectRow(SettingsEditor &e, int field) {

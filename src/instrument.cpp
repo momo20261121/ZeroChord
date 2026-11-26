@@ -1,5 +1,6 @@
 #include "instrument.hpp"
 #include "patterns.hpp"
+#include "sounds.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -24,24 +25,81 @@ void Instrument::stopChord() {
         sink_.send(Command{CommandType::Off, id});
     chordVoices_.clear();
 }
-void Instrument::hit(unsigned mask, int duration, float accent, Part part, bool bass) {
-    auto notes = chordNotes(chord);
+float Instrument::random() {
+    random_ = random_ * 1664525u + 1013904223u;
+    return float(random_ >> 8) / float(1u << 24);
+}
+bool Instrument::strummed() const {
+    int program = settings.chordProgram;
+    if (auto *sound = soundLibrary().find(settings.chordSound); sound && !sound->bank.empty())
+        program = sound->program;
+    // Steel-string and electric guitars, harp, and the plucked ethnic strings. Nylon (24)
+    // stays fingerpicked, as in bossa: its notes sound together.
+    return (program >= 25 && program <= 31) || program == 46 || (program >= 104 && program <= 107);
+}
+std::array<int, 4> Instrument::partNotes(Part part) {
+    const bool bassLayer = settings.audible(PlaybackMode::Bass);
+    if (part == Part::Arp) {
+        // Arpeggios run an octave above the chord voicing. With a bass line, a slash bass
+        // belongs to the bass, so the arp keeps the chord's own root.
+        Chord own = chord;
+        if (bassLayer) own.bass = -1;
+        auto notes = chordNotes(own);
+        for (auto &note : notes) note = std::clamp(note + 12, 0, 127);
+        return notes;
+    }
+    auto &cache = voiced_[part == Part::Pad ? 1 : 0];
+    const int voicing = part == Part::Pad ? settings.padVoicing : settings.chordVoicing;
+    if (!(cache.chord == chord) || cache.voicing != voicing || cache.notes[1] < 0) {
+        auto previous = cache.voicing == voicing ? cache.notes : std::array<int, 4>{-1, -1, -1, -1};
+        cache.notes = voicedChord(chord, voicing, previous);
+        cache.chord = chord;
+        cache.voicing = voicing;
+    }
+    return cache.notes;
+}
+void Instrument::hit(unsigned mask, int duration, float accent, Part part, bool bass,
+                     int transpose, int tick) {
+    auto notes = partNotes(part);
+    // With a bass line playing the root, full chords leave it out; a pattern's lone root
+    // and power chords keep it.
+    const int voicing = part == Part::Pad ? settings.padVoicing : settings.chordVoicing;
+    if (part != Part::Arp && mask != 1 && voicing != VoicingPower &&
+        settings.audible(PlaybackMode::Bass))
+        notes[0] = -1;
+    // Bass-register steps keep the root-position chord tone an octave down.
+    const auto tones = chordNotes(chord);
+    int count = 0;
     for (int n = 0; n < 4; n++)
-        if (mask & (1u << n)) {
-            auto id = ++nextId_;
-            if (!duration)
-                chordVoices_.push_back(id);
-            Command c{CommandType::On, id, std::max(0, notes[n] - (bass ? 12 : 0)), duration, part};
-            c.gain = accent;
-            sink_.send(c);
-        }
+        if ((mask & (1u << n)) && (bass || notes[n] >= 0)) ++count;
+    // Plucked strings strum: down on the beat, up (quicker, softer) on the offbeats.
+    const bool strum = part == Part::Chord && strummed() && count > 1;
+    const bool up = strum && tick >= 0 && tick % 4 == 2;
+    int order = 0;
+    for (int step = 0; step < 4; step++) {
+        const int n = up ? 3 - step : step;
+        if (!(mask & (1u << n))) continue;
+        const int note = bass ? tones[n] - 12 : notes[n];
+        if (note < 0) continue;
+        auto id = ++nextId_;
+        if (!duration)
+            chordVoices_.push_back(id);
+        Command c{CommandType::On, id, std::clamp(note + transpose, 0, 127), duration, part};
+        // A little human variation: notes land up to a few ms late, a few percent apart.
+        const int late = int(random() * (part == Part::Pad ? 2000 : 4000));
+        c.delayUs = late + (strum ? order * (up ? 6000 : 9000) : count > 1 ? int(random() * 2500) : 0);
+        c.gain = std::clamp(accent * (up ? .85f : 1.f) * (.95f + .1f * random()), 0.f, 1.f);
+        sink_.send(c);
+        ++order;
+    }
 }
 void Instrument::resetTransport() {
     phase_ = 0;
     nextTick_ = 0;
     patternStarts_.fill(0);
     lastTick_ = now_;
-    playingPatterns_ = {settings.chordPattern, settings.pattern};
+    playingPatterns_ = {settings.chordPattern, settings.pattern, settings.drumPattern,
+                        settings.bassPattern};
     lastGain_ = 1;
 }
 void Instrument::soundChord() {
@@ -54,6 +112,22 @@ void Instrument::soundChord() {
         if (settings.chordPattern == 0) hit(15, 400);
         else if (settings.chordPattern == sustainedChordPattern) hit(15, 0);
     }
+}
+void Instrument::bassHit(const PatternStep &step, int duration) {
+    // The chord's lowest note (its root, or a slash bass) sets the bass register.
+    const auto tones = chordNotes(chord);
+    int root = tones[0] - 12;
+    int shift = -12;
+    while (root > 52) root -= 12, shift -= 12;
+    while (root < 28) root += 12, shift += 12;
+    for (int n = 0; n < 4; n++)
+        if (step.notes & (1 << n)) {
+            Command c{CommandType::On, ++nextId_,
+                      std::clamp(tones[n] + shift + step.transpose, 0, 127), duration, Part::Bass};
+            c.gain = std::clamp(step.accent * (.95f + .1f * random()), 0.f, 1.f);
+            c.delayUs = int(random() * 3000);
+            sink_.send(c);
+        }
 }
 void Instrument::select(int column, uint64_t now) {
     if (baseColumn_ < 0 || !mask(baseColumn_))
@@ -188,7 +262,38 @@ void Instrument::key(char key, bool down, uint64_t now) {
     if (key == ' ')
         panic();
 }
+double Instrument::swingOffset(int64_t tick) const {
+    // Ticks are 16ths. 100% swing puts the delayed note on the triplet: a swung 16th moves a
+    // third of a 16th; a swung eighth moves two thirds of a 16th, its 16ths in proportion.
+    const double amount = settings.swingAmount / 100.;
+    const int position = int(((tick % 4) + 4) % 4);
+    if (settings.swingMode == SwingSixteenths) return position % 2 ? amount / 3. : 0.;
+    if (settings.swingMode == SwingEighths) {
+        const double shift = amount * 2. / 3.;
+        return position == 2 ? shift : position % 2 ? shift / 2. : 0.;
+    }
+    return 0.;
+}
+void Instrument::sendSettings(const Settings &s) {
+    soundLibrary().prepareGains(s);
+    Command c{CommandType::Configure};
+    c.settings = s;
+    sink_.send(c);
+}
+void Instrument::setJack(int state) {
+    if (state == jack) return;
+    jack = state;
+    Command c{CommandType::Route};
+    c.pitch = state != 0; // Unknown plays full range, as on headphones.
+    sink_.send(c);
+}
 void Instrument::runTick(uint64_t now) {
+    if (sentBpm_ > 0 && settings.bpm != sentBpm_) { // The echo follows the tempo live.
+        sentBpm_ = settings.bpm;
+        Command c{CommandType::Tempo};
+        c.pitch = settings.bpm;
+        sink_.send(c);
+    }
     for (auto it = pending_.begin(); it != pending_.end();) {
         if (it->at <= now) {
             pluck(it->pitch, it->index, now);
@@ -201,14 +306,19 @@ void Instrument::runTick(uint64_t now) {
     if (active && !chordPending_ && settings.audibleLayers()) {
         if (nextTick_ + 32 < phase_)
             nextTick_ = int64_t(phase_); // Do not flood audio after a stall.
-        while (nextTick_ <= phase_) {
-            for (int layer = 0; layer < 2; ++layer) {
-                auto mode = layer == 0 ? PlaybackMode::Chord : PlaybackMode::Arp;
+        while (nextTick_ + swingOffset(nextTick_) <= phase_) {
+            for (int layer = 0; layer < 4; ++layer) {
+                static constexpr PlaybackMode modes[]{PlaybackMode::Chord, PlaybackMode::Arp,
+                                                      PlaybackMode::Drums, PlaybackMode::Bass};
+                const auto mode = modes[layer];
                 if (!settings.audible(mode)) continue;
                 const auto &list = patterns(mode);
                 int &playing = playingPatterns_[layer];
                 playing = std::clamp(playing, 0, int(list.size()) - 1);
-                int desired = layer == 0 ? settings.chordPattern : settings.pattern;
+                int desired = layer == 0   ? settings.chordPattern
+                              : layer == 1 ? settings.pattern
+                              : layer == 2 ? settings.drumPattern
+                                           : settings.bassPattern;
                 auto &start = patternStarts_[layer];
                 if ((nextTick_ - start) % list[playing].ticks == 0 && playing != desired) {
                     playing = desired;
@@ -216,10 +326,22 @@ void Instrument::runTick(uint64_t now) {
                 }
                 const auto &p = list[playing];
                 int at = int((nextTick_ - start) % p.ticks);
-                for (const auto &step : p.steps)
-                    if (step.tick == at)
-                        hit(unsigned(step.notes), std::max(20, int(step.gate * 15000 / settings.bpm)),
-                            step.accent, layer == 0 ? Part::Chord : Part::Arp, step.bass);
+                for (const auto &step : p.steps) {
+                    if (step.tick != at) continue;
+                    const int duration = int(step.gate * 15000 / settings.bpm);
+                    if (mode == PlaybackMode::Bass) {
+                        bassHit(step, std::max(40, duration));
+                    } else if (mode == PlaybackMode::Drums) {
+                        // One drum note per step, independent of the chord.
+                        Command c{CommandType::On, ++nextId_, step.notes, std::max(60, duration),
+                                  Part::Drums};
+                        c.gain = std::clamp(step.accent * (.94f + .12f * random()), 0.f, 1.f);
+                        c.delayUs = int(random() * 3000);
+                        sink_.send(c);
+                    } else
+                        hit(unsigned(step.notes), std::max(20, duration), step.accent,
+                            layer == 0 ? Part::Chord : Part::Arp, step.bass, step.transpose, at);
+                }
             }
             ++nextTick_;
         }
@@ -289,24 +411,22 @@ void Instrument::setBackingMode(PlaybackMode mode) {
     stopChord();
     sink_.send(Command{CommandType::StopChord});
     settings.mode = mode;
-    Command c{CommandType::Configure};
-    c.settings = settings;
-    sink_.send(c);
+    sendSettings(settings);
+    sentBpm_ = settings.bpm;
     resetTransport();
     soundChord();
 }
-void Instrument::setBacking(PlaybackMode mode, const std::array<int, 3> &mix) {
+void Instrument::setBacking(unsigned layers, const std::array<int, 5> &mix) {
     const unsigned before = settings.audibleLayers();
-    settings.mode = mode;
+    settings.setEnabledLayers(layers);
     settings.layerMix = mix;
     settings.clamp();
     if (settings.audibleLayers() != before) {
         setBackingMode(settings.mode); // Start or stop layers with the current chord.
         return;
     }
-    Command c{CommandType::Configure};
-    c.settings = settings;
-    sink_.send(c); // Ringing notes follow the new levels.
+    sendSettings(settings); // Ringing notes follow the new levels.
+    sentBpm_ = settings.bpm;
     lastGain_ = 1; // Configure resets Pad motion; send its next level promptly.
 }
 void Instrument::configure() {
@@ -318,9 +438,8 @@ void Instrument::configure() {
     chordVoices_.clear();
     pending_.clear();
     lastGain_ = 1;
-    Command c{CommandType::Configure};
-    c.settings = settings;
-    sink_.send(c);
+    sendSettings(settings);
+    sentBpm_ = settings.bpm;
     soundChord();
 }
 std::array<int, 7> Instrument::playingFrontNotes() const {
@@ -336,9 +455,7 @@ void Instrument::stopAudition() {
 void Instrument::auditionFront(const Settings &s, int key) {
     panic();
     frontAudition_ = true;
-    Command config{CommandType::Configure};
-    config.settings = s;
-    sink_.send(config);
+    sendSettings(s);
     Chord c{s.chordRoot(6), -1, 6, Quality::Major};
     const auto &envelope = s.envelopes[0].values;
     int duration = std::max(900, std::max(0, envelope[0]) + std::max(0, envelope[1]) + 300);
@@ -351,9 +468,7 @@ void Instrument::audition(const Chord &c, const Settings &s, bool loop) {
     previewChord_ = c;
     previewLoop_ = loop;
     previewUntil_ = now_ + (loop ? 8000 : 1200);
-    Command config{CommandType::Configure};
-    config.settings = s;
-    sink_.send(config);
+    sendSettings(s);
     auto saved = settings;
     auto savedChord = chord;
     settings = s;

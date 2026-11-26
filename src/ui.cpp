@@ -61,11 +61,14 @@ int tabX(int index, int count) {
 void keycap(int x, int y, int width, const std::string &key, const lv_font_t *font,
             uint32_t face, uint32_t ink, int height = 13);
 
-// Numbered tabs: 1-8 jump to a tab, and the Tab keycap at the end moves to the next one.
+// Tabs drawn on the current page; the footer then shows Tab and 1-N.
+int pageTabs = 0;
+
+// Numbered tabs: 1-8 jump to a tab and Tab moves to the next one (hinted in the footer).
 void tabs(const std::vector<std::string> &names, int active, bool symbols = false) {
-    constexpr int keyWidth = 24;
     const int count = int(names.size());
-    const int width = tabsWidth - keyWidth - 3;
+    const int width = tabsWidth;
+    pageTabs = count;
     for (int n = 0; n < count; n++) {
         int x = tabsX + n * width / count;
         int w = tabsX + (n + 1) * width / count - x - 2;
@@ -74,11 +77,15 @@ void tabs(const std::vector<std::string> &names, int active, bool symbols = fals
         const int inset = n < 8 ? 10 : 2;
         if (n < 8) label(x + 2, 29, 7, std::to_string(n + 1), selected ? colors.bg : colors.signal);
         const bool symbol = symbols && n != 0; // Degree and key names; "All" stays text.
-        label(x + inset, symbol ? 31 : 29, w - inset - 1, names[n],
-              selected ? colors.bg : symbol ? colors.keyText : colors.text, symbol ? mono : small,
-              LV_TEXT_ALIGN_CENTER);
+        const auto *font = symbol ? mono : small;
+        // A long name in a narrow tab starts after its number rather than under it.
+        const int room = w - inset - 1;
+        const int start = textWidth(names[n], font) > room ? 9 : inset;
+        lv_label_set_long_mode(label(x + start, symbol ? 31 : 29, w - start - 1, names[n],
+                                     selected ? colors.bg : symbol ? colors.keyText : colors.text,
+                                     font, LV_TEXT_ALIGN_CENTER),
+                               LV_LABEL_LONG_CLIP);
     }
-    keycap(tabsX + width + 3, 28, keyWidth, "Tab", small, colors.keyFace, colors.keyText);
 }
 
 const Hint editedHint{"*", "Edited"};
@@ -90,7 +97,7 @@ const std::vector<std::string> setupTabNames{"Style", "App", "About"};
 constexpr char frontKeys[] = "ZXCVBNM";
 
 std::string keyLabel(const Settings &s) {
-    auto name = [](int tonic, int scale) { return noteName(tonic) + (scale ? " min" : " maj"); };
+    auto name = [](int tonic, int scale) { return noteName(tonic) + " " + scaleInfo(scale).abbr; };
     auto key = name(s.tonic, s.chordScale);
     if (s.frontMode && !s.frontFollow && (s.frontTonic != s.tonic || s.scale != s.chordScale))
         key += " / " + name(s.frontTonic, s.scale); // Front scale notes in their own key.
@@ -120,19 +127,23 @@ void keycap(int x, int y, int width, const std::string &key, const lv_font_t *fo
     lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
 }
 
-void hintLine(int y, std::initializer_list<Hint> hints, const lv_font_t *font = body,
+void hintLine(int y, const std::vector<Hint> &hints, const lv_font_t *font = body,
               bool caps = true, int gap = 8) {
     int x = 8;
     for (const auto &hint : hints) {
         if (!hint.key) continue;
         const auto *keyFont = caps && std::strlen(hint.key) == 1 ? mono : small;
         const int keyWidth = textWidth(hint.key, keyFont) + (caps ? 8 : 0);
-        const int actionWidth = textWidth(hint.action, font);
+        std::string action = hint.action;
+        if (x + keyWidth + 4 + textWidth(action, font) > 314 && !hint.shortAction.empty())
+            action = hint.shortAction;
+        const int actionWidth = action.empty() ? 0 : textWidth(action, font);
         if (x + keyWidth + 4 + actionWidth > 314) break; // Never clip a hint mid-word.
         if (caps) keycap(x, y, keyWidth, hint.key, keyFont, colors.keyFace, colors.keyText);
         else label(x, y, keyWidth, hint.key, colors.signal, keyFont);
-        x += keyWidth + 4;
-        label(x, y + (caps ? (font == body ? -1 : 1) : 0), actionWidth, hint.action, colors.muted, font);
+        x += keyWidth + (action.empty() ? 3 : 4);
+        if (action.empty()) continue;
+        label(x, y + (caps ? (font == body ? -1 : 1) : 0), actionWidth, action, colors.muted, font);
         x += actionWidth + gap;
     }
 }
@@ -142,7 +153,15 @@ void footer(const std::string &detail, const std::string &status,
             std::initializer_list<Hint> hints = {}) {
     if (!status.empty()) label(8, detailY, 306, status, colors.signal);
     else if (!detail.empty()) label(8, detailY, 306, detail, colors.muted);
-    hintLine(hintY, hints, small);
+    static const char *jumps[]{"1", "1-2", "1-3", "1-4", "1-5", "1-6", "1-7", "1-8"};
+    std::vector<Hint> line;
+    if (pageTabs > 1) {
+        line.push_back({"Tab", ""});
+        line.push_back({jumps[std::min(pageTabs, 8) - 1], "Switch tab"});
+    }
+    line.insert(line.end(), hints);
+    pageTabs = 0;
+    hintLine(hintY, line, small);
 }
 
 void rowFocus(int y, int height) {
@@ -158,9 +177,10 @@ void fieldRow(int y, int height, const std::string &name, const std::string &val
     label(16, y, 159, name, selected ? colors.accent : colors.text, body);
     const bool arrows = selected && kind == RowKind::Number;
     const std::string shown = arrows ? LV_SYMBOL_LEFT "  " + value + "  " LV_SYMBOL_RIGHT : value;
-    lv_label_set_long_mode(label(180, y, kind == RowKind::Opens ? 122 : 132, shown,
-                                 selected ? colors.text : colors.muted, body),
-                           LV_LABEL_LONG_DOT);
+    auto *valueLabel = label(180, y, kind == RowKind::Opens ? 122 : 132, shown,
+                             selected ? colors.text : colors.muted, body);
+    lv_obj_set_height(valueLabel, body->line_height); // One line: long values end in dots.
+    lv_label_set_long_mode(valueLabel, LV_LABEL_LONG_DOT);
     if (kind == RowKind::Opens) label(304, y, 10, ">", selected ? colors.accent : colors.muted, body);
 }
 
@@ -189,8 +209,9 @@ void statusField(int x, int width, const char *name, const std::string &value, b
 Hint UI::restoreHint() const {
     if (!canRestoreField()) return {};
     if (picker_) return {"Backspace", "Highlight the default"};
-    return {"Backspace", appPage() ? "Restore this option to its default"
-                                   : "Restore this option to its preset default"};
+    return appPage() ? Hint{"Backspace", "Restore this option to its default", "Restore default"}
+                     : Hint{"Backspace", "Restore this option to its preset default",
+                            "Restore preset default"};
 }
 void UI::menuFooter(bool edited) {
     footer(rowDescription(), status_, {restoreHint(), edited ? editedHint : Hint{}});
@@ -242,7 +263,8 @@ void UI::drawEnvelope() {
     label(8, 26, 304, instrument_.library.current(s).name + " / " +
                           settingValue(envelopePart_ == FrontEnvelope ? 14
                                        : envelopePart_ == PadEnvelope ? 21
-                                       : envelopePart_ == ArpEnvelope ? arpSoundField : 13),
+                                       : envelopePart_ == ArpEnvelope ? arpSoundField
+                                       : envelopePart_ == BassEnvelope ? bassSoundField : 13),
           colors.muted);
     bool anyEdited = false;
     for (int field = 0; field < 5; field++) {
@@ -259,18 +281,20 @@ void UI::drawBacking() {
     const auto &s = instrument_.settings;
     label(8, 5, 200, "Backing layers", colors.accent, titleFont);
     label(200, 8, 114, instrument_.library.current(s).name, colors.muted, small, LV_TEXT_ALIGN_RIGHT);
-    tabs({"Layers", "Chord", "Arp", "Pad"}, backingTab_);
+    tabs({"Layers", "Chord", "Arp", "Pad", "Bass", "Drums"}, backingTab_);
     if (backingTab_ != 0) {
         menuFooter(drawSettingRows(46, visibleRows, rowHeight));
         return;
     }
     bool edited = false;
-    for (int n = 0; n < 3; ++n) {
-        const int field = chordMixField + n;
+    for (int n = 0; n < 5; ++n) {
         const auto layer = backingLayerOrder[n];
-        const int y = 46 + n * 20;
+        const int field = layer == PlaybackMode::Drums ? drumMixField
+                          : layer == PlaybackMode::Bass ? bassMixField
+                                                        : chordMixField + n;
+        const int y = 46 + n * 17;
         const bool selected = field == selection_;
-        const bool on = layerEnabled(s.mode, layer);
+        const bool on = s.enabled(layer);
         edited = edited || fieldModified(field);
         if (selected) rowFocus(y, rowHeight);
         keycap(16, y + 1, 14, on ? LV_SYMBOL_OK : "", small, colors.keyFace, colors.keyText);
@@ -281,7 +305,6 @@ void UI::drawBacking() {
               selected ? colors.text : colors.muted, body, LV_TEXT_ALIGN_CENTER);
         if (!on) label(254, y + 2, 56, "Muted", colors.muted, small, LV_TEXT_ALIGN_RIGHT);
     }
-    label(16, 110, 296, "Plays: " + backingLabel(s), colors.signal, body);
     menuFooter(edited);
 }
 void UI::drawFrontSound() {
@@ -292,13 +315,33 @@ void UI::drawFrontSound() {
     menuFooter(drawSettingRows(46, visibleRows, rowHeight));
 }
 void UI::drawTempo() {
+    const auto &s = instrument_.settings;
+    const auto &preset = instrument_.library.current(s).sound;
     label(8, 5, 304, "Tempo", colors.accent, titleFont);
-    label(8, 26, 304, instrument_.library.current(instrument_.settings).name + " / 40-240 BPM", colors.muted, body);
-    box(28, 50, 264, 52, colors.panel);
-    label(36, 67, 248, (tempoInput_.empty() ? "_" : tempoInput_) + " BPM",
-          colors.accent, titleFont, LV_TEXT_ALIGN_CENTER);
-    footer("Type a tempo, then press Enter", tempoError_,
-           {{"Backspace", tempoReplace_ ? "Clear" : "Delete digit"}, {"R", "Load preset tempo"}});
+    label(8, 26, 304, instrument_.library.current(s).name + " / 40-240 BPM", colors.muted, body);
+    // Tempo is typed and applied with Enter; Swing and Swing amount apply as they change.
+    const bool tempoRow = tempoRow_ == 0;
+    box(28, 44, 264, 32, tempoRow ? colors.panel : colors.bg);
+    if (tempoRow) box(30, 48, 2, 24, colors.accent);
+    label(36, 49, 248, (tempoInput_.empty() ? "_" : tempoInput_) + " BPM",
+          tempoRow ? colors.accent : colors.text, titleFont, LV_TEXT_ALIGN_CENTER);
+    auto row = [&](int index, int y, const std::string &name, bool edited, const std::string &value,
+                   bool active) {
+        const bool selected = tempoRow_ == index;
+        if (selected) rowFocus(y, rowHeight);
+        label(16, y, 150, name + (edited ? " *" : ""), selected ? colors.accent : colors.text, body);
+        label(170, y, 140, selected ? LV_SYMBOL_LEFT "  " + value + "  " LV_SYMBOL_RIGHT : value,
+              active ? colors.text : colors.muted, body, LV_TEXT_ALIGN_CENTER);
+    };
+    row(1, 84, "Swing", s.swingMode != preset.swingMode, swingModeName(s.swingMode), true);
+    row(2, 104, "Swing amount", s.swingAmount != preset.swingAmount,
+        std::to_string(s.swingAmount) + "%", s.swingMode != SwingOff);
+    static const char *details[]{"Type a tempo, then press Enter",
+                                 "Enter or left/right: Off, 8ths, 16ths",
+                                 "0% straight, 100% triplet feel"};
+    footer(details[tempoRow_], tempoError_,
+           {{"Backspace", tempoReplace_ ? "Clear" : "Delete digit", "Clear"},
+            {"R", "Load preset tempo", "Preset"}});
 }
 void UI::drawCombinations() {
     const auto &s = instrument_.settings;
@@ -443,8 +486,11 @@ void UI::drawPicker() {
     const int currentChoice = confirming ? 0 : fieldValue();
     if (grouped) {
         auto categories = soundCategories();
-        tabs(categories, int(std::find(categories.begin(), categories.end(), soundCategory_) -
-                             categories.begin()));
+        const int active = int(std::find(categories.begin(), categories.end(), soundCategory_) -
+                               categories.begin());
+        for (auto &name : categories)
+            if (name == "Plucked") name = "Pluck"; // Fits a narrow tab.
+        tabs(categories, active);
     } else if (!subtitle.empty()) {
         label(8, 26, 306, subtitle, colors.muted);
     }
@@ -526,7 +572,7 @@ void UI::drawPerformance() {
     }
 
     hintLine(93, {{"I", s.hold ? "Hold on" : "Hold off"}, {"O", backingLabel(s)},
-                  {"P", std::to_string(s.bpm) + " BPM"}});
+                  {"P", std::to_string(s.bpm) + " BPM" + (s.swingMode ? " swing" : "")}});
     const auto pitches = i.playingFrontNotes();
     const bool frontReady = i.active || s.frontMode == 1;
     for (int n = 0; n < 7; n++) {
@@ -558,6 +604,11 @@ void UI::draw() {
               << ',' << s.chordScale << ',' << s.frontFollow << ',' << s.frontTonic << ','
               << int(envelopeParent_);
     for (int level : s.layerMix) signature << ',' << level;
+    signature << ',' << s.drums << ',' << s.drumKit << ',' << s.drumPattern << ',' << s.drumSound
+              << ',' << s.scale << ',' << s.bass << ',' << s.bassProgram << ',' << s.bassPattern
+              << ',' << s.bassSound << ',' << s.swingMode << ',' << s.swingAmount << ','
+              << s.chordVoicing << ',' << s.padVoicing << ',' << s.output << ',' << instrument_.jack
+              << ',' << tempoRow_;
     signature << ',' << tempo_ << ',' << tempoReplace_ << ',' << tempoInput_ << ',' << tempoError_
               << ',' << int(page_) << ',' << combination_ << ',' << scope_ << ',' << picker_
               << ',' << choice_ << ',' << int(tab_);

@@ -1,5 +1,21 @@
 # Testing ZeroChord
 
+## 1.4.0 development — 2026-11-26
+
+- **Local:** all six desktop suites and 43 real-app flows passed. The
+  tempo-swing flow was redone for the Swing and Swing amount rows, and output-speaker
+  is new. New tests cover the Close, Open, Power, and Rich voicings, voice
+  leading between chords, the bass taking the root from Chord and Pad, sound
+  level matching, 8ths and 16ths swing, and the upgrade from the second 1.4
+  development build, including its old `swing` key.
+- **Device:** cross-built and deployed. With all layers playing, Dream uses
+  about 30% of one CPU core, Pop 39%, and Dance 42%, with 66 MB RSS and no
+  audio queue overflows.
+- **Screenshots:** regenerated with `scripts/release_screenshots.py` and
+  checked at 320×170.
+- **Not yet done:** listening, and a hands-on check that Auto detects the
+  headphone jack correctly.
+
 ## 1.3.0 release — 2026-11-25
 
 - **Local:** all six desktop suites, all six ASan/UBSan suites (leak detection

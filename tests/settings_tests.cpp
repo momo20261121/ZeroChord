@@ -106,7 +106,8 @@ int main() {
     press(editor, '\n');
     CHECK(editor.page() == SettingsEditor::Page::VolumeEffects &&
           editor.selected() == SettingsEditor::systemVolumeField);
-    CHECK((editor.rows() == std::vector<int>{SettingsEditor::systemVolumeField, 17, 4, 5, 6, 26, 27, 28}));
+    CHECK((editor.rows() == std::vector<int>{SettingsEditor::systemVolumeField, 17, 4, 5, 6, 26, 27, 28,
+                                            SettingsEditor::outputField}));
     sink.events.clear();
     press(editor, '\n');
     CHECK(!editor.pickerOpen() && volumeWrites == 0);
@@ -303,19 +304,19 @@ int main() {
     CHECK(editor.selected() == 2);
     press(editor, '\n');
     choose(editor, 2);
-    CHECK(instrument.settings.preset == 1);
+    CHECK(instrument.settings.preset == 0);
     editor.cancelPending(); // Same cleanup used on long Esc or signal exit.
-    CHECK(instrument.settings.preset == 1);
+    CHECK(instrument.settings.preset == 0);
     CHECK(sink.events.back().type == CommandType::Configure &&
-          sink.events.back().settings.preset == 1);
+          sink.events.back().settings.preset == 0);
     press(editor, '\n');
-    choose(editor, 1);
+    choose(editor, 0);
     press(editor, '\n');
-    CHECK(instrument.settings.preset == 1);
+    CHECK(instrument.settings.preset == 0);
     press(editor, 20); // The preset is a choice: only its list changes it.
-    CHECK(instrument.settings.preset == 1);
+    CHECK(instrument.settings.preset == 0);
     press(editor, '\t');
-    CHECK(instrument.settings.preset == 1); // Tab switches tabs without editing.
+    CHECK(instrument.settings.preset == 0); // Tab switches tabs without editing.
     CHECK(editor.tab() == SettingsEditor::Tab::App && editor.selected() == 3);
     row(editor, 2);
     press(editor, '\n');
@@ -383,12 +384,12 @@ int main() {
         CHECK(e.backingOpen() && e.page() == SettingsEditor::Page::Backing && e.backingTab() == 0);
         CHECK(e.selected() == SettingsEditor::chordMixField);
         for (auto layer : backingLayerOrder) {
-            auto previous = backingLayers(p.settings.mode);
+            auto previous = p.settings.enabledLayers();
             press(e, '\n');
-            CHECK(backingLayers(p.settings.mode) == (previous ^ backingLayers(layer)));
+            CHECK(p.settings.enabledLayers() == (previous ^ backingLayers(layer)));
             press(e, 'x');
         }
-        CHECK(backingLayers(p.settings.mode) == (initial ^ 7u));
+        CHECK(p.settings.enabledLayers() == ((initial | 8u) ^ 15u)); // Drums start unmuted.
         CHECK(p.active && p.chord == harmony);
         CHECK(e.selected() == SettingsEditor::chordMixField);
         const bool chordOn = layerEnabled(p.settings.mode, PlaybackMode::Chord);
@@ -524,6 +525,14 @@ int main() {
                     for (int field : fields) {
                         CHECK(menu.selected() == field);
                         const auto before = state();
+                        if (field == SettingsEditor::outputField) { // A list: Auto, Speaker, Headphones.
+                            press(menu, '\n');
+                            CHECK(menu.pickerOpen() && menu.choices().size() == 3);
+                            press(menu, 27);
+                            CHECK(!menu.pickerOpen() && state() == before);
+                            press(menu, down);
+                            continue;
+                        }
                         press(menu, '\n');
                         CHECK(!menu.pickerOpen() && state() == before);
                         if (field != SettingsEditor::systemVolumeField) {
@@ -563,10 +572,17 @@ int main() {
                         const auto fields = menu.visibleRows();
                         for (int field : fields) {
                             CHECK(menu.selected() == field);
-                            if (field >= SettingsEditor::chordMixField && field < SettingsEditor::chordMixField + 3) {
+                            if ((field >= SettingsEditor::chordMixField &&
+                                 field < SettingsEditor::chordMixField + 3) ||
+                                field == SettingsEditor::drumMixField ||
+                                field == SettingsEditor::bassMixField) {
                                 const auto before = state();
                                 const auto saved = walker.settings;
-                                const auto layer = backingLayerOrder[field - SettingsEditor::chordMixField];
+                                const auto layer = field == SettingsEditor::drumMixField
+                                                       ? PlaybackMode::Drums
+                                                   : field == SettingsEditor::bassMixField
+                                                       ? PlaybackMode::Bass
+                                                       : backingLayerOrder[field - SettingsEditor::chordMixField];
                                 press(menu, '\n');
                                 CHECK(state() != before);
                                 press(menu, '\n');
@@ -575,12 +591,15 @@ int main() {
                                 CHECK(walker.settings.mix(layer) == saved.mix(layer) - 5);
                                 press(menu, right);
                                 CHECK(walker.settings.mix(layer) == saved.mix(layer) &&
-                                      layerEnabled(walker.settings.mode, layer));
+                                      walker.settings.enabled(layer));
                                 walker.settings = saved;
                                 walker.configure();
-                            } else if ((field >= 23 && field <= 25) || field == SettingsEditor::arpEnvelopeField) {
+                            } else if ((field >= 23 && field <= 25) || field == SettingsEditor::arpEnvelopeField ||
+                                       field == SettingsEditor::bassEnvelopeField) {
                                 const auto parent = menu.page();
-                                const int part = field == SettingsEditor::arpEnvelopeField ? 3 : field - 23;
+                                const int part = field == SettingsEditor::arpEnvelopeField    ? 3
+                                                 : field == SettingsEditor::bassEnvelopeField ? 4
+                                                                                              : field - 23;
                                 press(menu, '\n');
                                 CHECK(menu.page() == SettingsEditor::Page::Envelope && menu.envelopePart() == part);
                                 for (int control = 0; control < 5; control++) {
@@ -599,7 +618,7 @@ int main() {
                         CHECK(menu.selected() == fields.front());
                     }
                     if (backing) {
-                        press(menu, '\t'); // From Pad, the next tab wraps to Layers.
+                        press(menu, '\t'); // From Drums, the next tab wraps to Layers.
                         CHECK(menu.backingTab() == 0);
                     }
                     press(menu, 27);
@@ -684,7 +703,7 @@ int main() {
     }
     {
         Capture captured; Instrument player(captured); SettingsEditor envelopes(player);
-        player.library.entries[1].sound.envelopes[0].values[0] = 37;
+        player.library.entries[0].sound.envelopes[0].values[0] = 37;
         player.settings.envelopes[0].values = {200, 300, 65, 500};
         player.settings.envelopes[1].values[3] = 700;
         player.settings.echo = 25;
@@ -697,7 +716,7 @@ int main() {
         CHECK(player.settings.envelopes[0].values[0] == -1);
         for (int n = 0; n < 4; n++) press(envelopes, 18);
         press(envelopes, '\n'); choose(envelopes, 1); press(envelopes, '\n');
-        CHECK(player.settings.envelopes[0] == player.library.entries[1].sound.envelopes[0]);
+        CHECK(player.settings.envelopes[0] == player.library.entries[0].sound.envelopes[0]);
         CHECK(player.settings.envelopes[1].values[3] == 700 && player.settings.echo == 25);
     }
     {
@@ -794,7 +813,10 @@ int main() {
         e.key('x', true);
         for (uint64_t now = 5000; now <= 8000; now += 10) e.tick(now);
         e.key('x', false);
-        CHECK(e.selected() == 28); // Rows stop at the last one instead of wrapping.
+        CHECK(e.selected() == SettingsEditor::outputField); // Rows stop at the last one.
+        e.key('f', true);
+        e.key('f', false);
+        CHECK(e.selected() == 28);
         e.key(19, true); // Left/right on a tabbed page never repeat.
         e.key(19, false);
         CHECK(player.settings.eqDb[2] == -1);
@@ -856,15 +878,82 @@ int main() {
             press(tempo, 27);
         }
         press(tempo, 'p'); press(tempo, 'r');
-        CHECK(tempo.tempoText() == "80");
+        CHECK(tempo.tempoText() == "70");
         press(tempo, '\b'); press(tempo, '8'); press(tempo, '0'); press(tempo, '\n');
         CHECK(player.settings.bpm == 80 && captured.events.empty());
+        // Swing: Down to Swing; Enter or left/right cycle Off, 8ths, 16ths. Down to Amount;
+        // left/right (or Z/C) change it live in 5% steps. Esc keeps them; R loads the preset's.
+        press(tempo, 'p'); press(tempo, 18);
+        CHECK(tempo.tempoRow() == 1);
+        press(tempo, '\n');
+        CHECK(tempo.tempoOpen() && player.settings.swingMode == SwingEighths);
+        press(tempo, 20);
+        CHECK(player.settings.swingMode == SwingSixteenths);
+        press(tempo, 20); press(tempo, 19);
+        CHECK(player.settings.swingMode == SwingSixteenths);
+        press(tempo, 18); press(tempo, 18);
+        CHECK(tempo.tempoRow() == 2);
+        press(tempo, 20); press(tempo, 20); press(tempo, 'c'); press(tempo, 'z');
+        CHECK(player.settings.swingAmount == 60 && tempo.tempoText() == "80");
+        press(tempo, '7'); // Typing returns to the tempo.
+        CHECK(tempo.tempoRow() == 0 && tempo.tempoText() == "7");
+        press(tempo, 27);
+        CHECK(player.settings.swingMode == SwingSixteenths && player.settings.swingAmount == 60 &&
+              player.settings.bpm == 80);
+        press(tempo, 'p'); press(tempo, 18); press(tempo, 18);
+        for (int n = 0; n < 20; n++) press(tempo, 20);
+        CHECK(player.settings.swingAmount == 100);
+        press(tempo, 'r');
+        const auto &stock = player.library.current(player.settings).sound;
+        CHECK(player.settings.swingMode == stock.swingMode && stock.swingMode == SwingOff &&
+              player.settings.swingAmount == stock.swingAmount && stock.swingAmount == 50);
+        press(tempo, 27);
         press(tempo, 'p'); press(tempo, '\t'); // Tab is ignored while typing a tempo.
         CHECK(tempo.tempoOpen() && !tempo.settingsOpen);
         press(tempo, 27);
         CHECK(!tempo.tempoOpen() && !tempo.settingsOpen && player.settings.bpm == 80);
     }
     std::filesystem::remove_all(dir);
+    // Drums tab: Kit lists the built-in kits and applies live; Pattern lists every groove.
+    {
+        Capture captured; Instrument player(captured); SettingsEditor menu(player);
+        press(menu, '\t');
+        row(menu, SettingsEditor::drumKitField);
+        CHECK(menu.page() == SettingsEditor::Page::Backing && menu.backingTab() == 5);
+        const int kit = player.settings.drumKit;
+        press(menu, '\n');
+        CHECK(menu.pickerOpen() && !menu.soundPicker() && menu.choices().size() == 8);
+        choose(menu, 25);
+        CHECK(player.settings.drumKit == kit); // Highlighting previews without applying.
+        press(menu, '\n');
+        CHECK(player.settings.drumKit == 25 && player.settings.drumSound.empty());
+        press(menu, '\b');
+        CHECK(player.settings.drumKit == player.library.current(player.settings).sound.drumKit);
+        // Without the FluidR3 pack, choosing the same built-in kit keeps the pack preference.
+        player.settings.drumSound = "fluid-drums/jazz";
+        player.settings.drumKit = 32;
+        const auto preferred = player.settings.drumSound;
+        press(menu, '\n'); choose(menu, player.settings.drumKit); press(menu, '\n');
+        CHECK(player.settings.drumSound == preferred && !preferred.empty());
+        press(menu, 18);
+        CHECK(menu.selected() == SettingsEditor::drumPatternField);
+        press(menu, '\n');
+        CHECK(int(menu.choices().size()) == drumPatternCount);
+        choose(menu, 5); press(menu, '\n');
+        CHECK(player.settings.drumPattern == 5);
+        auto file = path + ".drums";
+        saveSettings(player.settings, file); Settings loaded; loadSettings(loaded, file);
+        CHECK(loaded.drumKit == player.settings.drumKit && loaded.drumPattern == 5 &&
+              loaded.mix(PlaybackMode::Drums) == player.settings.mix(PlaybackMode::Drums));
+        // Chord Scale offers only seven-note scales; front Scale adds pentatonics and Blues.
+        press(menu, 27);
+        row(menu, 3); press(menu, '\n');
+        for (int n = 0; n < 20 && menu.selected() != 10; n++) press(menu, 18);
+        press(menu, '\n');
+        CHECK(int(menu.choices().size()) == chordScaleCount);
+        choose(menu, 4); press(menu, '\n');
+        CHECK(player.settings.chordScale == 4 && player.settings.frontKeyScale() == 4);
+    }
     std::cout << "PASS: defaults, no3/sus voicings, shared/degree resolution, scope shortcuts, "
                  "preview/save/cancel, resets, performance and persistence\n";
 }

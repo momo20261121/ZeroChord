@@ -23,6 +23,35 @@
 #endif
 
 namespace zc {
+int Platform::headphones() const {
+#if ZEROCHORD_DESKTOP
+    return -1;
+#else
+    // The audio codec reports its jack as an input switch device named "... Headphones".
+    static int device = -2;
+    if (device == -2) {
+        device = -1;
+        for (int n = 0; n < 32 && device < 0; n++) {
+            const auto path = "/dev/input/event" + std::to_string(n);
+            int fd = open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+            if (fd < 0) continue;
+            char name[128]{};
+            unsigned long switches[1]{};
+            if (ioctl(fd, EVIOCGNAME(sizeof(name) - 1), name) >= 0 &&
+                std::strstr(name, "Headphones") &&
+                ioctl(fd, EVIOCGBIT(EV_SW, sizeof(switches)), switches) >= 0 &&
+                (switches[0] & (1ul << SW_HEADPHONE_INSERT)))
+                device = fd;
+            else
+                close(fd);
+        }
+    }
+    if (device < 0) return -1;
+    unsigned long state[1]{};
+    if (ioctl(device, EVIOCGSW(sizeof(state)), state) < 0) return -1;
+    return (state[0] & (1ul << SW_HEADPHONE_INSERT)) ? 1 : 0;
+#endif
+}
 std::optional<int> Platform::systemVolume() const {
 #if defined(__linux__)
     auto *pipe = popen("LC_ALL=C pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null", "r");

@@ -140,3 +140,20 @@ build/desktop/zerochord-compare .tools/soundfonts/TimGM6mb.sf2 \
 This checks the dry native renderer reference and creates matched-RMS WAVs.
 See [audio notes](AUDIO_AND_REUSE.md#controlled-piano-and-renderer-comparison)
 for what this comparison establishes and its limits.
+
+### Style balance
+
+`zerochord-styles` is built with the desktop build. It renders each built-in
+style playing I–vi–IV–V with a front melody:
+
+```sh
+build/desktop/zerochord-styles .tools/soundfonts/TimGM6mb.sf2 build/styles [style]
+```
+
+It writes one WAV per style (only `[style]`, such as `dream`, when given) and
+prints each layer's RMS and peak level, measured before the limiter, and the
+share of its energy below 150 Hz, at 150–600 Hz, at 600 Hz–2.5 kHz, and above
+2.5 kHz. Set `ZEROCHORD_LAB_FULL=1` to measure each layer's solo at 100% instead
+of at its mix. `zerochord-styles <bank.sf2> --levels` prints each program's
+measured loudness and its level-matching gain. Use it to set style mixes; it
+does not replace listening.

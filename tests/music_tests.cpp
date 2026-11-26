@@ -1,6 +1,7 @@
 #include "instrument.hpp"
 #include "patterns.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <vector>
@@ -97,7 +98,7 @@ int main() {
         int count = 0;
         for (const auto &c : captured.events)
             if (c.type == CommandType::On && c.part == Part::Chord)
-                CHECK(c.pitch == chordNotes(p.chord)[count++]);
+                CHECK(c.pitch == voicedChord(p.chord, VoicingClose, {-1, -1, -1, -1})[count++]);
         CHECK(count == 4);
         p.key('1', false, 140);
         auto notes = p.playingFrontNotes();
@@ -243,7 +244,7 @@ int main() {
     i.key('l', false, 1402);
     i.key('l', true, 1403);
     i.key('0', true, 1404);
-    CHECK(i.settings.preset == 0);
+    CHECK(i.settings.preset == 1);
     sink.events.clear();
     i.tick(1700);
     // Switching presets cancels the queued strum; backing layers may keep playing.
@@ -293,7 +294,7 @@ int main() {
     CHECK(modes.events.size() == 5);
     auto notes = chordNotes(player.chord);
     for (int n = 0; n < 5; n++)
-        CHECK(modes.events[n].pitch == notes[n % 4] && modes.events[n].durationMs == 285);
+        CHECK(modes.events[n].pitch == notes[n % 4] + 12 && modes.events[n].durationMs == 285); // Arp: an octave up.
     // Changing harmony between steps keeps the beat, including after a tempo edit.
     modes.events.clear();
     player.key('2', true, 3750);
@@ -305,7 +306,9 @@ int main() {
     player.settings.bpm = 200;
     modes.events.clear();
     player.tick(4149);
-    CHECK(modes.events.empty());
+    CHECK(modes.events.size() == 1 && modes.events[0].type == CommandType::Tempo &&
+          modes.events[0].pitch == 200); // The echo follows the new tempo.
+    modes.events.clear();
     player.tick(4150);
     CHECK(modes.events.size() == 1);
     // Long UI stalls skip old beats rather than overflow the audio command queue.
@@ -408,7 +411,13 @@ int main() {
                 grouped.tick(129);
                 CHECK(captured.events.empty());
                 grouped.tick(130);
-                auto notes = chordNotes(grouped.chord);
+                // Pad and Chord play their voicings; Arp starts an octave above the chord.
+                auto notes = mode == PlaybackMode::Arp ? chordNotes(grouped.chord)
+                             : voicedChord(grouped.chord,
+                                           mode == PlaybackMode::Pad ? VoicingOpen : VoicingClose,
+                                           {-1, -1, -1, -1});
+                if (mode == PlaybackMode::Arp)
+                    for (auto &note : notes) note += 12;
                 CHECK(grouped.chord.quality == qualityFor(mask));
                 int n = 0;
                 for (const auto &event : captured.events)
@@ -478,7 +487,7 @@ int main() {
     grouped.tick(2320);
     grouped.tick(2335);
     CHECK(groupedEvents.events.size() == 1 &&
-          groupedEvents.events[0].pitch == chordNotes(grouped.chord)[1]);
+          groupedEvents.events[0].pitch == chordNotes(grouped.chord)[1] + 12);
     // Sustained makes one simultaneous attack, no timed repeats, and respects Hold.
     for (bool hold : {false, true}) {
         Capture captured;
@@ -544,11 +553,11 @@ int main() {
         captured.events.clear();
         auto mix = p.settings.layerMix;
         mix[layerIndex(PlaybackMode::Pad)] = 50;
-        p.setBacking(p.settings.mode, mix);
+        p.setBacking(p.settings.enabledLayers(), mix);
         CHECK(ons(Part::Pad) == 4 && p.active && p.chord == harmony);
         captured.events.clear();
         mix[layerIndex(PlaybackMode::Pad)] = 40;
-        p.setBacking(p.settings.mode, mix); // A level change keeps ringing notes.
+        p.setBacking(p.settings.enabledLayers(), mix); // A level change keeps ringing notes.
         CHECK(captured.events.size() == 1 && captured.events[0].type == CommandType::Configure &&
               captured.events[0].settings.mix(PlaybackMode::Pad) == 40);
     }
@@ -559,6 +568,168 @@ int main() {
         p.settings.combinationMs = 0; p.key('8', true, 100); p.tick(100);
         CHECK(captured.events.back().type == CommandType::On);
         CHECK(captured.events.back().pitch == p.chord.root - 12);
+    }
+    // Scales: seven-note scales set the chord roots; shorter ones continue up on the front keys.
+    {
+        Settings s;
+        s.chordScale = 4; // Dorian
+        CHECK(s.chordRoot(6) % 12 == 0 && s.chordRoot(1) % 12 == 3 && s.chordRoot(4) % 12 == 9);
+        s.chordScale = 2; // Harmonic minor: raised seventh.
+        CHECK(s.chordRoot(5) % 12 == 11);
+        s.chordScale = 10; // Blues cannot set chord roots.
+        s.clamp();
+        CHECK(s.chordScale == chordScaleCount - 1);
+        s.frontMode = 1;
+        s.frontFollow = 0;
+        s.frontTonic = 0;
+        s.scale = 10; // Blues: C Eb F F# G Bb C'
+        auto notes = frontNotes({48, -1, 6, Quality::Major}, s);
+        CHECK((notes == std::array<int, 7>{60, 63, 65, 66, 67, 70, 72}));
+        s.scale = 9; // Minor pentatonic: C Eb F G Bb C' Eb'
+        notes = frontNotes({48, -1, 6, Quality::Major}, s);
+        CHECK((notes == std::array<int, 7>{60, 63, 65, 67, 70, 72, 75}));
+        CHECK(scaleMenu(true).size() == size_t(chordScaleCount) &&
+              scaleMenu(false).size() == size_t(scaleCount));
+        for (int scale : scaleMenu(true)) CHECK(scaleInfo(scale).size == 7);
+    }
+    // Drums follow the chord: they play on the beat clock while it sounds and stop on release.
+    {
+        Capture captured; Instrument p(captured);
+        p.settings.combinationMs = 0;
+        p.settings.hold = 0;
+        p.settings.mode = PlaybackMode::FrontOnly;
+        p.settings.mix(PlaybackMode::Drums) = 60;
+        p.settings.drumPattern = 7; // Waltz 3/4: kick every 12 steps.
+        p.settings.bpm = 120;       // 125 ms per step.
+        auto drumHits = [&](int note) {
+            return std::count_if(captured.events.begin(), captured.events.end(), [&](const Command &c) {
+                return c.type == CommandType::On && c.part == Part::Drums && c.pitch == note;
+            });
+        };
+        p.key('8', true, 0);
+        for (int ms = 0; ms <= 3050; ms += 5) p.tick(ms);
+        CHECK(drumHits(36) == 3 && drumHits(37) == 4); // Bars at 0, 1.5 and 3 s.
+        CHECK(std::none_of(captured.events.begin(), captured.events.end(),
+                           [](const Command &c) { return c.part == Part::Chord || c.part == Part::Arp; }));
+        p.key('8', false, 3051);
+        captured.events.clear();
+        for (int ms = 3051; ms <= 5000; ms += 5) p.tick(ms);
+        CHECK(drumHits(36) == 0);
+        p.settings.drums = 0; // Muted drums stay silent while the chord plays.
+        p.key('8', true, 6000);
+        for (int ms = 6000; ms <= 8000; ms += 5) p.tick(ms);
+        CHECK(drumHits(36) == 0);
+        for (const auto &pattern : patterns(PlaybackMode::Drums))
+            for (const auto &step : pattern.steps)
+                CHECK(step.tick >= 0 && step.tick < pattern.ticks && step.notes >= 35 &&
+                      step.notes <= 84); // Up to the bell tree.
+        CHECK(int(patterns(PlaybackMode::Drums).size()) == drumPatternCount);
+    }
+    // Bass follows the chord's lowest note an octave below and stops with the chord.
+    {
+        Capture captured; Instrument p(captured);
+        p.settings.combinationMs = 0;
+        p.settings.hold = 0;
+        p.settings.mode = PlaybackMode::FrontOnly;
+        p.settings.mix(PlaybackMode::Bass) = 60;
+        p.settings.bassPattern = 2; // Root and fifth.
+        p.settings.bpm = 120;
+        auto bassNotes = [&] {
+            std::vector<int> notes;
+            for (const auto &c : captured.events)
+                if (c.type == CommandType::On && c.part == Part::Bass) notes.push_back(c.pitch);
+            return notes;
+        };
+        p.key('8', true, 0); // C: root C3 in the chord, so the bass plays C2 and G2.
+        for (int ms = 0; ms <= 1990; ms += 5) p.tick(ms);
+        CHECK((bassNotes() == std::vector<int>{36, 43, 36}));
+        p.key('8', false, 1991);
+        captured.events.clear();
+        for (int ms = 1991; ms <= 4000; ms += 5) p.tick(ms);
+        CHECK(bassNotes().empty());
+        p.key('8', true, 5000); p.key('5', true, 5000); // C/G: the slash bass leads.
+        captured.events.clear();
+        for (int ms = 5000; ms <= 5100; ms += 5) p.tick(ms);
+        CHECK(!bassNotes().empty() && bassNotes()[0] % 12 == 7 && bassNotes()[0] >= 28 &&
+              bassNotes()[0] <= 52);
+        for (const auto &pattern : patterns(PlaybackMode::Bass))
+            for (const auto &step : pattern.steps)
+                CHECK(step.tick >= 0 && step.tick < pattern.ticks && step.notes > 0 && step.notes < 16);
+        CHECK(int(patterns(PlaybackMode::Bass).size()) == bassPatternCount);
+    }
+    // Voicings: upper voices stay near middle C and move to the nearest chord notes; power
+    // chords stack root, fifth and octave; rich voicings add 9ths without the root.
+    {
+        const std::array<int, 4> none{-1, -1, -1, -1};
+        const Chord c{48, -1, 6, Quality::Major}, f{53, -1, 2, Quality::Major},
+            g{55, -1, 3, Quality::Major};
+        auto classes = [](const std::array<int, 4> &v) {
+            std::vector<int> out;
+            for (int n = 1; n < 4; n++) out.push_back(v[n] % 12);
+            std::sort(out.begin(), out.end());
+            return out;
+        };
+        auto first = voicedChord(c, VoicingClose, none);
+        CHECK(first[0] % 12 == 0 && first[0] < first[1] && first[1] >= 52 && first[3] < 76);
+        CHECK((classes(first) == std::vector<int>{0, 4, 7}));
+        auto next = voicedChord(f, VoicingClose, first);
+        int moved = 0;
+        for (int n = 1; n < 4; n++) moved += std::abs(next[n] - first[n]);
+        CHECK((classes(next) == std::vector<int>{0, 5, 9}) && moved <= 3); // C stays, E-F, G-A.
+        auto back = voicedChord(g, VoicingClose, next);
+        CHECK((classes(back) == std::vector<int>{2, 7, 11}) && back[1] >= 52 && back[3] < 76);
+        auto power = voicedChord(g, VoicingPower, none);
+        CHECK(power[2] - power[1] == 7 && power[3] - power[1] == 12 && power[1] - power[0] == 12);
+        auto rich = voicedChord({57, -1, 4, Quality::Minor7}, VoicingRich, none); // Am9, no A.
+        CHECK((classes(rich) == std::vector<int>{0, 7, 11}));
+        auto open = voicedChord(c, VoicingOpen, none);
+        CHECK((classes(open) == std::vector<int>{0, 4, 7}) && open[3] - open[1] > 12);
+        auto slash = voicedChord({48, 43, 6, Quality::Major}, VoicingClose, none); // C/G.
+        CHECK(slash[0] % 12 == 7 && slash[0] < slash[1]);
+        // With a bass line playing, full chords leave the root to it.
+        Capture captured; Instrument p(captured);
+        p.settings.combinationMs = 0;
+        p.settings.mode = PlaybackMode::Chord;
+        p.settings.chordPattern = sustainedChordPattern;
+        p.settings.bass = 1;
+        p.settings.mix(PlaybackMode::Bass) = 80;
+        p.key('8', true, 0);
+        p.tick(1);
+        std::vector<int> chord;
+        for (const auto &e : captured.events)
+            if (e.type == CommandType::On && e.part == Part::Chord) chord.push_back(e.pitch);
+        CHECK(chord.size() == 3 && *std::min_element(chord.begin(), chord.end()) >= 52);
+    }
+    // Swing: 16ths delay every second 16th by up to a third of a 16th; 8ths delay the "and"
+    // by up to two thirds, and its 16ths in proportion. 100% is the triplet; beats stay put.
+    struct SwingCase {
+        int mode, amount;
+    };
+    for (auto [mode, amount] : {SwingCase{SwingOff, 100}, {SwingSixteenths, 100},
+                                {SwingSixteenths, 50}, {SwingEighths, 100}, {SwingEighths, 0}}) {
+        Capture captured; Instrument p(captured);
+        p.settings.combinationMs = 0;
+        p.settings.mode = PlaybackMode::FrontOnly;
+        p.settings.mix(PlaybackMode::Drums) = 60;
+        p.settings.drumPattern = 5; // Four on the floor: shaker on every 16th.
+        p.settings.bpm = 120;       // 125 ms per 16th.
+        p.settings.swingMode = mode;
+        p.settings.swingAmount = amount;
+        p.key('8', true, 0);
+        std::vector<int> shaker;
+        for (int ms = 0; ms <= 600; ms++) {
+            const auto before = captured.events.size();
+            p.tick(ms);
+            for (size_t n = before; n < captured.events.size(); n++)
+                if (captured.events[n].part == Part::Drums && captured.events[n].pitch == 70)
+                    shaker.push_back(ms);
+        }
+        const double a = amount / 100.;
+        const double late[4]{0, mode == SwingSixteenths ? a / 3 : mode == SwingEighths ? a / 3 : 0,
+                             mode == SwingEighths ? 2 * a / 3 : 0,
+                             mode == SwingSixteenths ? a / 3 : mode == SwingEighths ? a / 3 : 0};
+        CHECK(shaker.size() >= 4);
+        for (int n = 0; n < 4; n++) CHECK(std::abs(shaker[n] - (n + late[n]) * 125) <= 2);
     }
     std::cout << "PASS: harmony, combinations, harp direction, hold, simultaneous chords, "
                  "patterns, phase and bounded scheduling\n";

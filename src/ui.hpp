@@ -5,6 +5,7 @@ namespace zc {
 struct Hint {
     const char *key = nullptr;
     std::string action;
+    std::string shortAction = {}; // Used when the full action does not fit the line.
 };
 class UI : public SettingsEditor {
   public:

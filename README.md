@@ -7,8 +7,9 @@
 Inspired by [**minichord**](https://minichord.com/) and the
 [**Suzuki Omnichord**](https://www.suzuki-music.co.jp/special/omnichord_om-108/en/),
 ZeroChord lets you play a chord with one hand and pick or strum its notes with the other.
-Combine a clear Chord, a rhythmic Arp, and a soft Pad, or play Front only. Nine editable
-presets give you a starting point; sounds, envelopes and tempo are adjustable.
+Combine a clear Chord, a rhythmic Arp, a soft Pad, a Bass line, and Drums, or play Front
+only. Seven editable presets give you a starting point; sounds, envelopes, tempo and swing
+are adjustable.
 
 ![ZeroChord performance screen](docs/images/release-performance.png)
 
@@ -33,8 +34,8 @@ network connection is needed to play once installed.
 1. Press `8` for a C major chord. The app starts silently until you play.
 2. Play `Z` `X` `C` `V` `B` `N` `M` to pick its notes. `L` strums up. `K` strums down.
 3. Try `8` → `5` → `T` → `4` for C → G → Am → F in the default key of C.
-4. Press `O` for backing layers: `Enter` mutes or unmutes Chord, Arp, or Pad, and
-   `Z` / `C` set its mix. `Esc` returns to playing. `I` toggles **Hold**.
+4. Press `O` for backing layers: `Enter` mutes or unmutes Chord, Arp, Pad, Bass, or
+   Drums, and `Z` / `C` set its mix. `Esc` returns to playing. `I` toggles **Hold**.
 5. Press `Space` to stop sound. Hold `Esc` to return to the launcher.
 
 See the [keyboard reference](docs/USER_GUIDE.md#keyboard-reference) for all shortcuts.

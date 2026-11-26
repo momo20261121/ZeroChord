@@ -1,6 +1,9 @@
 #include "renderer.hpp"
 #include "equalizer.hpp"
 #include "patterns.hpp"
+#include "presets.hpp"
+#include "sounds.hpp"
+#include <cstdlib>
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -47,6 +50,8 @@ int main(int argc, char **argv) {
         {
             Renderer flat(argv[1]), shaped(argv[1]);
             Command config{CommandType::Configure}; config.settings.echo = 40;
+            // Below the limiter, which would otherwise act differently on the two mixes.
+            config.settings.chordVolume = config.settings.harpVolume = 30;
             flat.send(config);
             config.settings.eqDb = {6, -3, 2}; shaped.send(config);
             for (auto *voice : {&flat, &shaped}) {
@@ -142,6 +147,7 @@ int main(int argc, char **argv) {
             articulated.type = CommandType::Configure;
             articulated.settings.preset = preset;
             articulated.settings.echo = 0;
+            articulated.settings.reverbSend.fill(0); // The dry note itself.
             r.send(articulated);
             r.send({CommandType::On, 2000, 60, 100, Part::Chord});
             r.render(samples.data(), 24000);
@@ -150,14 +156,41 @@ int main(int argc, char **argv) {
                 attackEnergy += samples[n] * samples[n];
             for (int n = 28800; n < 48000; n++)
                 tailEnergy += samples[n] * samples[n];
-            if (attackEnergy < 0.0001 || tailEnergy > 0.00000001)
-                throw std::runtime_error("arp note lacks a clear attack or quiet gap");
+            // The tail is judged against the attack: about 90 dB down is silence.
+            if (attackEnergy < 0.0001 || tailEnergy > attackEnergy * 1e-9)
+                throw std::runtime_error("arp note lacks a clear attack or quiet gap: preset " +
+                                         std::to_string(preset) + " attack " +
+                                         std::to_string(attackEnergy) + " tail " +
+                                         std::to_string(tailEnergy * 1e8) + "e-8");
+        }
+        // Sounds are level-matched: a loud square lead and a quiet clean guitar land within a
+        // few dB of each other at the same Front level (they were 14 dB apart).
+        {
+            soundLibrary().load("/nonexistent", argv[1]);
+            auto level = [&](int program) {
+                Renderer matched(argv[1]); DirectSink direct(matched); Instrument player(direct);
+                player.settings.frontMode = 1; player.settings.harpProgram = program;
+                player.settings.echo = 0; player.settings.reverbSend.fill(0);
+                player.configure(); player.key('c', true, 1);
+                std::vector<float> block(960);
+                double sum = 0;
+                for (int ms = 0; ms < 800; ms += 10) {
+                    player.tick(ms + 2); matched.render(block.data(), 480);
+                    for (float x : block) sum += x * x;
+                }
+                return 10 * std::log10(sum);
+            };
+            const double square = level(80), guitar = level(27);
+            if (std::abs(square - guitar) > 5)
+                throw std::runtime_error("front sounds are not level-matched: " +
+                                         std::to_string(square) + " vs " + std::to_string(guitar));
         }
         // Run the real O control and scheduler with Dream, the reported failure.
         Instrument modes(sink);
         modes.settings.combinationMs = 0;
         modes.settings.preset = 1;
         modes.settings.echo = 0;
+        modes.settings.reverbSend.fill(0); // Judge the notes, not the room.
         modes.settings.bpm = 100;
         modes.configure();
         modes.key('8', true, 0);
@@ -200,7 +233,7 @@ int main(int argc, char **argv) {
         Command config;
         config.type = CommandType::Configure;
         config.settings.preset = 3;
-        config.settings.echo = 0;
+        config.settings.echo = 0; config.settings.reverbSend.fill(0);
         r.send(config);
         r.send({CommandType::On, 1000, 48, 0, Part::Chord});
         for (unsigned n = 0; n < 100; n++) {
@@ -260,6 +293,7 @@ int main(int argc, char **argv) {
             Command c{CommandType::Configure};
             c.settings.chordProgram = program;
             c.settings.echo = 0;
+            c.settings.reverbSend.fill(0);
             r.send(c);
             for (int pitch : {48, 52, 55, 60})
                 r.send({CommandType::On, uint32_t(6000 + pitch), pitch, 400, Part::Chord});
@@ -275,7 +309,7 @@ int main(int argc, char **argv) {
             config.settings.padProgram = pad;
             config.settings.chordProgram = chord;
             config.settings.harpProgram = 46;
-            config.settings.echo = 0;
+            config.settings.echo = 0; config.settings.reverbSend.fill(0);
             voice.send(config);
             voice.send({CommandType::On, 1, 60, mode == PlaybackMode::Pad ? 0 : 400,
                         part == Part::Chord && mode == PlaybackMode::Pad ? Part::Pad : part});
@@ -301,7 +335,7 @@ int main(int argc, char **argv) {
             config.settings.chordProgram = chord;
             config.settings.arpProgram = arp;
             config.settings.mix(PlaybackMode::Arp) = arpMix;
-            config.settings.echo = 0;
+            config.settings.echo = 0; config.settings.reverbSend.fill(0);
             voice.send(config);
             voice.send({CommandType::On, 1, 60, 400, part});
             std::vector<float> result(24000 * 2);
@@ -347,7 +381,7 @@ int main(int argc, char **argv) {
             Renderer render(argv[1]); DirectSink direct(render); Instrument p(direct);
             p.settings = p.library.entries[1].sound;
             p.settings.mode = modeForLayers(layers); p.settings.combinationMs = 0;
-            p.settings.echo = 0; p.settings.chordPattern = 1; p.settings.padMotion = 3;
+            p.settings.echo = 0; p.settings.reverbSend.fill(0); p.settings.chordPattern = 1; p.settings.padMotion = 3;
             p.configure(); p.key('8', true, 10); p.key('8', false, 11);
             double total = 0;
             for (int ms = 0; ms < 1600; ms += 10) {
@@ -368,7 +402,7 @@ int main(int argc, char **argv) {
             Renderer base(argv[1]), moved(argv[1]);
             Command config{CommandType::Configure}; config.settings.mode = PlaybackMode::All;
             config.settings.harpProgram = config.settings.chordProgram = config.settings.padProgram = 16;
-            config.settings.echo = 0; base.send(config); moved.send(config);
+            config.settings.echo = 0; config.settings.reverbSend.fill(0); base.send(config); moved.send(config);
             for (auto *renderer : {&base, &moved}) renderer->send({CommandType::On, 1, 60, 0, part});
             Command motion{CommandType::ChordGain}; motion.gain = .2f; moved.send(motion);
             std::vector<float> a(9600), b(9600); base.render(a.data(), 4800); moved.render(b.data(), 4800);
@@ -381,7 +415,7 @@ int main(int argc, char **argv) {
         auto envelopeAudio = [&](int part, const Envelope &own, bool other = false, bool stop = false) {
             Renderer renderer(argv[1]);
             Command config{CommandType::Configure};
-            config.settings.echo = 0;
+            config.settings.echo = 0; config.settings.reverbSend.fill(0);
             config.settings.harpProgram = config.settings.chordProgram = config.settings.padProgram = 16;
             config.settings.mode = part == 2 ? PlaybackMode::Pad : PlaybackMode::Chord;
             config.settings.envelopes[other ? (part + 1) % 3 : part] = own;
@@ -427,6 +461,7 @@ int main(int argc, char **argv) {
             Renderer slow(argv[1]); DirectSink direct(slow); Instrument player(direct);
             player.settings.frontMode = 1; player.settings.harpProgram = 16;
             player.settings.echo = 0; player.settings.envelopes[0].values = {3000, 0, 100, 10};
+            player.settings.reverbSend.fill(0);
             player.configure(); player.key('z', true, 1);
             double heldEnergy = 0, releasedEnergy = 0;
             for (int ms = 0; ms < 2800; ms += 10) {
@@ -451,7 +486,7 @@ int main(int argc, char **argv) {
             player.settings.mode = PlaybackMode::Chord;
             player.settings.chordPattern = sustainedChordPattern;
             player.settings.chordProgram = program;
-            player.settings.echo = 0; player.settings.hold = 0;
+            player.settings.echo = 0; player.settings.reverbSend.fill(0); player.settings.hold = 0;
             player.settings.combinationMs = 0;
             player.configure(); player.key('8', true, 1);
             double attack = 0, late = 0;
@@ -470,6 +505,77 @@ int main(int argc, char **argv) {
             double tail = 0;
             for (int n = 48000; n < 96000; n++) tail += samples[n] * samples[n];
             if (tail > .00000001) throw std::runtime_error("sustained chord ignored release");
+        }
+        // Drums: every built-in kit sounds; a 0% mix is silent; every style stays unclipped
+        // with all of its layers, including the drum groove.
+        {
+            Renderer drums(argv[1]);
+            std::vector<float> hit(9600 * 2);
+            auto energy = [&] {
+                double sum = 0;
+                for (float x : hit) {
+                    if (!std::isfinite(x)) throw std::runtime_error("nonfinite drum audio");
+                    sum += x * x;
+                }
+                return sum;
+            };
+            for (int kit : {0, 8, 16, 24, 25, 32, 40, 48})
+                for (int mix : {60, 0}) {
+                    Command config{CommandType::Configure};
+                    config.settings.mode = PlaybackMode::FrontOnly;
+                    config.settings.drumKit = kit;
+                    config.settings.mix(PlaybackMode::Drums) = mix;
+                    drums.send(Command{});
+                    drums.send(config);
+                    drums.send({CommandType::On, 1, 38, 200, Part::Drums});
+                    drums.render(hit.data(), 9600);
+                    if (mix ? energy() < 0.0001 : energy() > 0)
+                        throw std::runtime_error("drum kit " + std::to_string(kit) +
+                                                 (mix ? " is silent" : " ignores its mix"));
+                }
+            // Optional sound packs (ZEROCHORD_SOUNDS_DIR): every pack kit plays through Drums.
+            if (std::getenv("ZEROCHORD_SOUNDS_DIR")) {
+                soundLibrary().load("/nonexistent", argv[1]);
+                Renderer packs(argv[1]);
+                int kits = 0;
+                for (const auto &sound : soundLibrary().entries) {
+                    if (sound.category != "Drums") continue;
+                    Command config{CommandType::Configure};
+                    config.settings.mode = PlaybackMode::FrontOnly;
+                    config.settings.drumSound = sound.id;
+                    config.settings.mix(PlaybackMode::Drums) = 60;
+                    packs.send(Command{});
+                    packs.send(config);
+                    packs.send({CommandType::On, 1, 38, 200, Part::Drums});
+                    packs.render(hit.data(), 9600);
+                    if (energy() < 0.0001) throw std::runtime_error(sound.id + " is silent");
+                    ++kits;
+                }
+                std::cout << "Pack kits played: " << kits << "\n";
+                soundLibrary().load("/nonexistent", argv[1]);
+            }
+            PresetLibrary styles;
+            for (int n = 0; n < int(styles.entries.size()); n++) {
+                Renderer style(argv[1]);
+                DirectSink direct(style);
+                Instrument player(direct);
+                player.library.select(player.settings, n);
+                player.settings.combinationMs = 0;
+                player.configure();
+                player.key('8', true, 0);
+                double drumsOnly = 0;
+                for (int ms = 0; ms < 4000; ms += 10) {
+                    player.tick(ms);
+                    style.render(hit.data(), 480);
+                    for (int i = 0; i < 960; i++) {
+                        if (!std::isfinite(hit[i])) throw std::runtime_error("nonfinite style");
+                        peak = std::max(peak, std::abs(hit[i]));
+                        drumsOnly += hit[i] * hit[i];
+                    }
+                }
+                if (drumsOnly < 0.001)
+                    throw std::runtime_error(styles.entries[n].id + " style is silent");
+            }
         }
         if (peak >= 0.99f)
             throw std::runtime_error("preset clipping");

@@ -14,4 +14,6 @@ AGENTS.md
 
 # Optional checksum-verified sample download
 sounds/fluid-grand/piano.sf2
+sounds/fluid-synths/bank.sf2
+sounds/fluid-drums/bank.sf2
 .claude/settings.local.json

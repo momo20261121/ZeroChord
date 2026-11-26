@@ -54,16 +54,18 @@ int main() {
         legacy.theme = 1;
         PresetLibrary lib;
         lib.load(dir.string(), legacy);
-        CHECK(lib.entries.size() == 9 && lib.modified(legacy));
+        CHECK(lib.entries.size() == 7 && lib.modified(legacy));
         CHECK(legacy.chordProgram == 88 && legacy.padProgram == 89 && legacy.harpProgram == 10);
         CHECK(fs::exists(dir / "presets/factory/pop.toml"));
         auto dream = legacy;
-        lib.select(legacy, 4);
-        // Every built-in preset selects all layers; the ones it lacked before join at 30%.
-        CHECK(legacy.bpm == 112 && legacy.tonic == 2 && legacy.mode == PlaybackMode::All);
-        CHECK((legacy.layerMix == std::array<int, 3>{30, 100, 30}));
-        CHECK(legacy.arpProgram == legacy.chordProgram &&
-              legacy.envelopes[ArpEnvelope] == legacy.envelopes[ChordEnvelope]);
+        lib.select(legacy, lib.indexOf("pop"));
+        // Every built-in style selects all layers, each at its own level and with its own sound.
+        CHECK(legacy.bpm == 100 && legacy.swingMode == SwingOff && legacy.tonic == 2 &&
+              legacy.enabledLayers() == allLayers);
+        CHECK((legacy.layerMix == std::array<int, 5>{79, 67, 41, 93, 98}) && legacy.frontMix == 73);
+        // Steel-string strums, piano, slow strings and fingered bass on the built-in kit.
+        CHECK(legacy.chordProgram == 25 && legacy.arpProgram == 0 && legacy.padProgram == 49 &&
+              legacy.bassProgram == 33 && legacy.drumSound.empty() && legacy.chordPattern == 8);
         CHECK(legacy.masterVolume == 47 && legacy.theme == 1);
         CHECK((legacy.eqDb == std::array<int, 3>{6, -2, 3}));
         legacy.bpm = 123;
@@ -72,9 +74,9 @@ int main() {
         legacy.harpVolume = 61;
         legacy.echo = 27;
         legacy.strumMs = 330;
-        lib.select(legacy, 1);
+        lib.select(legacy, lib.indexOf("dream"));
         CHECK(samePresetSettings(dream, legacy));
-        lib.select(legacy, 4);
+        lib.select(legacy, lib.indexOf("pop"));
         CHECK(legacy.bpm == 123 && legacy.chordProgram == 2 && legacy.chordVolume == 76 &&
               legacy.harpVolume == 61 && legacy.echo == 27 && legacy.strumMs == 330);
         lib.save(legacy);
@@ -85,11 +87,11 @@ int main() {
         reloaded.load(dir.string(), loaded);
         CHECK(samePresetSettings(legacy, loaded) && loaded.masterVolume == 47 && loaded.theme == 1);
         CHECK(loaded.eqDb == legacy.eqDb);
-        reloaded.select(loaded, 1);
+        reloaded.select(loaded, reloaded.indexOf("dream"));
         CHECK(samePresetSettings(dream, loaded));
         reloaded.restore(loaded);
         CHECK(!reloaded.modified(loaded));
-        CHECK(loaded.bpm == 80 && loaded.tonic == 2 && loaded.scale == 1 &&
+        CHECK(loaded.bpm == 70 && loaded.tonic == 2 && loaded.scale == 1 &&
               loaded.combinations[0] == int(Quality::No3) &&
               loaded.degreeCombinations[3][3] == int(Quality::Sus4));
         CHECK(loaded.masterVolume == 47 && loaded.theme == 1);
@@ -142,16 +144,16 @@ int main() {
         choose(editor, 46);
         CHECK(instrument.settings.padProgram == 10);
         press(editor, '\n');
-        CHECK(instrument.settings.padProgram == 46 && instrument.settings.chordProgram == 88);
+        CHECK(instrument.settings.padProgram == 46 && instrument.settings.chordProgram == 49);
         press(editor, '\b');
-        CHECK(instrument.settings.padProgram == 10 && instrument.settings.chordProgram == 88);
+        CHECK(instrument.settings.padProgram == 10 && instrument.settings.chordProgram == 49);
         row(editor, 13);
         press(editor, '\n');
         choose(editor, 4);
         press(editor, '\n');
         CHECK(instrument.settings.chordProgram == 4 && instrument.settings.padProgram == 10);
         press(editor, '\b');
-        CHECK(instrument.settings.chordProgram == 88 && instrument.settings.padProgram == 10);
+        CHECK(instrument.settings.chordProgram == 49 && instrument.settings.padProgram == 10);
         instrument.settings.tonic = 7;
         instrument.settings.bpm = 211;
         row(editor, 3); press(editor, '\n');
@@ -216,27 +218,27 @@ int main() {
         PresetLibrary edited;
         Settings editedSettings;
         edited.load(dir.string(), editedSettings);
-        edited.select(editedSettings, 4);
+        edited.select(editedSettings, edited.indexOf("pop"));
         CHECK(editedSettings.bpm == 123);
         edited.restore(editedSettings);
         CHECK(editedSettings.bpm == 119);
         // Restoring one style never resets another style's remembered edits, including on disk.
-        edited.select(editedSettings, 1);
+        edited.select(editedSettings, edited.indexOf("dream"));
         editedSettings.bpm = 157;
         editedSettings.chordProgram = 24;
         const auto other = editedSettings;
-        edited.select(editedSettings, 4);
+        edited.select(editedSettings, edited.indexOf("pop"));
         editedSettings.bpm = 182;
         edited.restore(editedSettings);
         CHECK(editedSettings.bpm == 119);
-        edited.select(editedSettings, 1);
+        edited.select(editedSettings, edited.indexOf("dream"));
         CHECK(samePresetSettings(editedSettings, other));
         edited.save(editedSettings);
         PresetLibrary isolation;
         Settings isolated;
         isolation.load(dir.string(), isolated);
         CHECK(samePresetSettings(isolated, other));
-        isolation.select(isolated, 4);
+        isolation.select(isolated, isolation.indexOf("pop"));
         CHECK(isolated.bpm == 119);
         // Malformed, unsafe, mistyped and unsupported user files fail closed, with a warning.
         const std::vector<std::string> bad = {
@@ -269,7 +271,7 @@ int main() {
         PresetLibrary robust;
         Settings unchanged;
         robust.load(dir.string(), unchanged);
-        CHECK(!robust.warning.empty() && robust.entries.size() == 11);
+        CHECK(!robust.warning.empty() && robust.entries.size() == 9);
         auto readonlyDir = dir / "readonly";
         PresetLibrary readonly;
         Settings ro;
@@ -306,46 +308,83 @@ int main() {
               upgradedText.find("combinations") == std::string::npos &&
               upgradedText.find("backing_volume") == std::string::npos &&
               upgradedText.find("foreground_volume") == std::string::npos &&
-              upgradedText.find("echo") == std::string::npos &&
+              upgradedText.find("\necho") == std::string::npos &&
               upgradedText.find("sweep_ms") == std::string::npos &&
               upgradedText.find("level") == std::string::npos);
-        // 1.2 files: stock built-ins upgrade to every layer; edited copies keep their layers,
-        // and Arp keeps the Chord sound and envelope it used before.
-        {
-            auto old = dir / "release-1.2";
+        // Stock copies from 1.2, 1.3 and the drums development build upgrade to the current
+        // styles. Edited copies keep their layers and sounds; new Bass and Drums start at 0%.
+        auto stockOf = [](int release, const std::string &id) {
+            for (auto &p : stockPresets(release))
+                if (p.id == id) return p;
+            throw std::runtime_error("Missing stock preset " + id);
+        };
+        for (int release : {2, 3, 4, 5}) {
+            auto old = dir / ("release-" + std::to_string(release));
             PresetLibrary current;
-            auto stock = current.entries[0]; // Harp: Pad only in 1.2.
-            writePreset(stock, (old / "presets/factory/harp.toml").string());
-            auto strip = [](const fs::path &file, const std::string &mode) {
-                std::ifstream in(file);
-                std::string line, text;
-                while (std::getline(in, line))
-                    if (line.rfind("arp_", 0) != 0 && line.find("_mix") == std::string::npos)
-                        text += line.rfind("mode", 0) == 0 ? "mode = '" + mode + "'\n" : line + "\n";
-                in.close();
-                std::ofstream(file) << text;
-            };
-            strip(old / "presets/factory/harp.toml", "Pad");
+            const int pop = current.indexOf("pop");
+            auto stock = stockOf(release, "pop");
+            writePreset(stock, (old / "presets/factory/pop.toml").string());
+            // The second 1.4 development build also wrote its 16th-note swing ratio.
+            if (release == 5) std::ofstream(old / "presets/factory/pop.toml", std::ios::app) << "swing = 54\n";
             auto edited = stock;
             edited.sound.bpm = 77;
             fs::create_directories(old / "working");
-            writePreset(edited, (old / "working/harp.toml").string());
-            strip(old / "working/harp.toml", "Pad");
-            std::ofstream(old / "session.toml") << "schema_version=1\nselected='harp'\n";
+            writePreset(edited, (old / "working/pop.toml").string());
+            std::ofstream(old / "session.toml")
+                << "schema_version=1\nselected='" << (release == 2 ? "pop" : "harp") << "'\n";
             Settings loaded;
             PresetLibrary upgraded;
             upgraded.load(old.string(), loaded);
-            CHECK(samePresetSettings(upgraded.entries[0].sound, stock.sound));
-            CHECK(upgraded.entries[0].sound.mode == PlaybackMode::All);
-            CHECK(loaded.bpm == 77 && loaded.mode == PlaybackMode::Pad &&
-                  (loaded.layerMix == std::array<int, 3>{100, 100, 100}));
-            CHECK(loaded.arpProgram == loaded.chordProgram && loaded.arpSound == loaded.chordSound &&
-                  loaded.envelopes[ArpEnvelope] == loaded.envelopes[ChordEnvelope]);
+            CHECK(samePresetSettings(upgraded.entries[pop].sound, current.entries[pop].sound));
+            if (release == 2) {
+                CHECK(loaded.bpm == 77 && loaded.mode == PlaybackMode::Arp &&
+                      (loaded.layerMix == std::array<int, 5>{100, 100, 100, 0, 0}) &&
+                      loaded.drums && loaded.bass && !loaded.audible(PlaybackMode::Drums) &&
+                      !loaded.audible(PlaybackMode::Bass) && loaded.swingMode == SwingOff);
+                CHECK(loaded.arpProgram == loaded.chordProgram &&
+                      loaded.envelopes[ArpEnvelope] == loaded.envelopes[ChordEnvelope]);
+            } else
+                CHECK(upgraded.current(loaded).id == "dream"); // Harp is retired.
+        }
+        {
+            // The current styles: every layer selected and audible, in their own meter.
+            PresetLibrary current;
+            for (const auto &entry : current.entries) {
+                CHECK(entry.sound.enabledLayers() == allLayers &&
+                      entry.sound.audibleLayers() == allLayers);
+                // Built-in kits, no swing, and a front level of their own.
+                CHECK(entry.sound.drumSound.empty() && entry.sound.swingMode == SwingOff &&
+                      entry.sound.frontMix > 0 && entry.sound.frontMix < 100);
+            }
+            CHECK(current.indexOf("harp") == 0 && current.indexOf("keys") == 0 &&
+                  current.indexOf("organ") == 0 && current.entries[0].id == "dream");
+            const auto &waltz = current.entries[current.indexOf("waltz")].sound;
+            for (auto [mode, index] : {std::pair{PlaybackMode::Chord, waltz.chordPattern},
+                                       {PlaybackMode::Arp, waltz.pattern},
+                                       {PlaybackMode::Drums, waltz.drumPattern},
+                                       {PlaybackMode::Bass, waltz.bassPattern}})
+                CHECK(patterns(mode)[index].ticks % 12 == 0); // 3/4 throughout.
+            const auto &rnb = current.entries[current.indexOf("rnb")].sound;
+            CHECK(rnb.swingMode == SwingOff && rnb.bpm == 78 && rnb.chordVoicing == VoicingRich);
+            const auto &rock = current.entries[current.indexOf("rock")].sound;
+            CHECK(rock.chordVoicing == VoicingPower && rock.chordProgram == 29);
+            const auto &dreamStyle = current.entries[current.indexOf("dream")].sound;
+            CHECK(std::string(patterns(PlaybackMode::Drums)[dreamStyle.drumPattern].id) == "chimes" &&
+                  dreamStyle.envelopes[FrontEnvelope].values[3] >= 2500 && dreamStyle.reverbMs > 4000);
+            const auto &dance = current.entries[current.indexOf("dance")];
+            CHECK(dance.name == "Dance" && dance.sound.bpm == 124 &&
+                  dance.sound.drumPattern == 5 && dance.sound.padMotion == 3);
+            // Every pattern ID round-trips through the preset file.
+            auto file = (dir / "style.toml").string();
+            for (const auto &entry : current.entries) {
+                writePreset(entry, file);
+                CHECK(samePresetSettings(readPreset(file).sound, entry.sound));
+            }
         }
         // A first launch honors edited defaults, and save-as avoids filename collisions.
         auto firstDir = dir / "first-launch";
         PresetLibrary first;
-        auto factory = first.entries[1];
+        auto factory = first.entries[first.indexOf("dream")];
         factory.sound.bpm = 143;
         writePreset(factory, (firstDir / "presets/factory/dream.toml").string());
         Settings initial;
@@ -369,32 +408,31 @@ int main() {
         PresetLibrary defaults;
         Settings start;
         defaults.load((dir / "clean").string(), start);
-        CHECK(defaults.current(start).id == "dream" && defaults.order().front() == 1);
-        CHECK(start.chordProgram == 88 && start.padProgram == 89 && start.harpProgram == 10);
+        CHECK(defaults.current(start).id == "dream" && defaults.order().front() == 0);
+        CHECK(start.chordProgram == 49 && start.padProgram == 94 && start.harpProgram == 11);
         CHECK(start.mode == PlaybackMode::All && start.chordPattern == sustainedChordPattern);
-        for (int preset : {0, 1, 2})
+        for (int preset : {defaults.indexOf("dream")})
             CHECK(defaults.entries[preset].sound.chordPattern == sustainedChordPattern);
         // Previous preview stock upgrades, but a chosen Manual hit override survives.
         auto previewDir = dir / "preview";
-        auto previewDream = defaults.entries[1];
-        previewDream.sound.mode = PlaybackMode::Pad;
-        previewDream.sound.chordPattern = 0;
+        auto previewDream = stockOf(1, "dream");
+        CHECK(previewDream.sound.mode == PlaybackMode::Pad && previewDream.sound.chordPattern == 0);
         writePreset(previewDream, (previewDir / "presets/factory/dream.toml").string());
         writePreset(previewDream, (previewDir / "working/dream.toml").string());
         PresetLibrary preview;
         Settings previewSettings;
         preview.load(previewDir.string(), previewSettings);
-        CHECK(preview.entries[1].sound.mode == PlaybackMode::All);
-        CHECK(preview.entries[1].sound.chordPattern == sustainedChordPattern);
+        CHECK(preview.entries[0].sound.mode == PlaybackMode::All);
+        CHECK(preview.entries[0].sound.chordPattern == sustainedChordPattern);
         // A modified definition and its working copy are never mistaken for stock.
         previewDream.sound.bpm = 137;
         writePreset(previewDream, (previewDir / "presets/factory/dream.toml").string());
         writePreset(previewDream, (previewDir / "working/dream.toml").string());
         PresetLibrary previewCustom;
         previewCustom.load(previewDir.string(), previewSettings);
-        CHECK(previewCustom.entries[1].sound.chordPattern == 0);
-        CHECK(previewCustom.entries[1].sound.bpm == 137);
-        auto oldDream = defaults.entries[1];
+        CHECK(previewCustom.entries[0].sound.chordPattern == 0);
+        CHECK(previewCustom.entries[0].sound.bpm == 137);
+        auto oldDream = defaults.entries[0];
         oldDream.sound = Settings{};
         oldDream.sound.chordProgram = oldDream.sound.padProgram = 89;
         oldDream.sound.harpProgram = 10;
@@ -404,27 +442,27 @@ int main() {
         writePreset(oldDream, (dir / "clean/working/dream.toml").string());
         PresetLibrary migrated;
         migrated.load((dir / "clean").string(), start);
-        CHECK(start.chordProgram == 88 && start.padProgram == 89);
+        CHECK(start.chordProgram == 49 && start.padProgram == 94);
         oldDream.sound.bpm = 137;
         writePreset(oldDream, (dir / "clean/presets/factory/dream.toml").string());
         writePreset(oldDream, (dir / "clean/working/dream.toml").string());
         PresetLibrary custom;
         custom.load((dir / "clean").string(), start);
         CHECK(start.chordProgram == 89 && start.bpm == 137);
-        CHECK(custom.entries[1].sound.chordProgram == 89);
+        CHECK(custom.entries[0].sound.chordProgram == 89);
         // Envelopes persist per part and per preset; factory defaults remain independent.
         auto envelopeDir = dir / "envelopes";
         PresetLibrary envelopes;
         Settings envelopeSettings;
         envelopes.load(envelopeDir.string(), envelopeSettings);
-        CHECK(envelopeSettings.envelopes == envelopes.entries[1].sound.envelopes);
+        CHECK(envelopeSettings.envelopes == envelopes.entries[0].sound.envelopes);
         envelopeSettings.envelopes[0].values = {20, 300, 65, 700};
         envelopeSettings.envelopes[1].values = {0, 100, 20, 30};
         envelopeSettings.envelopes[2].values = {1000, 2000, 90, 3000};
         auto savedEnvelopes = envelopeSettings.envelopes;
-        envelopes.select(envelopeSettings, 0);
-        envelopeSettings.envelopes[0].values[0] = 40;
         envelopes.select(envelopeSettings, 1);
+        envelopeSettings.envelopes[0].values[0] = 40;
+        envelopes.select(envelopeSettings, 0);
         CHECK(envelopeSettings.envelopes == savedEnvelopes);
         envelopes.saveAs(envelopeSettings);
         CHECK(envelopes.current(envelopeSettings).sound.envelopes == savedEnvelopes);
@@ -436,10 +474,10 @@ int main() {
         PresetLibrary envelopeReload;
         envelopeReload.load(envelopeDir.string(), restoredEnvelopes);
         CHECK(restoredEnvelopes.envelopes == savedEnvelopes);
-        envelopeReload.select(restoredEnvelopes, 1);
-        envelopeReload.restore(restoredEnvelopes);
-        CHECK(restoredEnvelopes.envelopes == envelopes.entries[1].sound.envelopes);
         envelopeReload.select(restoredEnvelopes, 0);
+        envelopeReload.restore(restoredEnvelopes);
+        CHECK(restoredEnvelopes.envelopes == envelopes.entries[0].sound.envelopes);
+        envelopeReload.select(restoredEnvelopes, 1);
         CHECK(restoredEnvelopes.envelopes[0].values[0] == 40);
         std::ofstream(dir / "invalid-envelope.toml") << "schema_version=2\nid='bad'\nname='Bad'\nfront_sustain_percent=101\n";
         rejected = false;

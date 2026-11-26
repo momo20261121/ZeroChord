@@ -1,0 +1,50 @@
+file = 'bank.sf2'
+
+[[sounds]]
+id = 'standard'
+name = 'Standard Kit (FluidR3)'
+category = 'Drums'
+program = 0
+bank = 128
+
+[[sounds]]
+id = 'room'
+name = 'Room Kit (FluidR3)'
+category = 'Drums'
+program = 8
+bank = 128
+
+[[sounds]]
+id = 'power'
+name = 'Power Kit (FluidR3)'
+category = 'Drums'
+program = 16
+bank = 128
+
+[[sounds]]
+id = 'electronic'
+name = 'Electronic Kit (FluidR3)'
+category = 'Drums'
+program = 24
+bank = 128
+
+[[sounds]]
+id = 'tr-808'
+name = 'TR-808 Kit (FluidR3)'
+category = 'Drums'
+program = 25
+bank = 128
+
+[[sounds]]
+id = 'jazz'
+name = 'Jazz Kit (FluidR3)'
+category = 'Drums'
+program = 32
+bank = 128
+
+[[sounds]]
+id = 'brush'
+name = 'Brush Kit (FluidR3)'
+category = 'Drums'
+program = 40
+bank = 128
