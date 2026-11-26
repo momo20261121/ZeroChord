@@ -1,5 +1,7 @@
 # Release notes
 
+## 1.4.0 (in development)
+
 ## 1.3.0 - 2026-11-25
 
 - Hold a front note to sustain it. Its key stays lit, and letting go starts the
