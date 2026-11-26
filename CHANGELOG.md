@@ -1,5 +1,24 @@
 # Release notes
 
+## 1.3.0 - 2026-11-25
+
+- Hold a front note to sustain it. Its key stays lit, and letting go starts the
+  envelope's release.
+- **Backing layers** is one page with Layers, Chord, Arp, and Pad tabs. On
+  Layers, Enter mutes or unmutes a layer and left/right set its mix, both while
+  playing. Each layer tab holds its pattern, sound, and envelope.
+- Arp has its own sound and envelope. Older setups keep Arp on the Chord sound.
+- Built-in presets select all three layers. Layers a preset did not use before
+  join at 30%. Unedited built-ins upgrade; edited presets keep their layers.
+- Settings use the same keys on every page: Tab for the next tab, 1-8 to jump,
+  left/right to change numbers (hold to repeat), Enter to open rows marked `>`,
+  Backspace to restore, Esc to go back. Each row explains itself on the line below.
+- Envelope lists show the sound's own value in order and mark the preset default.
+- Restore and save actions ask once: Enter to confirm, Esc to keep.
+- Chord config adds Scale for natural-minor chord roots. Front scale notes
+  follow the chord key and scale by default, or use their own.
+- A preview stops when you leave its option.
+
 ## 1.2.1 - 2026-11-24
 
 - Adjust volume, Echo, and EQ directly with the left and right arrows under

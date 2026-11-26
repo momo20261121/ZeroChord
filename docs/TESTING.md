@@ -1,5 +1,33 @@
 # Testing ZeroChord
 
+## 1.3.0 release — 2026-11-25
+
+- **Local:** all six desktop suites, all six ASan/UBSan suites (leak detection
+  off), and 37 real-app flows passed. New coverage includes held front notes and
+  their highlight, the Backing layers page with live mute and mix, separate Arp
+  sound routing and mix gain, 1.2 settings and preset migration, the chord Scale
+  and front Key/Scale following, the envelope list's sound value, hold-to-repeat,
+  Tab and number tab navigation, one-question confirmations, and previews
+  stopping when the player leaves an option. The keyboard fixtures, flows, and
+  installed acceptance sequence were updated for the new controls.
+- **Fix during release:** leaving Backing layers opened with O changed the Style
+  row that Tab opened next. O now leaves the settings pages untouched
+  (`settings_tests`); the installed acceptance test found it.
+- **Package:** the Debian VM cross-built the Linux ARM64 candidate with Zig. The
+  CardputerZero verified the candidate checksum before installation. The final
+  archive uses the same executable and launcher files with updated docs.
+- **Device:** the installed test passed package integrity, launcher metadata,
+  evdev input, save and reload of App Vol, EQ, a Chord-only layer set, chord
+  pattern, and tempo, and long-Esc exit. The kernel framebuffer matched the
+  320×170 app capture within RGB565 quantization. Digital audio captured 424,800
+  stereo frames with peak 9,271 and zero queue overflows. The launcher resumed.
+- **Screenshots:** inspected the five store screenshots, the App settings
+  screenshot, and the new Backing layers screenshot at 320×170.
+- **Manual checks:** physical keyboard feel (holding notes and repeating
+  arrows), speaker or headphone listening, the 30% join level for added layers,
+  and optional sound packs remain outside the automated acceptance test.
+  `scripts/device_input_test.py` still walks the 1.2 menus and was not run.
+
 ## 1.2.1 release — 2026-11-24
 
 - **Local:** all six desktop suites, all six ASan/UBSan suites with leak

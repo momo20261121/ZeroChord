@@ -34,6 +34,22 @@ struct Renderer::Impl {
     bool muted = true;
     float chordGain = 1.f;
     explicit Impl(int r) : rate(r), delay(size_t(r * 0.23) * 2, 0.f) {}
+    // Backing layers share the backing volume; the mix sets each layer's share.
+    float layerGain(Part part) const {
+        if (part == Part::Harp) return 1.f;
+        const auto layer = part == Part::Pad ? PlaybackMode::Pad
+                           : part == Part::Arp ? PlaybackMode::Arp : PlaybackMode::Chord;
+        float power = 0.f;
+        for (auto l : backingLayerOrder)
+            if (settings.audible(l)) power += std::pow(settings.mix(l) / 100.f, 2.f);
+        // Several full layers keep the previous 1/sqrt(n) balance; one quiet layer stays quiet.
+        return settings.mix(layer) / 100.f / std::sqrt(std::max(1.f, power));
+    }
+    float volume(const Voice &v) const {
+        if (v.part == Part::Harp) return settings.harpVolume / 100.f * v.gain;
+        return settings.chordVolume / 100.f * (v.part == Part::Pad ? chordGain : 1.f) *
+               layerGain(v.part) * v.gain;
+    }
     ~Impl() {
         for (auto &[id, bank] : synths)
             tsf_close(bank);
@@ -85,15 +101,16 @@ void Renderer::send(const Command &c) {
         s.settings.clamp();
         s.equalizer.configure(s.settings.eqDb, s.rate);
         s.chordGain = 1.f;
+        for (int i = 0; i < 64; i++) // Mix changes reach notes already ringing.
+            if (s.voices[i].synth && s.voices[i].part != Part::Harp)
+                tsf_channel_set_volume(s.voices[i].synth, i, s.volume(s.voices[i]));
         return;
     }
     if (c.type == CommandType::ChordGain) {
         s.chordGain = std::clamp(c.gain, 0.f, 1.f);
         for (int i = 0; i < 64; i++)
             if (s.voices[i].part == Part::Pad && s.voices[i].synth)
-                tsf_channel_set_volume(s.voices[i].synth, i,
-                                       s.settings.chordVolume / 100.f * s.chordGain *
-                                           s.voices[i].gain);
+                tsf_channel_set_volume(s.voices[i].synth, i, s.volume(s.voices[i]));
         return;
     }
     if (c.type == CommandType::StopChord) {
@@ -110,8 +127,15 @@ void Renderer::send(const Command &c) {
     if (c.type == CommandType::Off) {
         for (int i = 0; i < 64; i++)
             if (s.voices[i].id == c.id && s.voices[i].held) {
-                tsf_channel_note_off(s.voices[i].synth, i, s.voices[i].pitch);
-                s.voices[i].held = false;
+                auto &v = s.voices[i];
+                // A quick front tap still sounds: release no sooner than 60 ms after the start.
+                const uint64_t earliest = v.age - 1 + uint64_t(s.rate) * 60 / 1000;
+                if (v.part == Part::Harp && s.frame < earliest) {
+                    v.off = earliest;
+                    continue;
+                }
+                tsf_channel_note_off(v.synth, i, v.pitch);
+                v.held = false;
             }
         return;
     }
@@ -130,13 +154,19 @@ void Renderer::send(const Command &c) {
     const auto &preset = presets[std::clamp(s.settings.preset, 0, 3)];
     const bool front = c.part == Part::Harp;
     const bool pad = c.part == Part::Pad;
-    int program = front ? s.settings.harpProgram : pad ? s.settings.padProgram : s.settings.chordProgram;
+    const bool arp = c.part == Part::Arp;
+    int program = front ? s.settings.harpProgram
+                  : pad ? s.settings.padProgram
+                  : arp && s.settings.arpProgram >= 0 ? s.settings.arpProgram
+                        : s.settings.chordProgram;
     if (program < 0)
         program = front ? preset.harpProgram : pad && preset.padProgram >= 0
                       ? preset.padProgram : preset.chordProgram;
     tsf *synth = s.synth;
     const std::string &soundId = front ? s.settings.frontSound
-                                    : pad ? s.settings.padSound : s.settings.chordSound;
+                                 : pad ? s.settings.padSound
+                                 : arp && s.settings.arpProgram >= 0 ? s.settings.arpSound
+                                       : s.settings.chordSound;
     auto *sound = soundLibrary().find(soundId);
     if (sound && !sound->bank.empty()) {
         auto it = s.synths.find(sound->bank);
@@ -150,21 +180,19 @@ void Renderer::send(const Command &c) {
         tsf_channel_set_presetnumber(synth, slot, program, 0);
     else
         tsf_channel_set_bank_preset(synth, slot, sound->bankNumber, program);
-    unsigned layers = backingLayers(s.settings.mode);
-    int layerCount = int(bool(layers & 1)) + int(bool(layers & 2)) + int(bool(layers & 4));
-    float balance = front ? 1.f : 1.f / std::sqrt(float(std::max(1, layerCount)));
-    float gain = c.gain * balance;
-    tsf_channel_set_volume(synth, slot,
-        (front ? s.settings.harpVolume : s.settings.chordVolume * (pad ? s.chordGain : 1.f)) / 100.f * gain);
+    Impl::Voice voice{};
+    voice.part = c.part;
+    voice.gain = c.gain;
+    tsf_channel_set_volume(synth, slot, s.volume(voice));
     tsf_channel_note_on(synth, slot, c.pitch, front ? 0.9f : std::clamp(.68f * c.gain, 0.f, 1.f));
     if (!front && !pad)
         soundfontArticulate(synth, slot, c.pitch, s.rate, c.durationMs == 0);
-    int envelopePart = front ? 0 : pad ? 2 : 1;
+    int envelopePart = front ? FrontEnvelope : pad ? PadEnvelope : arp ? ArpEnvelope : ChordEnvelope;
     soundfontEnvelope(synth, slot, c.pitch, s.rate, s.settings.envelopes[envelopePart]);
     s.voices[slot] = {
         c.id,        c.pitch, c.durationMs ? s.frame + uint64_t(c.durationMs) * s.rate / 1000 : 0,
         s.frame + 1, true,    c.part,
-        gain,        synth, s.settings.envelopes[envelopePart].values[3] >= 0};
+        c.gain,      synth, s.settings.envelopes[envelopePart].values[3] >= 0};
 }
 void Renderer::render(float *stereo, int frames) {
     auto &s = *impl_;

@@ -13,12 +13,12 @@ out.mkdir(parents=True, exist_ok=True)
 docs = root/'docs/images'
 store_scenes = {
     'performance': ['8','v'],
-    'style': ['TAB','x','x','x'],
-    'volume-effects': ['TAB','c','x','ENTER','x'],
-    'sounds': ['TAB']+['x']*6+['ENTER'],
-    'chord-config': ['TAB','c','x','x','ENTER'],
+    'style': ['TAB','x','x'],
+    'volume-effects': ['TAB','TAB','x','ENTER','x'],
+    'sounds': ['TAB','x','x','x','ENTER','ENTER'],
+    'chord-config': ['TAB','TAB','x','x','ENTER'],
 }
-docs_scenes = {'app-settings': ['TAB','c','x']}
+docs_scenes = {'app-settings': ['TAB','TAB','x'], 'backing-layers': ['o']}
 with tempfile.TemporaryDirectory(prefix='zerochord-release-') as temporary:
     work = Path(temporary)
     for name, keys in {**store_scenes, **docs_scenes}.items():

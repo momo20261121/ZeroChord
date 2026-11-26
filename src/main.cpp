@@ -150,8 +150,10 @@ int main(int argc, char **argv) {
                 return;
             }
             if (ui.settingsOpen || ui.tempoOpen() || ui.backingOpen() || key == 'p' || key == 'o') {
+                const bool quickBacking = ui.backingOpen();
                 ui.key(key, down);
-                if (!ui.settingsOpen && !down)
+                // Releases still reach the instrument while O's quick Backing page is open.
+                if ((!ui.settingsOpen || quickBacking) && !down)
                     instrument.key(key, false, now);
             }
             else
@@ -175,6 +177,7 @@ int main(int argc, char **argv) {
             if (escDown && now - escAt >= 800)
                 quit = true;
             instrument.tick(now);
+            ui.tick(now);
             ui.draw();
             lv_timer_handler();
             if (quitAfter && now >= quitAfter)

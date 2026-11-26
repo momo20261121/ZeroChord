@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include "settings_editor.hpp"
+#include "menu_navigation.hpp"
 #include "settings_io.hpp"
 #include "sounds.hpp"
 #include <algorithm>
@@ -34,17 +35,11 @@ void choose(SettingsEditor &e, int value) {
             press(e, 18);
         }
         if (e.soundPicker())
-            press(e, 20);
+            press(e, '\t'); // Tab: next sound group.
     }
     throw std::runtime_error("Missing choice");
 }
-void row(SettingsEditor &e, int value) {
-    const auto target = SettingsEditor::appField(value) ? SettingsEditor::Tab::App : SettingsEditor::Tab::Style;
-    for (int n = 0; e.tab() != target && n < 3; ++n) press(e, 20);
-    for (int n = 0; e.selected() != value && n < SettingsEditor::settingCount; n++)
-        press(e, 18);
-    CHECK(e.selected() == value);
-}
+void row(SettingsEditor &e, int field) { zc::test::goToRow(e, field); }
 void frontRow(SettingsEditor &e, int value) {
     for (int n = 0; e.selected() != value && n < 8; n++)
         press(e, 18);
@@ -193,11 +188,14 @@ int main(int argc, char **argv) {
         row(editor, 22);
         press(editor, '\n');
         CHECK(editor.page() == SettingsEditor::Page::FrontNotes && editor.frontKey() == -1);
-        for (char key : std::string("vbnm12345678"))
+        for (char key : std::string("vbnm")) // Front keys do nothing in settings.
             press(editor, key);
         CHECK(editor.frontKey() == -1 && editor.selected() == 0);
-        press(editor, 20); // All -> Z
-        press(editor, 20); // Z -> X
+        press(editor, '8'); // Number keys jump to a tab: 8 is M.
+        CHECK(editor.frontKey() == 6);
+        press(editor, '1');
+        press(editor, '\t'); // All -> Z
+        press(editor, '\t'); // Z -> X
         CHECK(editor.frontKey() == 1);
         press(editor, '\n');
         CHECK(editor.choices()[editor.highlighted()].name.find("+4") != std::string::npos);
@@ -226,8 +224,7 @@ int main(int argc, char **argv) {
         choose(editor, 1);
         press(editor, '\n');
         CHECK(instrument.settings.frontSource[1] == -1 && instrument.settings.frontOctave[1] == -2);
-        press(editor, 19);
-        press(editor, 19); // X -> Z -> All
+        press(editor, '1'); // Back to All
         CHECK(editor.frontKey() == -1);
         frontRow(editor, 2);
         press(editor, '\n');
@@ -248,7 +245,7 @@ int main(int argc, char **argv) {
         choose(editor, 330);
         press(editor, '\n');
         CHECK(instrument.settings.scaleStrumMs == 330 && instrument.settings.strumMs == 90);
-        press(editor, 20); // Z in scale mode
+        press(editor, '2'); // Z in scale mode
         press(editor, '\n');
         choose(editor, 4);
         press(editor, '\n');
@@ -258,7 +255,7 @@ int main(int argc, char **argv) {
         press(editor, '\n');
         CHECK(instrument.settings.frontDegree[0] == 4 && instrument.settings.scaleOctave[0] == 3);
         // All reset is confirmed and restores both modes without touching sound.
-        press(editor, 19);
+        press(editor, '1');
         frontRow(editor, 3);
         press(editor, '\n');
         choose(editor, 1);
@@ -334,14 +331,21 @@ int main(int argc, char **argv) {
         s.frontMode = 1;
         const int intervals[2][7]{{0, 2, 4, 5, 7, 9, 11}, {0, 2, 3, 5, 7, 8, 10}};
         for (int tonic = 0; tonic < 12; tonic++)
-            for (int scale = 0; scale < 2; scale++) {
-                s.tonic = tonic;
-                s.scale = scale;
-                auto notes = frontNotes({55, -1, 3, Quality::Minor}, s);
-                for (int n = 0; n < 7; n++)
-                    CHECK(notes[n] == 60 + tonic + intervals[scale][n]);
-                CHECK(notes == frontNotes({49, -1, 6, Quality::Seventh}, s));
-            }
+            for (int scale = 0; scale < 2; scale++)
+                for (int follow = 0; follow < 2; follow++) {
+                    // Following uses the chord key and scale; otherwise the front's own.
+                    s.frontFollow = follow;
+                    s.tonic = follow ? tonic : (tonic + 5) % 12;
+                    s.chordScale = follow ? scale : 1 - scale;
+                    s.frontTonic = follow ? (tonic + 7) % 12 : tonic;
+                    s.scale = follow ? 1 - scale : scale;
+                    auto notes = frontNotes({55, -1, 3, Quality::Minor}, s);
+                    for (int n = 0; n < 7; n++)
+                        CHECK(notes[n] == 60 + tonic + intervals[scale][n]);
+                    CHECK(notes == frontNotes({49, -1, 6, Quality::Seventh}, s));
+                }
+        s.frontFollow = 1;
+        s.chordScale = 0;
         s.tonic = 0;
         s.scale = 0;
         s.frontDegree[0] = 4;
@@ -352,7 +356,8 @@ int main(int argc, char **argv) {
         sink.events.clear();
         instrument.key('z', true, 3000);
         instrument.key('z', false, 3001);
-        CHECK(!instrument.active && sink.events.back().pitch == 55); // Works without backing.
+        CHECK(!instrument.active && sink.events.size() == 2 && sink.events[0].pitch == 55 &&
+              sink.events[1].type == CommandType::Off); // Works without backing.
         instrument.key('l', true, 3002);
         instrument.key('l', false, 3003);
         CHECK(instrument.playingFrontNotes()[0] == 67);
@@ -443,6 +448,33 @@ int main(int argc, char **argv) {
             missing.render(a.data(), 4800);
             fallback.render(b.data(), 4800);
             CHECK(a == b);
+        }
+        {
+            // The envelope picker lists the sound's own value once, in order, instead of a
+            // separate "default" item, and shows it as the current choice.
+            Capture envelopeSink;
+            Instrument player(envelopeSink);
+            SettingsEditor envelope(player);
+            player.settings.envelopes[FrontEnvelope].values = {-1, -1, -1, -1};
+            press(envelope, '\t');
+            row(envelope, 23);
+            press(envelope, '\n');
+            for (int control = 0; control < 4; control++) {
+                press(envelope, '\n');
+                const auto &choices = envelope.choices();
+                CHECK(std::count_if(choices.begin(), choices.end(),
+                                    [](const auto &c) { return c.value == -1; }) == 1);
+                CHECK(choices[envelope.highlighted()].value == -1);
+                int previous = -1;
+                for (const auto &c : choices) {
+                    CHECK(!c.name.empty() && std::isdigit(static_cast<unsigned char>(c.name[0])));
+                    const int shown = std::stoi(c.name);
+                    CHECK(shown > previous);
+                    previous = shown;
+                }
+                press(envelope, 27);
+                press(envelope, 18);
+            }
         }
         fs::create_symlink(fs::absolute(argv[1]), dir / "sounds/direct.sf2");
         sounds.load(dir.string(), argv[1]);

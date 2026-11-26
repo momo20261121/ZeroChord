@@ -1,5 +1,7 @@
 #pragma once
+#include <array>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 struct tsf;
@@ -28,6 +30,8 @@ class SoundLibrary {
     std::string name(int program, const std::string &id) const;
     int selected(int program, const std::string &id) const;
     std::string sampleRateLabel(int choice) const;
+    // The sound's own attack/decay (ms), sustain (%), release (ms) near middle C, if known.
+    std::optional<std::array<int, 4>> envelope(int program, const std::string &id) const;
 };
 SoundLibrary &soundLibrary();
 struct SoundFontPreset {
@@ -36,6 +40,8 @@ struct SoundFontPreset {
 };
 std::vector<SoundFontPreset> soundfontPresets(tsf *synth);
 std::vector<int> soundfontSampleRates(tsf *synth, int bank, int program);
+std::optional<std::array<int, 4>> soundfontEnvelopeDefaults(tsf *synth, int bank, int program,
+                                                            int key = 60);
 void soundfontPanic(tsf *synth);
 void soundfontEnvelope(tsf *synth, int channel, int pitch, int rate, const Envelope &settings);
 void soundfontArticulate(tsf *synth, int channel, int pitch, int rate, bool sustained = false);

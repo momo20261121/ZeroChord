@@ -91,6 +91,16 @@ std::string SoundLibrary::sampleRateLabel(int value) const {
            (rates.size() > 1 ? "-" + khz(rates.back()) : "") + " kHz" +
            (rates.size() > 1 ? " (mixed)" : "");
 }
+std::optional<std::array<int, 4>> SoundLibrary::envelope(int program, const std::string &id) const {
+    const Sound *sound = id.empty() ? nullptr : find(id);
+    if (!id.empty() && (!sound || sound->bank.empty())) sound = nullptr;
+    const std::string bankId = sound ? sound->bank : "";
+    auto bank = std::find_if(banks.begin(), banks.end(),
+                             [&](const Bank &b) { return b.id == bankId; });
+    if (bank == banks.end()) return std::nullopt;
+    return soundfontEnvelopeDefaults(bank->data.get(), sound ? sound->bankNumber : 0,
+                                     sound ? sound->program : program);
+}
 std::vector<std::string> SoundLibrary::categories() const {
     std::vector<std::string> result{"Keys", "Plucked", "Strings", "Pads"};
     if (std::any_of(entries.begin(), entries.end(),

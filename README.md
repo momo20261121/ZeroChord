@@ -2,7 +2,7 @@
 
 <img src="assets/share/images/zerochord.png" alt="ZeroChord icon" width="96" height="96">
 
-**A pocket chord-and-harp instrument for CardputerZero. Version 1.2.1.**
+**A pocket chord-and-harp instrument for CardputerZero. Version 1.3.0.**
 
 Inspired by [**minichord**](https://minichord.com/) and the
 [**Suzuki Omnichord**](https://www.suzuki-music.co.jp/special/omnichord_om-108/en/),
@@ -12,14 +12,14 @@ presets give you a starting point; sounds, envelopes and tempo are adjustable.
 
 ![ZeroChord performance screen](docs/images/release-performance.png)
 
-[Download ZeroChord 1.2.1](https://github.com/momo20261121/ZeroChord/releases/download/v1.2.1/zerochord_1.2.1_arm64.deb) · [Make your first sound](#make-your-first-sound) · [User guide](docs/USER_GUIDE.md)
+[Download ZeroChord 1.3.0](https://github.com/momo20261121/ZeroChord/releases/download/v1.3.0/zerochord_1.3.0_arm64.deb) · [Make your first sound](#make-your-first-sound) · [User guide](docs/USER_GUIDE.md)
 
 ## Install
 
-Copy `zerochord_1.2.1_arm64.deb` to the CardputerZero, then run there:
+Copy `zerochord_1.3.0_arm64.deb` to the CardputerZero, then run there:
 
 ```sh
-sudo apt install ./zerochord_1.2.1_arm64.deb
+sudo apt install ./zerochord_1.3.0_arm64.deb
 systemctl --user restart APPLaunch.service
 ```
 
@@ -33,7 +33,8 @@ network connection is needed to play once installed.
 1. Press `8` for a C major chord. The app starts silently until you play.
 2. Play `Z` `X` `C` `V` `B` `N` `M` to pick its notes. `L` strums up. `K` strums down.
 3. Try `8` → `5` → `T` → `4` for C → G → Am → F in the default key of C.
-4. Press `O` to choose backing layers (Chord, Arp, Pad, or none for Front only). `I` toggles **Hold**.
+4. Press `O` for backing layers: `Enter` mutes or unmutes Chord, Arp, or Pad, and
+   `Z` / `C` set its mix. `Esc` returns to playing. `I` toggles **Hold**.
 5. Press `Space` to stop sound. Hold `Esc` to return to the launcher.
 
 See the [keyboard reference](docs/USER_GUIDE.md#keyboard-reference) for all shortcuts.

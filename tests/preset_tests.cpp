@@ -1,6 +1,7 @@
 #include "presets.hpp"
 #include "patterns.hpp"
 #include "settings_editor.hpp"
+#include "menu_navigation.hpp"
 #include "settings_io.hpp"
 #include <chrono>
 #include <filesystem>
@@ -22,12 +23,7 @@ void press(SettingsEditor &e, char k) {
     e.key(k, true);
     e.key(k, false);
 }
-void row(SettingsEditor &e, int r) {
-    const auto target = SettingsEditor::appField(r) ? SettingsEditor::Tab::App : SettingsEditor::Tab::Style;
-    for (int n = 0; e.tab() != target && n < 3; ++n) press(e, 20);
-    while (e.selected() != r)
-        press(e, 18);
-}
+void row(SettingsEditor &e, int field) { zc::test::goToRow(e, field); }
 void choose(SettingsEditor &e, int value) {
     const auto groups = e.soundPicker() ? e.soundCategories().size() : 1;
     for (size_t group = 0; group < groups; group++) {
@@ -37,7 +33,7 @@ void choose(SettingsEditor &e, int value) {
             press(e, 18);
         }
         if (e.soundPicker())
-            press(e, 20);
+            press(e, '\t'); // Tab: next sound group.
     }
     throw std::runtime_error("Choice missing");
 }
@@ -63,7 +59,11 @@ int main() {
         CHECK(fs::exists(dir / "presets/factory/pop.toml"));
         auto dream = legacy;
         lib.select(legacy, 4);
-        CHECK(legacy.bpm == 112 && legacy.tonic == 2 && legacy.mode == PlaybackMode::Arp);
+        // Every built-in preset selects all layers; the ones it lacked before join at 30%.
+        CHECK(legacy.bpm == 112 && legacy.tonic == 2 && legacy.mode == PlaybackMode::All);
+        CHECK((legacy.layerMix == std::array<int, 3>{30, 100, 30}));
+        CHECK(legacy.arpProgram == legacy.chordProgram &&
+              legacy.envelopes[ArpEnvelope] == legacy.envelopes[ChordEnvelope]);
         CHECK(legacy.masterVolume == 47 && legacy.theme == 1);
         CHECK((legacy.eqDb == std::array<int, 3>{6, -2, 3}));
         legacy.bpm = 123;
@@ -170,14 +170,15 @@ int main() {
         press(editor, 'r');
         press(editor, '\n');
         CHECK(instrument.settings.bpm == 135);
-        row(editor, 10);
-        press(editor, '\n');
-        CHECK(editor.backingOpen());
-        press(editor, 'x'); press(editor, '\n'); // Arp only.
-        press(editor, 'x'); press(editor, 'x'); press(editor, '\n'); // Apply.
-        CHECK(instrument.settings.mode == PlaybackMode::Arp);
+        row(editor, SettingsEditor::chordMixField + 1);
+        CHECK(editor.page() == SettingsEditor::Page::Backing && !editor.backingOpen());
+        const auto layers = backingLayers(instrument.settings.mode);
+        press(editor, '\n'); // Mute or unmute Arp immediately; there is no Apply step.
+        CHECK(backingLayers(instrument.settings.mode) == (layers ^ 4u));
         press(editor, '\b');
-        CHECK(instrument.settings.mode == PlaybackMode::FrontOnly);
+        CHECK(instrument.settings.mode ==
+              instrument.library.current(instrument.settings).sound.mode);
+        press(editor, 27);
         row(editor, 3);
         press(editor, '\n');
         press(editor, 17); // Remembered Key -> Octave.
@@ -308,6 +309,39 @@ int main() {
               upgradedText.find("echo") == std::string::npos &&
               upgradedText.find("sweep_ms") == std::string::npos &&
               upgradedText.find("level") == std::string::npos);
+        // 1.2 files: stock built-ins upgrade to every layer; edited copies keep their layers,
+        // and Arp keeps the Chord sound and envelope it used before.
+        {
+            auto old = dir / "release-1.2";
+            PresetLibrary current;
+            auto stock = current.entries[0]; // Harp: Pad only in 1.2.
+            writePreset(stock, (old / "presets/factory/harp.toml").string());
+            auto strip = [](const fs::path &file, const std::string &mode) {
+                std::ifstream in(file);
+                std::string line, text;
+                while (std::getline(in, line))
+                    if (line.rfind("arp_", 0) != 0 && line.find("_mix") == std::string::npos)
+                        text += line.rfind("mode", 0) == 0 ? "mode = '" + mode + "'\n" : line + "\n";
+                in.close();
+                std::ofstream(file) << text;
+            };
+            strip(old / "presets/factory/harp.toml", "Pad");
+            auto edited = stock;
+            edited.sound.bpm = 77;
+            fs::create_directories(old / "working");
+            writePreset(edited, (old / "working/harp.toml").string());
+            strip(old / "working/harp.toml", "Pad");
+            std::ofstream(old / "session.toml") << "schema_version=1\nselected='harp'\n";
+            Settings loaded;
+            PresetLibrary upgraded;
+            upgraded.load(old.string(), loaded);
+            CHECK(samePresetSettings(upgraded.entries[0].sound, stock.sound));
+            CHECK(upgraded.entries[0].sound.mode == PlaybackMode::All);
+            CHECK(loaded.bpm == 77 && loaded.mode == PlaybackMode::Pad &&
+                  (loaded.layerMix == std::array<int, 3>{100, 100, 100}));
+            CHECK(loaded.arpProgram == loaded.chordProgram && loaded.arpSound == loaded.chordSound &&
+                  loaded.envelopes[ArpEnvelope] == loaded.envelopes[ChordEnvelope]);
+        }
         // A first launch honors edited defaults, and save-as avoids filename collisions.
         auto firstDir = dir / "first-launch";
         PresetLibrary first;
