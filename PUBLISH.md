@@ -96,6 +96,12 @@ The 1.4.0 package (SHA-256 `c3c26957…`) was submitted on 2026-11-26 with
 Its commit, uploaded package and manifest name only the project's GitHub
 account and noreply address; the uploaded package matches the final checksum.
 
+PR #888 passed validation and merged on 2026-11-26. A listing-only update
+(`czdev publish --meta-only`) then replaced the description with the current
+[store listing](store/LISTING.md) text, which names the Bass and Drums layers
+and swing; it passed validation and merged the same day in
+[CardputerZero/packages #889](https://github.com/CardputerZero/packages/pull/889).
+
 The 1.3.0 release was not submitted to the store.
 
 The 1.2.1 submission passed validation and merged on 2026-11-24 in
