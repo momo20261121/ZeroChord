@@ -36,6 +36,11 @@
   its comments describe the 1.4 Backing layers page.
 - **Screenshots:** `scripts/release_screenshots.py` reproduced the committed
   1.4 images byte for byte; the store set was inspected at 320×170.
+- **Final package:** repackaged after the installed test to date the changelog
+  and add this record. Outside `usr/share/doc/zerochord/` its files and modes
+  match the tested package, and only `Installed-Size` changed in the control
+  fields, so the installed test was not repeated. The final package was
+  installed on the device with a clean `dpkg --verify` and the same executable.
 - **Not yet done:** listening, a hands-on check that Auto detects the headphone
   jack correctly, and the feel of the lower latency with physical keys.
 

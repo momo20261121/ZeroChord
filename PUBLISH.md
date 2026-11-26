@@ -12,8 +12,8 @@ tagged locally; the newest release on GitHub is `v1.2.1`.
 | Version | `1.4.0`, from [VERSION.txt](VERSION.txt) |
 | Architecture | `arm64` |
 | Release file | `dist/zerochord_1.4.0_arm64.deb` |
-| Size | 749,596 bytes |
-| SHA-256 | `313a5a3348536b2c1f304cf25d348810ec22f518fdde00551bb0d5858edc7f84` |
+| Size | 749,856 bytes |
+| SHA-256 | `c3c26957467d58dc5fb27501a955ab2d63058c663d85dbc45ab6201845ebca74` |
 | Installed candidate SHA-256 | `8409e8632d9c1f7e5c4ceb5ed45075bcb777021475568efbdeabe80d654643b7` |
 | Checksum file | `dist/zerochord_1.4.0_arm64.deb.sha256` |
 | Executable SHA-256 | `b67aa6afe5c48964d1d48e37be27b1552f25ebbe24f5e2767fe4939658f4011c` |
