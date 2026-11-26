@@ -160,30 +160,39 @@ int main(int argc, char **argv) {
                 instrument.key(key, down, now);
         };
         uint64_t nextJackCheck = 0;
-        while (!stopping && !quit) {
-            uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
-                               std::chrono::steady_clock::now() - start)
-                               .count();
-            lv_tick_inc(uint32_t(now - previous));
-            previous = now;
-            quit = !platform.poll([&](char key, bool down) { input(key, down, now); },
-                                  [&]() {
-                                      instrument.panic();
-                                      escDown = false;
-                                  });
+        auto elapsed = [&] {
+            return uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now() - start)
+                                .count());
+        };
+        // Keys and the backing pattern; run again before painting so a repaint delays neither.
+        auto play = [&](uint64_t now) {
+            if (!platform.poll([&](char key, bool down) { input(key, down, now); },
+                               [&]() {
+                                   instrument.panic();
+                                   escDown = false;
+                               }))
+                quit = true;
             while (eventIndex < events.size() && events[eventIndex].at <= now) {
                 auto e = events[eventIndex++];
                 input(e.key, e.down, now);
             }
+            instrument.tick(now);
+        };
+        while (!stopping && !quit) {
+            const uint64_t now = elapsed();
+            lv_tick_inc(uint32_t(now - previous));
+            previous = now;
+            play(now);
             if (escDown && now - escAt >= 800)
                 quit = true;
             if (now >= nextJackCheck) { // Auto output follows the headphone jack.
                 instrument.setJack(platform.headphones());
                 nextJackCheck = now + 1000;
             }
-            instrument.tick(now);
             ui.tick(now);
             ui.draw();
+            play(elapsed());
             lv_timer_handler();
             if (quitAfter && now >= quitAfter)
                 quit = true;

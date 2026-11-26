@@ -1,6 +1,6 @@
 # Release notes
 
-## 1.4.0 (in development)
+## 1.4.0 - 2026-11-26
 
 - New **Bass** and **Drums** layers. Both play on the beat clock while a chord
   sounds (Hold keeps them going; Space stops them). Bass follows the chord's root,
@@ -104,6 +104,12 @@
   `--levels` prints each sound's measured loudness and matching gain.
 - Tab and the 1-N tab jump are hinted on the bottom line instead of a keycap
   beside the tabs.
+- Lower playing latency. The playing screen now updates only what changed
+  instead of being redrawn in full, so on the device a chord or front key no
+  longer waits up to 90 ms for a redraw (60–90 ms before, now well under 1 ms on
+  average). Keys and the backing pattern are also read just before each screen
+  refresh, so backing and K/L strum notes keep time while you play. The audio
+  buffer is halved, about 8 ms less output delay.
 
 ## 1.3.0 - 2026-11-25
 

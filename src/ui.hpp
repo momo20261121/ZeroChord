@@ -1,5 +1,6 @@
 #pragma once
 #include "settings_editor.hpp"
+#include <memory>
 #include <string>
 namespace zc {
 struct Hint {
@@ -13,7 +14,11 @@ class UI : public SettingsEditor {
     void draw();
 
   private:
-    std::string previous_;
+    std::string previous_, previousPlaying_;
+    // Widgets the playing screen updates in place, so playing never waits for a full rebuild.
+    struct PerformanceView;
+    std::shared_ptr<PerformanceView> performance_;
+    void updatePerformance();
     Hint restoreHint() const;
     void menuFooter(bool edited);
     void drawPerformance();

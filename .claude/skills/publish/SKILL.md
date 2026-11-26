@@ -41,8 +41,12 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
   confirm or override the proposed version before continuing.
 - Write it to `VERSION.txt`, then `grep -rn "<old version>"` over tracked files and fix any
   other mention (docs "currently X", CHANGELOG heading) except history.
-- Update the changelog draft, user guides, and store copy affected by the release
-  before building the candidate. Include small changes to controls and behavior.
+- Update the changelog draft, README, user guides, contributor instructions,
+  `.env.example`, notices, and the app's About and footer text where behavior
+  changed, before building the candidate. Include small changes to controls and
+  behavior. Review `store/LISTING.md` and the workspace's private store copy
+  (`private/store/zerochord/`) together. Search tracked files for stale version
+  references, renamed features, and old paths, keeping historical entries intact.
 
 ## 2. Privacy check
 
@@ -59,11 +63,12 @@ Use project-local tools only (`.venv`, `.tools`); install nothing system-wide.
 
 ## 3. Build, package, install, test
 
-**Review the affected tests before running them.** Compare the release changes
-since the last tag with the local suites, keyboard scripts and fixtures, and
-installed-device acceptance test. Update affected key sequences and expected
-results to match the intended behavior. Add coverage when the existing tests
-miss a meaningful regression risk.
+**Update the tests before running them.** Compare the release changes since the
+last tag (commits and working changes) with the local suites, keyboard scripts
+and fixtures, `scripts/test_local_flows.py`, and the installed-device acceptance
+test `scripts/test_installed.py`. Update affected key sequences, labels and
+expected results to match the intended behavior. Add coverage when the existing
+tests miss a meaningful regression risk. Then run each check once.
 
 1. Local checks (once, before building): desktop build, `.venv/bin/ctest --test-dir build/desktop
    --output-on-failure`, and `.venv/bin/python scripts/test_local_flows.py`. Add the sanitizer
@@ -99,21 +104,61 @@ miss a meaningful regression risk.
   approval, including corrections to wording and links.
 - Record actual test results and manual checks in `docs/TESTING.md`. Prepare
   `PUBLISH.md` with the package details, launcher notes, and validation checklist.
-- Repackage the bundled docs with `scripts/package.py` using the tested binary.
-  Compare both archives and verify that the executable and launcher files match.
-  Record the final size and SHA-256 in `PUBLISH.md`, then run
-  `scripts/privacy_check.py --deb` on the final archive. The package and docs
-  presented for approval are the ones that will be tagged and published.
+- If bundled docs changed after installation, keep a scratch copy of the tested
+  archive, then repackage with `scripts/package.py` and the tested binary.
+  Extract both archives with `dpkg-deb -x` and compare files and modes outside
+  `usr/share/doc/zerochord/`; compare control fields with `dpkg-deb -f` (a
+  docs-only change may change `Installed-Size`). Confirm the extracted executable
+  matches the SHA-256 from step 3.2. Reinstall and retest a candidate whose
+  payload outside the bundled docs, or other control fields, changed.
+- If only artwork changed after the test (launcher or store icon) and the
+  executable's SHA-256 still matches, repackage and reinstall without rerunning
+  the installed test. Check `dpkg --verify` and the installed icon's SHA-256 on
+  the device. Say in `docs/TESTING.md` and `PUBLISH.md` that the test ran on the
+  earlier package with the same executable.
+- Record the final size and SHA-256 in `PUBLISH.md`, then run
+  `scripts/privacy_check.py --deb` on the final archive and verify its checksum
+  file. The package and docs presented for approval are the ones that will be
+  tagged and published.
+
+### Ready to release, publish, and submit
+
+After the last repackaging, check against the final archive:
+
+- `PUBLISH.md`: size, SHA-256 and executable SHA-256 match the archive, the
+  `.sha256` file and the extracted executable. The validation list says which
+  package each check ran on.
+- `docs/TESTING.md`: the version's section records every run, including any
+  repackaging after the test and why the test was not repeated.
+- `CHANGELOG.md` and `README.md` match their copies in the archive
+  (`usr/share/doc/zerochord/`); the version's section covers every visible change.
+- `store/LISTING.md` and `private/store/zerochord/`: version, description, icon
+  and screenshots match the final assets.
+- Search tracked docs for old values of anything that changed (sizes, checksums,
+  names). Leave earlier versions' sections as they are.
+
+### Commit the candidate on dev and stage it on the device
+
+- Commit the finished release files on local `dev` as `Release ZeroChord <version>`
+  with the workspace identity from `.env` (the workspace GitHub account and its noreply address).
+  Check `git log -1 --format='%an <%ae> | %cn <%ce>'` and that the worktree is
+  clean. Record the commit with the final package checksum.
+- Verify the final archive against the checksum in the committed `PUBLISH.md`,
+  then `sh scripts/install_release_device.sh push`. Confirm the installed build is
+  the final candidate; if the device has a different package, install the final
+  archive and apply the retest rules above.
+- If feedback changes the candidate, rerun affected checks, commit on `dev`, and
+  repeat the device push and approval with the new commit and checksum.
 
 ## 5. Report and wait for approval
 
-- Report concisely: version proposed/chosen; bugs found and fixed (what, why, which test);
+- Report concisely: version proposed/chosen; the candidate `dev` commit; bugs found and fixed (what, why, which test);
   unfixed problems with severity; checks actually run and results (privacy summary, test
   counts, installed-app result, final package size/SHA-256); what was *not* validated (physical
   keyboard feel, speaker listening) - never claim hands-on validation that did not happen;
   privacy WARNs needing confirmation.
 - Ask for release approval and a publication choice. **Wait for approval.**
-  - **Local release only (default).** Commit, merge, and tag locally.
+  - **Local release only (default).** Merge the approved commit and tag locally.
   - **Publish to GitHub.** Push `main` and `v<version>`, then create the GitHub
     Release with the final `.deb`, checksum, and release notes.
   - **Push refs only.** Push `main` and `v<version>` when the user requests a
@@ -124,9 +169,9 @@ miss a meaningful regression risk.
 ## 6. Create the local release
 
 1. Final `python3 -I scripts/privacy_check.py --deb dist/...`; no FAIL.
-2. Commit everything on `dev` as one release commit with the project contributor identity
-   (`set -a; . ./.env; set +a` first; check `git log -1 --format='%an <%ae>'`):
-   `Release ZeroChord <version>`. No extra branches; never amend or rewrite published history.
+2. Confirm the worktree is clean and `dev` still points to the approved candidate
+   commit. Load the workspace identity from `.env` before merging and tagging. No
+   extra branches; never amend or rewrite published history.
 3. `git switch main && git merge --no-ff dev -m "Release ZeroChord <version>"`, then
    `git tag -a v<version> -m "ZeroChord <version>"` on `main`. Verify
    `git show main:VERSION.txt` and `git diff dev main --stat` is empty. Verify the
@@ -156,7 +201,9 @@ first push.
      test -n "$ZEROCHORD_GH_USER" || exit 1
      zerochord_gh_token=$(gh auth token --user "$ZEROCHORD_GH_USER") || exit 1
      test -n "$zerochord_gh_token" || exit 1
-     GH_TOKEN="$zerochord_gh_token" gh release create "v$zerochord_version" \
+     export GH_TOKEN="$zerochord_gh_token"
+     test "$(gh api user --jq .login)" = "$ZEROCHORD_GH_USER" || exit 1
+     gh release create "v$zerochord_version" \
        "dist/zerochord_${zerochord_version}_arm64.deb" \
        "dist/zerochord_${zerochord_version}_arm64.deb.sha256" \
        --repo "$zerochord_repo" --title "ZeroChord $zerochord_version" \
@@ -168,7 +215,9 @@ first push.
    GitHub owner/repo from `origin`, and `zerochord_notes_file` to the notes path.
 4. Use `gh release view` to confirm the release URL, published status, and both
    assets. Download the `.deb` and checksum to a scratch directory, then verify
-   the downloaded package SHA-256 against the final local package.
+   the downloaded package SHA-256 against the final local package. Check the
+   public commits, tag, release author, asset uploader and release text against
+   the workspace privacy rules before reporting it done.
 5. Report the tag, package path and SHA-256, and the GitHub Release URL when
    published. For a local-only release, include `git push origin main v<version>`
    as the refs-only command. Complete any later documentation edits through a
@@ -182,6 +231,11 @@ first push.
   `## <next> (in development)` CHANGELOG heading, update the current versions
   in `AGENTS.md` and `docs/DEVELOPMENT.md`, and commit
   `Start <next> development` on local `dev`.
+
+## Store submission
+
+On a separate request, follow the workspace store steps with the final checked
+package and listing. Record the pull request in `PUBLISH.md`.
 
 ## If something fails
 

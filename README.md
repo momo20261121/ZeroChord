@@ -2,7 +2,7 @@
 
 <img src="assets/share/images/zerochord.png" alt="ZeroChord icon" width="96" height="96">
 
-**A pocket chord-and-harp instrument for CardputerZero. Version 1.3.0.**
+**A pocket chord-and-harp instrument for CardputerZero. Version 1.4.0.**
 
 Inspired by [**minichord**](https://minichord.com/) and the
 [**Suzuki Omnichord**](https://www.suzuki-music.co.jp/special/omnichord_om-108/en/),
@@ -13,14 +13,14 @@ are adjustable.
 
 ![ZeroChord performance screen](docs/images/release-performance.png)
 
-[Download ZeroChord 1.3.0](https://github.com/momo20261121/ZeroChord/releases/download/v1.3.0/zerochord_1.3.0_arm64.deb) · [Make your first sound](#make-your-first-sound) · [User guide](docs/USER_GUIDE.md)
+[Download ZeroChord 1.4.0](https://github.com/momo20261121/ZeroChord/releases/download/v1.4.0/zerochord_1.4.0_arm64.deb) · [Make your first sound](#make-your-first-sound) · [User guide](docs/USER_GUIDE.md)
 
 ## Install
 
-Copy `zerochord_1.3.0_arm64.deb` to the CardputerZero, then run there:
+Copy `zerochord_1.4.0_arm64.deb` to the CardputerZero, then run there:
 
 ```sh
-sudo apt install ./zerochord_1.3.0_arm64.deb
+sudo apt install ./zerochord_1.4.0_arm64.deb
 systemctl --user restart APPLaunch.service
 ```
 

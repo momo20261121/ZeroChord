@@ -120,4 +120,37 @@ run('strings-source-rate', ['TAB','x','x','x','ENTER','ENTER','TAB'], {'harpProg
 run('about-dark', ['TAB','TAB','TAB','x','ENTER','BACKSPACE'], {'theme':0, 'preset':0})
 run('about-light', ['TAB','3'], {'theme':1}, 'theme 1\n')
 run('about-wrap', ['TAB','3','TAB','x','ENTER','1','3','7','ENTER'], {'bpm':137})
+
+
+def playing_screen(name, events, end, seed=''):
+    """Capture the playing screen after timed key events, from fresh isolated settings."""
+    import shutil
+    folder = args.out/'playing'/name
+    shutil.rmtree(folder, ignore_errors=True)
+    config = folder/'config/zerochord'
+    config.mkdir(parents=True)
+    if seed:
+        (config/'settings.conf').write_text('frontMappingVersion 2\n'+seed)
+    script = folder/'keys.events'
+    script.write_text(''.join(f'{at} {key} {action}\n' for at, key, action in events))
+    capture = folder/'screen.ppm'
+    result = subprocess.run([str(args.binary.resolve()), '--headless', '--no-audio', '--no-save',
+                             '--script', str(script.resolve()), '--capture', str(capture.resolve()),
+                             '--quit-after-ms', str(end)], cwd=ROOT,
+                            env=dict(os.environ, XDG_CONFIG_HOME=str(config.parent.resolve())),
+                            capture_output=True, text=True, timeout=8)
+    assert result.returncode == 0, (name, result.stderr)
+    return capture.read_bytes()
+
+
+# The playing screen updates in place; after any playing it must match a fresh drawing.
+busy = [(100,'2','down'), (150,'x','down'), (200,'x','up'), (250,'1','down'), (300,'7','down'),
+        (320,'m','down'), (400,'m','up'), (420,'7','up'), (430,'1','up'), (450,'2','up'),
+        (470,'l','down'), (490,'l','up')]
+for theme in ('', 'theme 1\n'):
+    for target in ([(1200,'5','down')], [(1200,'j','down'), (1250,'b','down')], [(1200,'i','down')]):
+        fresh = playing_screen('fresh', target, 1500, theme)
+        played = playing_screen('played', busy + target, 1500, theme)
+        assert fresh == played, ('in-place playing screen differs', theme, target)
+print('PASS: playing screen after busy playing matches a fresh drawing (dark and light)')
 print('PASS: 43 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')
