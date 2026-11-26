@@ -16,11 +16,12 @@
 ```text
 Inspired by minichord and the Suzuki Omnichord, ZeroChord turns your CardputerZero keyboard into a pocket instrument. Choose a chord with one hand and pick or strum its notes with the other.
 
-Play solo or add backing layers. Seven editable presets give you different sounds and rhythms to start with.
+Play solo or bring in a backing band: Chord, Arp, Pad, Bass and Drums layers follow your chords, with optional swing. Seven editable presets, from Dream to Dance, give you different sounds and rhythms to start with.
 
 Try it
 1. Press 8 for C major.
 2. Pick notes with Z, X, C, V, B, N or M. Press K or L to strum.
+3. Press O to mute or mix the backing layers.
 
 User guide (https://github.com/momo20261121/ZeroChord/blob/main/docs/USER_GUIDE.md)
 ```

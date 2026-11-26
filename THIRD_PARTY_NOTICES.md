@@ -26,6 +26,16 @@ CardputerZero Piano repository. The download script verifies the pinned asset's
 SHA-256. The upstream repository records the SoundFont's source and license.
 [Pinned SoundFont source](https://github.com/CardputerZero/Piano/tree/703eb1e0926c9d4ab3b34997e854c06b180e2c7b/assets/soundfonts)
 
+The optional **fluid-synths** and **fluid-drums** packs are subsets of
+FluidR3 GM, built by `scripts/fetch_sound_packs.py` from Debian's
+`fluid-soundfont-gm 3.1-5.3` package (pinned SHA-256). FluidR3 GM is MIT
+licensed, copyright 2000-2002, 2008 Frank Wen and 2008 Toby Smithe. Each pack
+folder keeps the license text, copied from the package's `copyright` file, in
+`LICENSE.txt` and its provenance in `SOURCES.md`
+([fluid-synths](sounds/fluid-synths/SOURCES.md),
+[fluid-drums](sounds/fluid-drums/SOURCES.md)). Neither pack is bundled in the
+installed package.
+
 Font Awesome Free font glyphs: copyright Fonticons, Inc.
 The full SIL OFL 1.1 text is included in `Montserrat-OFL.txt`, alongside the
 Font Awesome project's license/attribution notice in `FontAwesome5.txt`.
