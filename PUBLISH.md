@@ -90,6 +90,14 @@ Details and limits are in the [testing record](docs/TESTING.md).
 ## CardputerZero Store
 
 The `CHRD` description and screenshot order are in the [store listing](store/LISTING.md).
+The 1.4.0 package (SHA-256 `c3c26957…`) was submitted on 2026-11-26 with
+`czdev publish` in
+[CardputerZero/packages #888](https://github.com/CardputerZero/packages/pull/888).
+Its commit, uploaded package and manifest name only the project's GitHub
+account and noreply address; the uploaded package matches the final checksum.
+
+The 1.3.0 release was not submitted to the store.
+
 The 1.2.1 submission passed validation and merged on 2026-11-24 in
 [CardputerZero/packages #782](https://github.com/CardputerZero/packages/pull/782).
 
@@ -97,5 +105,7 @@ The 1.2.0 submission is recorded in [CardputerZero/packages #712](https://github
 
 ## Git release
 
-The release tag is `v1.4.0` on `main`. A GitHub Release, when approved, uses the
-final package and checksum listed above, with notes from the tagged changelog.
+The release tag is `v1.4.0` on `main`, pushed on 2026-11-26 with `main`. The
+GitHub Release for `v1.4.0` has the final package and checksum listed above, with notes from the tagged
+changelog; its downloaded package matches the final SHA-256. The `v1.3.0` tag
+remains local.
