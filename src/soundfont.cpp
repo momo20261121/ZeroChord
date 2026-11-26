@@ -6,6 +6,8 @@
 #include <cmath>
 #include <algorithm>
 #include <set>
+#include <optional>
+#include <array>
 #include <tsf.h>
 namespace zc {
 std::vector<SoundFontPreset> soundfontPresets(tsf *synth) {
@@ -26,6 +28,30 @@ std::vector<int> soundfontSampleRates(tsf *synth, int bank, int program) {
         if (preset.regions[n].sample_rate)
             rates.insert(int(preset.regions[n].sample_rate));
     return {rates.begin(), rates.end()};
+}
+std::optional<std::array<int, 4>> soundfontEnvelopeDefaults(tsf *synth, int bank, int program,
+                                                            int key) {
+    if (!synth) return std::nullopt;
+    int index = tsf_get_presetindex(synth, bank, program);
+    if (index < 0 || !synth->presets[index].regionNum) return std::nullopt;
+    const auto &preset = synth->presets[index];
+    const tsf_region *region = &preset.regions[0];
+    for (int n = 0; n < preset.regionNum; ++n)
+        if (preset.regions[n].lokey <= key && key <= preset.regions[n].hikey &&
+            preset.regions[n].lovel <= 100 && 100 <= preset.regions[n].hivel) {
+            region = &preset.regions[n];
+            break;
+        }
+    auto e = region->ampenv;
+    // Key-dependent decay stays in timecents until a note starts.
+    if (e.keynumToDecay)
+        e.decay = e.decay < -10000.f ? 0.f : tsf_timecents2Secsf(e.decay + e.keynumToDecay * (60.f - key));
+    float decay = e.decay;
+    // Match soundfontEnvelope's decay mapping: show the time to reach the sustain level.
+    if (e.sustain > 0.f && e.sustain < 1.f) decay *= -std::log(e.sustain) / 9.226f;
+    return std::array<int, 4>{int(std::lround(e.attack * 1000)), int(std::lround(decay * 1000)),
+                              int(std::lround(std::clamp(e.sustain, 0.f, 1.f) * 100)),
+                              int(std::lround(e.release * 1000))};
 }
 void soundfontPanic(tsf *synth) {
     for (int n = 0; n < synth->voiceNum; n++)

@@ -293,6 +293,34 @@ int main(int argc, char **argv) {
             if (renderProgram(mode, 10, 16, Part::Harp) != renderProgram(mode, 46, 24, Part::Harp))
                 throw std::runtime_error("backing sound changed foreground timbre");
         }
+        // Arp has its own sound, and each layer's mix scales only that layer.
+        auto renderLayer = [&](int chord, int arp, Part part, int arpMix = 100) {
+            Renderer voice(argv[1]);
+            Command config{CommandType::Configure};
+            config.settings.mode = PlaybackMode::ChordArp;
+            config.settings.chordProgram = chord;
+            config.settings.arpProgram = arp;
+            config.settings.mix(PlaybackMode::Arp) = arpMix;
+            config.settings.echo = 0;
+            voice.send(config);
+            voice.send({CommandType::On, 1, 60, 400, part});
+            std::vector<float> result(24000 * 2);
+            voice.render(result.data(), 24000);
+            return result;
+        };
+        if (renderLayer(16, 16, Part::Arp) == renderLayer(16, 24, Part::Arp) ||
+            renderLayer(16, 16, Part::Chord) != renderLayer(16, 24, Part::Chord) ||
+            renderLayer(16, 24, Part::Arp) != renderLayer(4, 24, Part::Arp))
+            throw std::runtime_error("arp sound routing was not independent of chord");
+        auto layerEnergy = [](const std::vector<float> &v) {
+            double total = 0;
+            for (float x : v) total += x * x;
+            return total;
+        };
+        const double fullArp = layerEnergy(renderLayer(16, 24, Part::Arp));
+        if (!(layerEnergy(renderLayer(16, 24, Part::Arp, 50)) < fullArp * .5) || fullArp <= 0 ||
+            layerEnergy(renderLayer(16, 24, Part::Arp, 0)) != 0)
+            throw std::runtime_error("layer mix did not scale its layer");
         // All complete factory presets produce audible, finite audio through their own patterns.
         for (int n = 0; n < int(instrument.library.entries.size()); n++) {
             instrument.panic();
@@ -399,14 +427,19 @@ int main(int argc, char **argv) {
             Renderer slow(argv[1]); DirectSink direct(slow); Instrument player(direct);
             player.settings.frontMode = 1; player.settings.harpProgram = 16;
             player.settings.echo = 0; player.settings.envelopes[0].values = {3000, 0, 100, 10};
-            player.configure(); player.key('z', true, 1); player.key('z', false, 2);
-            double lateEnergy = 0;
+            player.configure(); player.key('z', true, 1);
+            double heldEnergy = 0, releasedEnergy = 0;
             for (int ms = 0; ms < 2800; ms += 10) {
+                if (ms == 2500) player.key('z', false, ms + 2); // Letting go starts the release.
                 player.tick(ms + 3); slow.render(samples.data(), 480);
-                if (ms >= 2200)
-                    for (int n = 0; n < 960; n++) lateEnergy += samples[n] * samples[n];
+                for (int n = 0; n < 960; n++) {
+                    if (ms >= 2200 && ms < 2500) heldEnergy += samples[n] * samples[n];
+                    if (ms >= 2700) releasedEnergy += samples[n] * samples[n];
+                }
             }
-            if (lateEnergy < .0001) throw std::runtime_error("slow front attack was cut short during playing");
+            if (heldEnergy < .0001) throw std::runtime_error("slow front attack was cut short while held");
+            if (releasedEnergy > heldEnergy * .01)
+                throw std::runtime_error("releasing a front key did not end its note");
             player.panic(); slow.render(samples.data(), 480);
             for (int n = 0; n < 960; n++)
                 if (samples[n] != 0) throw std::runtime_error("panic did not stop a long front envelope");

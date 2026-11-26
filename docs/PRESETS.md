@@ -33,13 +33,15 @@ with only the **Pad** layer enabled.
 Press `Tab` and open **Style**. The tab remembers the last row you selected.
 See the [keyboard reference](USER_GUIDE.md#keyboard-reference) for navigation.
 
-- **Preview a change.** Open a sound, pattern, key, or mapping picker with
-  `Enter`. Moving to an option auditions it. Pattern previews run for up to
+- **Preview a change.** `Z` / `C` (← / →) step a number, such as an envelope
+  time, and audition it at once. For a sound, pattern, or key, open its list
+  with `Enter`; moving to an option auditions it. Leaving the option stops the
+  preview. Pattern previews run for up to
   eight seconds. Press `Space` to stop playback, `Enter` to apply the choice,
-  or `Esc` to cancel. In **Backing layers**, use **Apply** to save the group.
+  or `Esc` to cancel. Layer mutes and mix in **Backing → Layers** apply at once.
 - **Reset one setting.** Press `Backspace` on its row. In an open picker,
   `Backspace` highlights the default. Press `Enter` to apply it.
-- **Make a copy.** Choose **Save as new preset** and confirm. This writes a
+- **Make a copy.** Choose **Save as new preset** and press `Enter` to confirm. This writes a
   copy immediately as User001, User002, and so on. The copied settings become
   its defaults. Edit the TOML `name` to rename it.
 - **Start over on a preset.** Choose **Restore preset** and confirm to reset
@@ -63,31 +65,37 @@ presets keep their values.
 
 ## Sound and envelope order
 
-Style rows are Preset, Tempo, Backing layers, Chord pattern, Arp pattern, Pad motion,
-Front sound and envelope, Chord/Arp sound and envelope, Pad sound and envelope,
-Save as new preset, and Restore preset.
+Style rows are Preset, Tempo, Backing, Front sound, Save as new preset, and
+Restore preset. **Backing layers** has a Layers tab, then Chord, Arp, and Pad tabs with
+Pattern (Pad: Motion), Sound, and Envelope rows. **Front sound** has Sound and
+Envelope rows. Chord and Arp have separate sounds and envelopes.
 
-Each envelope editor has Front, Chord/Arp and Pad tabs and Attack, Decay, Sustain,
-Release, and Restore envelope rows. Enter opens an auditioning choice list;
-Enter applies the choice and Esc cancels. Attack, Decay and Release use milliseconds
-(0–5000). Sustain is 0–100%. **Use sound's envelope** preserves the sound's original
-decay and sustain. Chord/Arp bound slow attacks and long releases for clarity;
+Each envelope page has Attack, Decay, Sustain, Release, and Restore envelope
+rows. ←/→ step a control through its values with a preview; holding repeats.
+Enter opens an auditioning choice list; Enter applies the choice and Esc
+cancels. Attack, Decay and Release use milliseconds (0–5000). Sustain is 0–100%.
+The list includes the sound's own value near middle C, read from the SoundFont,
+in numeric order. Choosing it keeps following the sound. **Default** marks the
+preset's value. Chord and Arp bound slow attacks and long releases for clarity;
 explicit envelope values override those bounds. A one-shot sample
 still ends when its recorded audio runs out; Sustain cannot make it loop.
 Backspace restores one control to the current preset's default. Restore envelope
 resets only that part; Restore preset resets only the current preset.
 
 Custom preset TOML accepts optional `front_attack_ms`, `front_decay_ms`,
-`front_sustain_percent`, `front_release_ms`, with equivalent `chord_` and `pad_`
-keys. Omitted controls (or -1) use the sound's envelope. Echo is a separate setting.
+`front_sustain_percent`, `front_release_ms`, with equivalent `chord_`, `arp_`, and
+`pad_` keys. Omitted controls (or -1) use the sound's envelope. Echo is a separate
+setting. `arp_sound` / `arp_sound_id` set the Arp sound, and `chord_mix`,
+`arp_mix`, and `pad_mix` (0–100, default 100) set the layer mix. A file from
+1.2 or earlier without Arp keys keeps using its Chord sound and envelope for Arp.
 
 ## Chord roots and front scale
 
-**App → Chord config** starts each scope with **Octave**. The next row is **Key**
-on **All** and **Root** on a degree tab. For **Root**, choose a note from C to B
+**App → Chord config** starts each scope with **Octave**. The next rows are **Key**
+and **Scale** on **All**, and **Root** on a degree tab. For **Root**, choose a note from C to B
 or select **Follow Key**.
-Default chord roots use major-scale degrees. Custom roots remain fixed when Key
-changes. The default octave is 3. Each degree can use an absolute octave or
+Default chord roots use the degrees of the major or natural minor Scale. Custom
+roots remain fixed when Key changes. The default octave is 3. Each degree can use an absolute octave or
 **Follow All**. These settings apply across presets.
 
 `Backspace` restores the highlighted mapping at its current scope. The
@@ -96,26 +104,32 @@ combinations for that scope after confirmation. On **All**, it also resets
 Hold, recognition timing, and degree overrides. See the
 [chord configuration reference](FRONT_NOTES.md#chord-config) for details.
 
-App → Front notes → All shows **Scale** immediately after Front mode when
-Scale notes is selected. Major/natural minor affects only front Scale notes.
-The tonic comes from Chord config → All → Key. Front/Backing volume defaults
-are 100%/80%; saved user volume values are retained on upgrade.
+App → Front notes → All shows **Key** and **Scale** immediately after Front mode
+when Scale notes is selected. Both follow Chord config by default; choosing
+either sets the front's own key and scale together, and Backspace follows the
+chord again. Settings from 1.2 keep sounding the same: a front natural-minor
+scale becomes its own front key. Front/Backing volume defaults are 100%/80%;
+saved user volume values are retained on upgrade.
 
 ## Backing layers
 
-**O** and **Style → Backing layers** open the same checkbox popup. ↑/↓ (F/X)
-selects a row in Chord, Arp, Pad order. Enter toggles the selected layer. **Apply** commits the
-whole selection; Esc cancels. Backspace/R selects the preset default without
-committing. With no checkboxes selected, **Front only** selects harmony silently
-for Z–M/K/L. Hold still controls whether the harmony remains selected.
+**O** opens **Style → Backing layers** on its Layers tab; Esc returns to playing. ↑/↓
+(F/X) selects a row in Chord, Arp, Pad order. Enter mutes or unmutes the layer,
+←/→ (Z/C) changes its mix in 5% steps, and both apply immediately without
+restarting the harmony. A layer at 0% is silent; raising a muted layer unmutes
+it, and unmuting a 0% layer restores an audible level. Backspace restores the
+layer's preset mix and mute state. With every layer muted or silent, **Front
+only** selects harmony silently for Z–M/K/L. Hold still controls whether the
+harmony remains selected. Built-in presets select all three layers; layers they
+did not use in 1.2 start at 30%.
 
-**Chord** uses the shared Chord/Arp sound and envelope. Manual hit strikes once per chord selection;
+**Chord** uses its own sound and envelope. Manual hit strikes once per chord selection;
 Sustained holds the chord without retriggering. Every beat, Every eighth,
 Offbeat and Syncopated trigger simultaneous chord notes. Bass/chord 3/4 plays
 low bass then two upper chord hits; Bossa accompaniment alternates low root/fifth
 under syncopated upper chords. Bass events are voiced an octave lower.
 
-**Arp** uses the shared Chord/Arp sound and envelope and has its own pattern clock.
+**Arp** uses its own sound and envelope and has its own pattern clock.
 Up, Down, Up/down, Root and upper notes and Broken eighths use flowing 95% gates.
 Up/down repeats its endpoint notes at each turnaround to make a regular
 four-beat phrase. Syncopated notes deliberately includes rests. Legacy mixed
@@ -126,15 +140,16 @@ These are original accompaniment patterns, with no drums or Omnichord rhythm dat
 **Pad** sustains its own sound and envelope. Steady, Slow swell (four 4/4 bars),
 Breathe (two beats), and Pulse (one beat) affect only the Pad layer's volume.
 
-Layers share harmony and tempo. Backing gain is balanced by 1/√(enabled layers)
-to leave mixing headroom; Front volume and timbre stay independent. Chord/Arp
+Layers share harmony and tempo. Each layer plays at its mix, and several loud
+layers are balanced by 1/√(sum of squared mixes) to leave mixing headroom; Front volume and timbre stay independent. Chord/Arp
 preserve native sample decay/sustain instead of forcing every sound into the
 same short envelope. Their attack is bounded to 10 ms and release to 200 ms
 (250 ms for Sustained); explicit envelope settings override these bounds.
 
 Chord changes retain the running phase. Tempo edits change the clock rate
 without restarting it. Chord and Arp pattern changes each apply at their current
-pattern boundary. Applying a new layer selection or preset starts a new phrase.
+pattern boundary. Starting or stopping a layer, or a preset change, starts a
+new phrase; a mix change alone keeps it.
 Settings entry stops performance; auditions use a temporary setup. Space stops
 all layers and queued front strums while preserving settings.
 
@@ -167,8 +182,10 @@ id = 'my-pop'
 name = 'My Pop'
 mode = 'Arp'                    # Also: 'Chord + Pad', 'Chord + Arp', 'Pad + Arp', 'Chord + Pad + Arp', 'Front only'
 bpm = 112
-backing_sound = 4               # Chord/Arp; GM programs are ZERO-based: 0–127
+backing_sound = 4               # Chord; GM programs are ZERO-based: 0–127
+arp_sound = 4                   # Arp; omitted means the Chord sound
 pad_sound = 89                  # Independent Pad timbre
+arp_mix = 100                   # Also chord_mix and pad_mix, 0–100
 foreground_sound = 46
 chord_pattern = 'quarter'
 arp_pattern = 'pop'
@@ -176,7 +193,7 @@ pad_motion = 'steady'
 ```
 
 Preset files keep their existing `mode` spellings for compatibility. The menus
-show backing combinations in Chord, Arp, Pad order. Chord/Arp sound and Pad sound
+show backing combinations in Chord, Arp, Pad order. Chord, Arp, and Pad sounds
 have independent defaults and remembered edits. Older presets without `pad_sound`
 start with their previous `backing_sound` for both, preserving their sound.
 

@@ -1,4 +1,5 @@
 #include "settings_editor.hpp"
+#include "menu_navigation.hpp"
 #include "settings_io.hpp"
 #include "patterns.hpp"
 #include <algorithm>
@@ -27,9 +28,7 @@ struct DeviceMenu : SettingsEditor {
     using SettingsEditor::SettingsEditor;
     void tap(char k) { key(k, true); key(k, false); }
     void row(int field) {
-        const auto target = appField(field) ? Tab::App : Tab::Style;
-        for (int n = 0; tab() != target && n < 3; ++n) tap('c');
-        for (int n = 0; n < settingCount && selected() != field; n++) tap('x');
+        zc::test::goToRow(*this, field);
         CHECK(selected() == field);
     }
     void pick(int value) {

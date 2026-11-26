@@ -47,25 +47,44 @@ unsigned backingLayers(PlaybackMode mode); // Chord=1, Pad=2, Arp=4.
 PlaybackMode modeForLayers(unsigned layers);
 bool layerEnabled(PlaybackMode selection, PlaybackMode layer);
 const char *modeName(PlaybackMode mode);
+// Menu order of the backing layers; also indexes PerformanceSettings::layerMix.
+constexpr std::array<PlaybackMode, 3> backingLayerOrder{PlaybackMode::Chord, PlaybackMode::Arp,
+                                                        PlaybackMode::Pad};
+int layerIndex(PlaybackMode layer); // Chord 0, Arp 1, Pad 2.
 struct Envelope {
     // Attack/decay/release in milliseconds, sustain in percent; -1 keeps the sound default.
     std::array<int, 4> values{-1, -1, -1, -1};
     bool operator==(const Envelope &b) const { return values == b.values; }
     bool operator!=(const Envelope &b) const { return !(*this == b); }
 };
+enum EnvelopePart { FrontEnvelope, ChordEnvelope, PadEnvelope, ArpEnvelope };
 struct PerformanceSettings {
-    std::array<Envelope, 3> envelopes; // Front, Chord (including Arp), Pad.
+    std::array<Envelope, 4> envelopes; // Indexed by EnvelopePart.
 
-    PlaybackMode mode = PlaybackMode::Pad;
+    PlaybackMode mode = PlaybackMode::Pad; // Unmuted layers.
     int chordProgram = -1, harpProgram = -1, padProgram = -1;
-    std::string chordSound, padSound, frontSound;
+    int arpProgram = -1; // -1 copies the Chord sound when a preset is loaded.
+    std::string chordSound, padSound, frontSound, arpSound;
+    std::array<int, 3> layerMix{100, 100, 100}; // Percent, in backingLayerOrder; 0 is silent.
+    int &mix(PlaybackMode layer) { return layerMix[layerIndex(layer)]; }
+    int mix(PlaybackMode layer) const { return layerMix[layerIndex(layer)]; }
+    // Unmuted layers with a mix above zero; Chord=1, Pad=2, Arp=4.
+    unsigned audibleLayers() const;
+    bool audible(PlaybackMode layer) const { return audibleLayers() & backingLayers(layer); }
     int chordPattern = 0, padMotion = 0;
     int bpm = 100, pattern = 0;
     bool operator==(const PerformanceSettings &b) const;
     bool operator!=(const PerformanceSettings &b) const { return !(*this == b); }
 };
 struct Settings : PerformanceSettings {
-    int tonic = 0, scale = 0, preset = 1;
+    int tonic = 0;      // Chord grid key.
+    int chordScale = 0; // 0 major, 1 natural minor: chord grid roots.
+    int scale = 0;      // Front scale when frontFollow is off.
+    int frontFollow = 1; // Scale notes follow the chord key and scale.
+    int frontTonic = 0;  // Front key when frontFollow is off.
+    int preset = 1;
+    int frontKeyTonic() const { return frontFollow ? tonic : frontTonic; }
+    int frontKeyScale() const { return frontFollow ? chordScale : scale; }
     int hold = 1;
     int chordVolume = 80, harpVolume = 100, echo = 15, strumMs = 210;
     int masterVolume = 100, theme = 0;

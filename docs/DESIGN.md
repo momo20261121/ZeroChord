@@ -170,24 +170,32 @@ Current milestone: validate the playable prototype on the actual device.
   fifths. Harp notes start one octave above the chord root, repeating three-note
   triads or four-note sevenths to produce seven strictly ascending pitches.
   Slash bass changes the chord bass, while the harp follows the base harmony.
-- Harp voices have independent trigger handles, retain pitch across chord
-  changes, and receive note-off after 1.6 seconds plus their bank-defined release.
+- Harp voices have independent trigger handles and retain pitch across chord
+  changes. A Z–M note sounds while held; release (no sooner than 60 ms after the
+  start) begins its envelope release. Strum notes last 1.6 seconds.
   K/L perform a single sweep; a new sweep replaces unfinished sweep events.
   A new chord cancels the unfinished sweep so it cannot play stale harmony.
-- O and Style → Backing layers share a checkbox popup: arrows select rows,
-  Enter toggles a layer, Apply commits, Esc cancels. None means Front only.
+- Settings keys: Tab next tab, 1–8 jump, ↑/↓ rows, ←/→ step numbers at once
+  (one shared stepping path, repeat while held), Enter opens pages, choice lists
+  and confirmations (rows marked >), Esc backs out. Leaving an option (row, tab,
+  list, page, or settings) stops its preview.
+- O and Style → Backing layers open one page: a Layers tab (Enter mutes, ←/→ mix, both
+  live) and Chord / Arp / Pad tabs for pattern, sound, and envelope. No layer
+  audible means Front only.
   Chord, Arp and Pad can run together. Front notes remain independent.
 - Chord/Arp have separate pattern state on a common sixteenth-note clock.
   Pattern edits take effect at their current pattern boundary; harmony changes
-  retain phase. Applying layers/presets starts a new phrase.
+  retain phase. Starting/stopping layers or presets starts a new phrase; mix
+  changes update ringing notes.
 - Chord patterns include Manual hit, Sustained, Every beat, Every eighth,
   Offbeat, Syncopated, Bass/chord 3/4, and Bossa accompaniment. Bass events use
   a lower octave. Arps use descriptive names; legacy saved IDs remain readable.
 - Pad motion (Steady, Slow swell, Breathe, Pulse) modulates only Pad gain.
-  All backing layers are balanced by 1/√(layer count); Front gain is independent.
+  Each layer plays at its mix; loud combinations are balanced by
+  1/√(sum of squared mixes). Front gain is independent.
 - Chord/Arp bound attack to 10 ms and release to 200 ms (250 ms for Sustained),
   preserve native decay/sustain, then apply explicit envelope overrides.
-  Pad retains its separate envelope. Layer changes release backing without
+  Chord, Arp, and Pad each keep a separate sound and envelope. Layer changes release backing without
   silencing Front. Panic removes all synth voices and echo.
 - Style presets include BPM, enabled layers, patterns, and independent sounds. Each has
   editable TOML defaults plus a remembered working snapshot. Individual fields

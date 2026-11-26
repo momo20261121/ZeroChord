@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 namespace zc {
@@ -36,6 +37,13 @@ template <class F> void fields(Settings &s, F field) {
     field("chordProgram", s.chordProgram);
     field("padProgram", s.padProgram);
     field("harpProgram", s.harpProgram);
+    field("arpProgram", s.arpProgram);
+    field("chordMix", s.layerMix[0]);
+    field("arpMix", s.layerMix[1]);
+    field("padMix", s.layerMix[2]);
+    field("chordScale", s.chordScale);
+    field("frontFollow", s.frontFollow);
+    field("frontTonic", s.frontTonic);
     field("chordPattern", s.chordPattern);
     field("padMotion", s.padMotion);
     field("tonic", s.tonic);
@@ -47,7 +55,7 @@ template <class F> void fields(Settings &s, F field) {
     field("strumMs", s.strumMs);
     field("bpm", s.bpm);
     field("pattern", s.pattern);
-    for (int part = 0; part < 3; part++)
+    for (int part = 0; part < 4; part++)
         for (int control = 0; control < 4; control++)
             field("envelope" + std::to_string(part) + std::to_string(control),
                   s.envelopes[part].values[control]);
@@ -64,6 +72,7 @@ void loadSettings(Settings &s, const std::string &path) {
     std::string line;
     int version = 0, legacyRegister = 0, legacyLow = 0, legacyHigh = 127;
     std::array<int, 7> legacyOctave{};
+    std::set<std::string> seen;
     while (std::getline(in, line)) {
         std::istringstream row(line);
         std::string name;
@@ -82,12 +91,17 @@ void loadSettings(Settings &s, const std::string &path) {
             s.frontSound = text;
             continue;
         }
+        if (name == "arpSound") {
+            s.arpSound = text;
+            continue;
+        }
         int value;
         std::istringstream number(text);
         if (!(number >> value))
             continue;
         if (name == "frontMappingVersion")
             version = value;
+        seen.insert(name);
         if (name == "frontRegister")
             legacyRegister = value;
         if (name == "frontLow")
@@ -131,6 +145,17 @@ void loadSettings(Settings &s, const std::string &path) {
                 s.frontOctave[n] = pitch / 12 - 1;
         }
     }
+    if (!seen.count("arpProgram")) {
+        // Before 1.3, Arp played the Chord sound and envelope.
+        s.arpProgram = s.chordProgram;
+        s.arpSound = s.chordSound;
+        s.envelopes[ArpEnvelope] = s.envelopes[ChordEnvelope];
+    }
+    if (!seen.count("frontFollow")) {
+        // Before 1.3, one Key served both, chord roots were major, and Scale was front-only.
+        s.frontTonic = s.tonic;
+        s.frontFollow = s.scale == 0;
+    }
     s.clamp();
 }
 void saveSettings(const Settings &settings, const std::string &path) {
@@ -143,7 +168,8 @@ void saveSettings(const Settings &settings, const std::string &path) {
     fields(copy, [&](const std::string &name, int &value) { out << name << ' ' << value << '\n'; });
     for (auto pair : {std::pair{"padSound", settings.padSound},
                       {"chordSound", settings.chordSound},
-                      {"frontSound", settings.frontSound}})
+                      {"frontSound", settings.frontSound},
+                      {"arpSound", settings.arpSound}})
         if (!pair.second.empty())
             out << pair.first << ' ' << pair.second << '\n';
     out.close();

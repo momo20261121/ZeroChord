@@ -48,9 +48,9 @@ void Instrument::soundChord() {
     stopChord();
     if (!active)
         return;
-    if (layerEnabled(settings.mode, PlaybackMode::Pad))
+    if (settings.audible(PlaybackMode::Pad))
         hit(15, 0, 1.f, Part::Pad);
-    if (layerEnabled(settings.mode, PlaybackMode::Chord)) {
+    if (settings.audible(PlaybackMode::Chord)) {
         if (settings.chordPattern == 0) hit(15, 400);
         else if (settings.chordPattern == sustainedChordPattern) hit(15, 0);
     }
@@ -89,10 +89,12 @@ void Instrument::commitChord(uint64_t now) {
     }
     soundChord();
 }
-void Instrument::pluck(int pitch, int index, uint64_t now) {
+void Instrument::pluck(int pitch, int index, uint64_t now, bool held) {
     const auto &envelope = settings.envelopes[0].values;
-    int duration = std::max(1600, std::max(0, envelope[0]) + std::max(0, envelope[1]) + 300);
+    // A held key sounds until release; strummed notes keep a fixed length.
+    int duration = held ? 0 : std::max(1600, std::max(0, envelope[0]) + std::max(0, envelope[1]) + 300);
     sink_.send(Command{CommandType::On, ++nextId_, pitch, duration, Part::Harp});
+    if (held) frontVoices_[index] = nextId_;
     harpFlash = index;
     harpFlashUntil = now + 140;
 }
@@ -106,6 +108,12 @@ void Instrument::key(char key, bool down, uint64_t now) {
     if (key == '1')
         return;
     int col = columnFor(key);
+    auto harp = std::string("zxcvbnm").find(key);
+    if (!down && harp != std::string::npos) {
+        if (frontVoices_[harp]) sink_.send(Command{CommandType::Off, frontVoices_[harp]});
+        frontVoices_[harp] = 0;
+        return;
+    }
     if (!down) {
         if (col >= 0 && !anyChordKey()) {
             baseColumn_ = -1;
@@ -125,9 +133,8 @@ void Instrument::key(char key, bool down, uint64_t now) {
         select(col, now);
         return;
     }
-    auto harp = std::string("zxcvbnm").find(key);
     if (harp != std::string::npos && (active || settings.frontMode == 1))
-        pluck(playingFrontNotes()[harp], int(harp), now);
+        pluck(playingFrontNotes()[harp], int(harp), now, true);
     if (key == 'k' || key == 'l') {
         pending_.clear();
         auto notes = playingFrontNotes();
@@ -189,15 +196,15 @@ void Instrument::runTick(uint64_t now) {
         } else
             ++it;
     }
-    if (active && backingLayers(settings.mode))
+    if (active && settings.audibleLayers())
         phase_ += double(now - lastTick_) * settings.bpm / 15000.;
-    if (active && !chordPending_ && backingLayers(settings.mode)) {
+    if (active && !chordPending_ && settings.audibleLayers()) {
         if (nextTick_ + 32 < phase_)
             nextTick_ = int64_t(phase_); // Do not flood audio after a stall.
         while (nextTick_ <= phase_) {
             for (int layer = 0; layer < 2; ++layer) {
                 auto mode = layer == 0 ? PlaybackMode::Chord : PlaybackMode::Arp;
-                if (!layerEnabled(settings.mode, mode)) continue;
+                if (!settings.audible(mode)) continue;
                 const auto &list = patterns(mode);
                 int &playing = playingPatterns_[layer];
                 playing = std::clamp(playing, 0, int(list.size()) - 1);
@@ -216,7 +223,7 @@ void Instrument::runTick(uint64_t now) {
             }
             ++nextTick_;
         }
-        if (layerEnabled(settings.mode, PlaybackMode::Pad)) {
+        if (settings.audible(PlaybackMode::Pad)) {
             constexpr double pi = 3.141592653589793;
             float gain = 1;
             if (settings.padMotion == 1)
@@ -263,6 +270,7 @@ void Instrument::tick(uint64_t now) {
 }
 void Instrument::clearKeys() {
     std::memset(pressed_, 0, sizeof(pressed_));
+    frontVoices_.fill(0);
     baseColumn_ = -1;
 }
 void Instrument::panic() {
@@ -272,6 +280,7 @@ void Instrument::panic() {
     pending_.clear();
     active = false;
     previewUntil_ = 0;
+    frontAudition_ = false;
     clearKeys();
     harpFlash = -1;
 }
@@ -286,8 +295,23 @@ void Instrument::setBackingMode(PlaybackMode mode) {
     resetTransport();
     soundChord();
 }
+void Instrument::setBacking(PlaybackMode mode, const std::array<int, 3> &mix) {
+    const unsigned before = settings.audibleLayers();
+    settings.mode = mode;
+    settings.layerMix = mix;
+    settings.clamp();
+    if (settings.audibleLayers() != before) {
+        setBackingMode(settings.mode); // Start or stop layers with the current chord.
+        return;
+    }
+    Command c{CommandType::Configure};
+    c.settings = settings;
+    sink_.send(c); // Ringing notes follow the new levels.
+    lastGain_ = 1; // Configure resets Pad motion; send its next level promptly.
+}
 void Instrument::configure() {
     chordPending_ = false;
+    frontAudition_ = false;
     settings.clamp();
     previewUntil_ = 0;
     sink_.send(Command{});
@@ -305,8 +329,13 @@ std::array<int, 7> Instrument::playingFrontNotes() const {
         note = std::clamp(note + 12 * frontOctaveShift[settings.frontMode] + semitoneShift(), 0, 127);
     return notes;
 }
+void Instrument::stopAudition() {
+    if (!previewUntil_ && !frontAudition_) return;
+    configure(); // Silence it and restore the real settings, resounding a live chord.
+}
 void Instrument::auditionFront(const Settings &s, int key) {
     panic();
+    frontAudition_ = true;
     Command config{CommandType::Configure};
     config.settings = s;
     sink_.send(config);

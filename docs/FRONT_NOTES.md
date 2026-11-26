@@ -1,21 +1,22 @@
 # Front notes
 
-Press `Tab` and open **App → Front notes**. Use `Z` / `C` (← / →) to switch
-between **All** and the tabs for each front key. Use `F` / `X` (↑ / ↓) to
-select a row. `Enter` opens the choices and confirms a selection. `Esc` cancels
-or goes back. Dedicated arrow keys also work.
+Press `Tab` and open **App → Front notes**. Press `Tab` for the next tab, or
+`1`–`8` for **All** and the tabs for `Z`–`M`. Use `F` / `X` (↑ / ↓) to select a
+row. `Z` / `C` (← / →) change Strum time and Octave at once, with a preview.
+`Enter` opens the list of choices for the other rows. `Esc` cancels or goes back. Dedicated arrow keys also work.
 
-In a picker, moving to a choice previews one front note. Press `Enter` to
-save the choice. `Backspace` restores the highlighted field or selects its
-default for confirmation in a picker.
+In a list, moving to a choice previews one front note. Press `Enter` to
+save the choice. `Backspace` restores the highlighted field, or highlights its
+default in a list.
 
 ## All keys
 
 - **Chord notes.** Front keys follow the selected chord's root and quality.
   Defaults preserve the original minichord-inspired seven-note layout.
-- **Scale notes.** `Z`–`M` play degrees I–VII starting at octave 4. The key
-  comes from **Chord config → All → Key**, and **Scale** sets major or natural
-  minor. The notes can play before you choose a backing chord. Holding `1`
+- **Scale notes.** `Z`–`M` play degrees I–VII starting at octave 4. **Key**
+  and **Scale** follow **Chord config → All** by default. Choosing either sets
+  the front's own key and scale together. `Backspace` follows the chord again.
+  The notes can play before you choose a backing chord. Holding `1`
   raises new scale notes by one semitone, including custom notes and octaves.
 - **Sharpen chord notes.** Holding `1` raises new front notes one semitone above the
   selected chord's notes, including when that chord was already sharp. The
@@ -27,7 +28,12 @@ default for confirmation in a picker.
   Each mode remembers its own duration. `L` plays `Z` → `M`, and `K` plays
   `M` → `Z`, preserving
   keyboard order even with a nonascending custom layout.
-- **Restore all front:** resets both modes, all keys, K/L actions and timings.
+- **Restore all front:** resets both modes, all keys, K/L actions and timings,
+  and makes Key and Scale follow the chord again.
+
+Each front note sounds while you hold its key. Letting go starts the front
+envelope's **Release**, so keep it short for crisp notes or longer to let them ring.
+Strums play notes of a fixed length.
 
 **Octave shift** moves front notes down with `K` or up with `L`. It leaves the backing
 unchanged and stops before any note would exceed MIDI 0–127. The live shift is
@@ -58,9 +64,10 @@ untouched defaults retain Auto.
 
 ## Chord config
 
-Open **App → Chord config**. Use `Z` / `C` (← / →) to switch between **All**
-and the seven degree tabs. `1` selects **All**. `2`–`8` select II–VII and I,
-in the same order as on the playing keyboard.
+Open **App → Chord config**. Press `Tab` to move between **All** and the seven
+degree tabs. `1` selects **All**. `2`–`8` select II–VII and I, in the same order
+as on the playing keyboard. `Z` / `C` (← / →) change Octave and Chord combo
+timing; `Enter` opens the choices for the other rows.
 
 **All → Chord combo timing** groups chord-button presses within a fixed interval
 from the first press. The default is **30 ms**. Choose **Off** or **5–120 ms**
@@ -70,9 +77,10 @@ a measured optimum for this device. Front notes respond immediately using the
 latest chord selection. Releases do not retrigger partial combinations. Panic
 cancels a pending chord. Resetting All restores timing, Hold, and mappings.
 
-Chord config begins with Octave on each tab. All contains Key and Hold. Degree
-tabs contain absolute Root overrides. Follow Key / Follow All restores inheritance.
-**Front notes → All → Scale** sets major or natural minor for **Scale notes**.
+Chord config begins with Octave on each tab. All contains Key, Scale, and Hold.
+**Scale** places the degree roots in major or natural minor, where III, VI, and
+VII sit a semitone lower. Degree tabs contain absolute Root overrides. Follow
+Key / Follow All restores inheritance.
 
 ### Choose a chord quality
 

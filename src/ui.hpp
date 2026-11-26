@@ -2,6 +2,10 @@
 #include "settings_editor.hpp"
 #include <string>
 namespace zc {
+struct Hint {
+    const char *key = nullptr;
+    std::string action;
+};
 class UI : public SettingsEditor {
   public:
     using SettingsEditor::SettingsEditor;
@@ -9,14 +13,16 @@ class UI : public SettingsEditor {
 
   private:
     std::string previous_;
-    const char *enterAction() const;
+    Hint restoreHint() const;
+    void menuFooter(bool edited);
     void drawPerformance();
     void drawAbout();
-    void drawSettingRows(int top, int limit, int spacing);
+    bool drawSettingRows(int top, int limit, int spacing); // True when a listed row is edited.
     void drawVolumeEffects();
     void drawPicker();
     void drawTempo();
     void drawBacking();
+    void drawFrontSound();
     void drawEnvelope();
     void drawCombinations();
     void drawFrontNotes();

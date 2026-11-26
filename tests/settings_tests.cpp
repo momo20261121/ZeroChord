@@ -1,4 +1,5 @@
 #include "settings_editor.hpp"
+#include "menu_navigation.hpp"
 #include "settings_io.hpp"
 #include <algorithm>
 #include <chrono>
@@ -36,6 +37,9 @@ struct MenuAudit : SettingsEditor {
         return settingValueNumber();
     }
     int defaultChoice() const { return defaultValue(); }
+    bool adjustable() const {
+        return selectedKind() == RowKind::Number;
+    }
     bool action() const {
         return page() == Page::Envelope ? selected() == 4
                : page() == Page::FrontNotes ? frontReset()
@@ -47,13 +51,7 @@ void press(SettingsEditor &editor, char key) {
     editor.key(key, true);
     editor.key(key, false);
 }
-void row(SettingsEditor &editor, int field) {
-    const auto target = SettingsEditor::appField(field) ? SettingsEditor::Tab::App : SettingsEditor::Tab::Style;
-    for (int n = 0; editor.tab() != target && n < 3; ++n) press(editor, 20);
-    for (int n = 0; editor.selected() != field && n < SettingsEditor::settingCount; n++)
-        press(editor, 18);
-    CHECK(editor.selected() == field);
-}
+void row(SettingsEditor &e, int field) { zc::test::goToRow(e, field); }
 void choose(SettingsEditor &editor, int value) {
     CHECK(editor.pickerOpen());
     const auto groups = editor.soundPicker() ? editor.soundCategories().size() : 1;
@@ -64,7 +62,7 @@ void choose(SettingsEditor &editor, int value) {
             press(editor, 18);
         }
         if (editor.soundPicker())
-            press(editor, 20);
+            press(editor, '\t'); // Tab: next sound group.
     }
     throw std::runtime_error("Choice missing");
 }
@@ -98,9 +96,10 @@ int main() {
     });
     press(editor, '\t');
     CHECK(editor.selected() == 2); // Preset is first on Style.
-    CHECK((editor.rows() == std::vector<int>{2, 8, 10, 11, 9, 12, 14, 23, 13, 24, 21, 25, 19, 20}));
+    CHECK((editor.rows() == std::vector<int>{2, 8, SettingsEditor::backingField,
+                                             SettingsEditor::frontSoundField, 19, 20}));
     const auto original = instrument.settings;
-    press(editor, 20);
+    press(editor, '\t'); // Tab moves to the next tab; left/right stay for values.
     CHECK(editor.tab() == SettingsEditor::Tab::App && editor.selected() == 18);
     CHECK((editor.rows() == std::vector<int>{18, SettingsEditor::volumeEffectsField, 3, 22}));
     row(editor, SettingsEditor::volumeEffectsField);
@@ -114,12 +113,12 @@ int main() {
     press(editor, '\b');
     CHECK(outputVolume == 43 && volumeWrites == 0);
     outputVolume = 52; // The system can change the level while the page is open.
-    press(editor, 19);
-    CHECK(outputVolume == 47 && volumeWrites == 1 && sink.events.empty());
+    press(editor, 19); // Values step along their 5% grid.
+    CHECK(outputVolume == 50 && volumeWrites == 1 && sink.events.empty());
     CHECK(instrument.settings.masterVolume == original.masterVolume);
     allowVolumeChange = false;
     press(editor, 'c');
-    CHECK(!editor.pickerOpen() && outputVolume == 47 && volumeWrites == 2);
+    CHECK(!editor.pickerOpen() && outputVolume == 50 && volumeWrites == 2);
     outputVolume.reset();
     press(editor, 19);
     CHECK(!editor.pickerOpen() && volumeWrites == 2);
@@ -141,15 +140,25 @@ int main() {
           instrument.settings.strumMs == defaults.strumMs);
     press(editor, 27);
     CHECK(editor.page() == SettingsEditor::Page::Setup && editor.selected() == SettingsEditor::volumeEffectsField);
-    press(editor, 19);
+    press(editor, '1'); // Number keys jump to a tab.
     CHECK(editor.tab() == SettingsEditor::Tab::Style && editor.selected() == 2);
     CHECK(samePresetSettings(original, instrument.settings));
     row(editor, 3);
     press(editor, '\n');
     CHECK(editor.page() == SettingsEditor::Page::Combinations);
     CHECK(editor.selected() == 6);
-    press(editor, 18); // Octave -> Key -> Hold.
+    press(editor, 18); // Octave -> Key -> Scale.
     press(editor, 18);
+    // Natural minor moves the III, VI and VII roots; the M/m/7 rows stay as they are.
+    press(editor, '\n');
+    choose(editor, 1);
+    press(editor, '\n');
+    CHECK(instrument.settings.chordScale == 1 && instrument.settings.chordRoot(1) % 12 == 3 &&
+          instrument.settings.chordRoot(4) % 12 == 8 && instrument.settings.chordRoot(5) % 12 == 10 &&
+          instrument.settings.chordRoot(3) % 12 == 7);
+    press(editor, '\b');
+    CHECK(instrument.settings.chordScale == 0 && instrument.settings.chordRoot(1) % 12 == 4);
+    press(editor, 18); // Scale -> Hold.
     press(editor, '\n');
     choose(editor, 0);
     press(editor, 27);
@@ -161,17 +170,20 @@ int main() {
     press(editor, '\b');
     CHECK(instrument.settings.hold == defaults.hold);
     press(editor, 18);
-    CHECK(editor.scope() == -1);
+    CHECK(editor.scope() == -1 && editor.selected() == 0);
+    // Choices open a list with Enter; left/right neither change them nor switch tabs.
+    press(editor, 20);
     press(editor, 19);
-    CHECK(editor.scope() == 6);
-    press(editor, 20);
-    CHECK(editor.scope() == -1);
-    press(editor, 20);
+    CHECK(instrument.settings.combinations[0] == int(Quality::Diminished) && editor.scope() == -1);
+    // Tab only moves forward and wraps; number keys jump.
+    press(editor, '\t');
     CHECK(editor.scope() == 0);
+    for (int n = 0; n < 7; n++) press(editor, '\t');
+    CHECK(editor.scope() == -1);
     press(editor, '5');
     CHECK(editor.scope() == 3);
-    press(editor, 19);
-    CHECK(editor.scope() == 2);
+    press(editor, '\t');
+    CHECK(editor.scope() == 4);
     press(editor, '1');
     press(editor, '\n');
     choose(editor, int(Quality::No3));
@@ -263,7 +275,7 @@ int main() {
     CHECK(instrument.settings.tonic == 0 && instrument.settings.hold == defaults.hold);
     instrument.settings.tonic = 4;
     CHECK(instrument.settings.combinationMs == 30);
-    for (int n = 0; n < 8; n++)
+    for (int n = 0; n < 9; n++) // Restore wraps to Octave, then on to combo timing.
         press(editor, 18);
     CHECK(editor.selected() == 5 && editor.scope() == -1);
     sink.events.clear();
@@ -277,7 +289,11 @@ int main() {
     CHECK(instrument.settings.combinationMs == 120);
     press(editor, '\b');
     CHECK(instrument.settings.combinationMs == 30);
-    press(editor, 20);
+    press(editor, 20); // Numbers step with left/right and stop at their ends.
+    CHECK(instrument.settings.combinationMs == 35);
+    press(editor, 19);
+    CHECK(instrument.settings.combinationMs == 30);
+    press(editor, '\t');
     CHECK(editor.scope() == 0 && editor.selected() == 0);
     press(editor, '1');
     CHECK(editor.scope() == -1);
@@ -296,8 +312,10 @@ int main() {
     choose(editor, 1);
     press(editor, '\n');
     CHECK(instrument.settings.preset == 1);
-    press(editor, 20);
-    CHECK(instrument.settings.preset == 1); // Right switches tabs without editing.
+    press(editor, 20); // The preset is a choice: only its list changes it.
+    CHECK(instrument.settings.preset == 1);
+    press(editor, '\t');
+    CHECK(instrument.settings.preset == 1); // Tab switches tabs without editing.
     CHECK(editor.tab() == SettingsEditor::Tab::App && editor.selected() == 3);
     row(editor, 2);
     press(editor, '\n');
@@ -355,34 +373,53 @@ int main() {
         press(menu, '\n');
         CHECK(player.settings.pattern == 6);
     }
-    // O and the Style row open the same transactional checkbox editor, using physical F/X arrows.
+    // O opens Backing on its Layers tab. Mute toggles and mix apply live and keep the chord.
     for (unsigned initial = 0; initial < 8; ++initial) {
         Capture captured; Instrument p(captured); SettingsEditor e(p);
         p.settings.mode = modeForLayers(initial);
         p.settings.combinationMs = 0; p.key('8', true, 10); p.key('8', false, 11);
-        auto harmony = p.chord; captured.events.clear();
-        press(e, 'o'); CHECK(e.backingOpen() && !e.settingsOpen);
-        for (auto layer : {PlaybackMode::Chord, PlaybackMode::Arp, PlaybackMode::Pad}) {
-            auto previous = e.pendingLayers();
+        auto harmony = p.chord;
+        press(e, 'o');
+        CHECK(e.backingOpen() && e.page() == SettingsEditor::Page::Backing && e.backingTab() == 0);
+        CHECK(e.selected() == SettingsEditor::chordMixField);
+        for (auto layer : backingLayerOrder) {
+            auto previous = backingLayers(p.settings.mode);
             press(e, '\n');
-            CHECK(e.pendingLayers() == (previous ^ backingLayers(layer)));
+            CHECK(backingLayers(p.settings.mode) == (previous ^ backingLayers(layer)));
             press(e, 'x');
         }
-        CHECK(e.pendingLayers() == (initial ^ 7u) && backingLayers(p.settings.mode) == initial);
-        CHECK(captured.events.empty());
-        press(e, 27); CHECK(!e.backingOpen() && backingLayers(p.settings.mode) == initial);
-        press(e, 'o'); press(e, '\n'); press(e, 'x'); press(e, '\n');
-        press(e, 'x'); press(e, '\n'); press(e, 'x'); press(e, '\n');
-        CHECK(!e.backingOpen() && backingLayers(p.settings.mode) == (initial ^ 7u));
+        CHECK(backingLayers(p.settings.mode) == (initial ^ 7u));
         CHECK(p.active && p.chord == harmony);
-        press(e, 'o'); press(e, '\b');
-        CHECK(e.pendingLayers() == backingLayers(p.library.current(p.settings).sound.mode));
+        CHECK(e.selected() == SettingsEditor::chordMixField);
+        const bool chordOn = layerEnabled(p.settings.mode, PlaybackMode::Chord);
+        press(e, 'z');
+        CHECK(p.settings.mix(PlaybackMode::Chord) == 95 &&
+              layerEnabled(p.settings.mode, PlaybackMode::Chord) == chordOn);
+        press(e, 'c'); // Raising a muted layer unmutes it.
+        CHECK(p.settings.mix(PlaybackMode::Chord) == 100 && layerEnabled(p.settings.mode, PlaybackMode::Chord));
+        for (int n = 0; n < 25; n++) press(e, 'z');
+        CHECK(p.settings.mix(PlaybackMode::Chord) == 0 && !p.settings.audible(PlaybackMode::Chord));
+        press(e, '\n'); press(e, '\n'); // Unmuting a silent layer restores an audible level.
+        CHECK(p.settings.audible(PlaybackMode::Chord));
+        press(e, '\b');
+        const auto &d = p.library.current(p.settings).sound;
+        CHECK(p.settings.mix(PlaybackMode::Chord) == d.mix(PlaybackMode::Chord) &&
+              layerEnabled(p.settings.mode, PlaybackMode::Chord) == layerEnabled(d.mode, PlaybackMode::Chord));
+        p.settings.mix(PlaybackMode::Pad) = 35;
         press(e, 27);
-        press(e, 'o'); press(e, '\t');
-        CHECK(!e.backingOpen() && e.settingsOpen);
+        CHECK(!e.settingsOpen && !e.backingOpen() && p.active && p.chord == harmony);
+        press(e, '\t'); // O leaves the settings pages where they were.
+        CHECK(e.settingsOpen && e.page() == SettingsEditor::Page::Setup && e.selected() == 2 &&
+              e.tab() == SettingsEditor::Tab::Style);
+        press(e, 27);
+        press(e, 'o'); press(e, '\t'); // Tab moves through the tabs; Esc returns to playing.
+        CHECK(e.backingOpen() && e.backingTab() == 1);
+        press(e, 27);
+        CHECK(!e.backingOpen() && !e.settingsOpen);
         auto file = path + ".layers";
         saveSettings(p.settings, file); Settings loaded; loadSettings(loaded, file);
-        CHECK(loaded.mode == p.settings.mode); std::filesystem::remove(file);
+        CHECK(loaded.mode == p.settings.mode && loaded.layerMix == p.settings.layerMix);
+        std::filesystem::remove(file);
     }
     // Audit every page/picker with both desktop arrow events and the physical
     // Cardputer's printed F/X/Z/C arrows. Previews must never commit settings.
@@ -390,6 +427,8 @@ int main() {
                            std::array<char, 4>{'f', 'x', 'z', 'c'}}) {
         Capture captured;
         Instrument walker(captured);
+        // Start from a loaded preset, whose sounds are explicit rather than placeholders.
+        walker.library.restore(walker.settings);
         MenuAudit menu(walker);
         const auto up = nav[0], down = nav[1], left = nav[2], right = nav[3];
         auto state = [&]() {
@@ -403,6 +442,18 @@ int main() {
             const auto page = menu.page();
             const auto tab = menu.tab();
             const int scope = menu.scope(), frontKey = menu.frontKey(), row = menu.selected();
+            // Left/right change a value row at once; the opposite arrow undoes it.
+            if (menu.adjustable()) {
+                press(menu, right);
+                if (state() == before) {
+                    press(menu, left);
+                    if (state() != before) press(menu, right);
+                } else
+                    press(menu, left);
+                CHECK(state() == before && menu.selected() == row && menu.page() == page);
+                walker.settings = saved;
+                walker.configure();
+            }
             press(menu, '\n');
             if (page == SettingsEditor::Page::Setup && row == 8) {
                 CHECK(menu.tempoOpen());
@@ -415,31 +466,29 @@ int main() {
                 walker.settings = saved;
                 return;
             }
-            if (page == SettingsEditor::Page::Setup && row == 10) {
-                CHECK(menu.backingOpen() && menu.pendingLayers() == backingLayers(saved.mode));
-                press(menu, '\n');
-                CHECK(state() == before && menu.pendingLayers() == (backingLayers(saved.mode) ^ 1u));
-                press(menu, down); CHECK(menu.backingRow() == 1);
-                press(menu, up); CHECK(menu.backingRow() == 0);
-                press(menu, 27); CHECK(!menu.backingOpen() && state() == before);
-                press(menu, '\n'); press(menu, '\n');
-                press(menu, down); press(menu, down); press(menu, down); press(menu, '\n');
-                CHECK(!menu.backingOpen() && backingLayers(walker.settings.mode) == (backingLayers(saved.mode) ^ 1u));
-                walker.settings = saved; walker.configure();
-                return;
-            }
             CHECK(menu.pickerOpen() && !menu.choices().empty());
             const int start = menu.highlighted();
+            if (menu.action()) {
+                // A confirmation is one question: arrows do nothing, Esc keeps everything.
+                press(menu, down); press(menu, right);
+                CHECK(menu.highlighted() == start && menu.choices()[start].value == 1);
+                press(menu, 27);
+                CHECK(!menu.pickerOpen() && menu.settingsOpen && state() == before);
+                return;
+            }
             const int candidate = menu.choices()[(start + 1) % menu.choices().size()].value;
             press(menu, down);
             CHECK(menu.highlighted() == (start + 1) % int(menu.choices().size()));
             press(menu, up);
             CHECK(menu.highlighted() == start);
             if (menu.soundPicker()) {
+                const auto categories = menu.soundCategories();
                 const auto category = menu.soundCategory();
-                press(menu, right);
+                press(menu, '\t');
                 CHECK(menu.soundCategory() != category && !menu.choices().empty());
-                press(menu, left);
+                const int index = int(std::find(categories.begin(), categories.end(), category) -
+                                      categories.begin());
+                press(menu, char('1' + index));
                 CHECK(menu.soundCategory() == category);
             } else {
                 press(menu, right);
@@ -450,20 +499,18 @@ int main() {
             CHECK(menu.page() == page && menu.tab() == tab && menu.scope() == scope &&
                   menu.frontKey() == frontKey && menu.selected() == row);
             CHECK(state() == before);
-            if (!menu.action() && !(page == SettingsEditor::Page::Setup && row == 2)) {
+            if (!(page == SettingsEditor::Page::Setup && row == 2)) {
                 press(menu, '\b');
                 CHECK(menu.choices()[menu.highlighted()].value == menu.defaultChoice());
             }
             press(menu, 27);
             CHECK(!menu.pickerOpen() && menu.settingsOpen && state() == before);
-            if (!menu.action()) {
-                press(menu, '\n');
-                choose(menu, candidate);
-                press(menu, '\n');
-                CHECK(!menu.pickerOpen() && menu.currentValue() == candidate);
-                walker.settings = saved;
-                walker.configure();
-            }
+            press(menu, '\n');
+            choose(menu, candidate);
+            press(menu, '\n');
+            CHECK(!menu.pickerOpen() && menu.currentValue() == candidate);
+            walker.settings = saved;
+            walker.configure();
         };
         press(menu, '\t');
         for (int tab = 0; tab < 2; tab++) {
@@ -493,28 +540,70 @@ int main() {
                     press(menu, up);
                     const auto before = state();
                     CHECK(menu.page() == SettingsEditor::Page::VolumeEffects && menu.selected() == fields.back());
-                    press(menu, '\t');
-                    CHECK(!menu.settingsOpen && !menu.pickerOpen() && state() == before);
-                    press(menu, '\t');
+                    press(menu, '\t'); // No tabs here: Tab does nothing.
+                    CHECK(menu.page() == SettingsEditor::Page::VolumeEffects && state() == before);
+                    press(menu, 27);
                     CHECK(menu.page() == SettingsEditor::Page::Setup && menu.selected() == SettingsEditor::volumeEffectsField);
                     press(menu, '\n');
                     CHECK(menu.page() == SettingsEditor::Page::VolumeEffects && menu.selected() == fields.back());
                     press(menu, 27);
                     CHECK(menu.page() == SettingsEditor::Page::Setup && menu.selected() == SettingsEditor::volumeEffectsField);
-                } else if (menu.selected() >= 23 && menu.selected() <= 25) {
-                    const int envelopeRow = menu.selected();
+                } else if (menu.selected() == SettingsEditor::backingField ||
+                           menu.selected() == SettingsEditor::frontSoundField) {
+                    const int opener = menu.selected();
+                    const bool backing = opener == SettingsEditor::backingField;
                     press(menu, '\n');
-                    CHECK(menu.page() == SettingsEditor::Page::Envelope &&
-                          menu.envelopePart() == envelopeRow - 23);
-                    for (int field = 0; field < 5; field++) {
-                        CHECK(menu.selected() == field);
-                        checkPicker();
-                        press(menu, down);
+                    CHECK(menu.page() == (backing ? SettingsEditor::Page::Backing
+                                                  : SettingsEditor::Page::FrontSound));
+                    for (int tab = 0; tab < (backing ? SettingsEditor::backingTabCount : 1); tab++) {
+                        if (backing) {
+                            press(menu, char('1' + tab));
+                            CHECK(menu.backingTab() == tab);
+                        }
+                        const auto fields = menu.visibleRows();
+                        for (int field : fields) {
+                            CHECK(menu.selected() == field);
+                            if (field >= SettingsEditor::chordMixField && field < SettingsEditor::chordMixField + 3) {
+                                const auto before = state();
+                                const auto saved = walker.settings;
+                                const auto layer = backingLayerOrder[field - SettingsEditor::chordMixField];
+                                press(menu, '\n');
+                                CHECK(state() != before);
+                                press(menu, '\n');
+                                CHECK(state() == before);
+                                press(menu, left);
+                                CHECK(walker.settings.mix(layer) == saved.mix(layer) - 5);
+                                press(menu, right);
+                                CHECK(walker.settings.mix(layer) == saved.mix(layer) &&
+                                      layerEnabled(walker.settings.mode, layer));
+                                walker.settings = saved;
+                                walker.configure();
+                            } else if ((field >= 23 && field <= 25) || field == SettingsEditor::arpEnvelopeField) {
+                                const auto parent = menu.page();
+                                const int part = field == SettingsEditor::arpEnvelopeField ? 3 : field - 23;
+                                press(menu, '\n');
+                                CHECK(menu.page() == SettingsEditor::Page::Envelope && menu.envelopePart() == part);
+                                for (int control = 0; control < 5; control++) {
+                                    CHECK(menu.selected() == control);
+                                    checkPicker();
+                                    press(menu, down);
+                                }
+                                press(menu, '\t');
+                                CHECK(menu.page() == SettingsEditor::Page::Envelope && menu.envelopePart() == part);
+                                press(menu, 27);
+                                CHECK(menu.page() == parent && menu.selected() == field);
+                            } else
+                                checkPicker();
+                            press(menu, down);
+                        }
+                        CHECK(menu.selected() == fields.front());
                     }
-                    press(menu, left); press(menu, right);
-                    CHECK(menu.envelopePart() == envelopeRow - 23);
+                    if (backing) {
+                        press(menu, '\t'); // From Pad, the next tab wraps to Layers.
+                        CHECK(menu.backingTab() == 0);
+                    }
                     press(menu, 27);
-                    CHECK(menu.page() == SettingsEditor::Page::Setup && menu.selected() == envelopeRow);
+                    CHECK(menu.page() == SettingsEditor::Page::Setup && menu.selected() == opener);
                 } else if (menu.selected() != 3 && menu.selected() != 22)
                     checkPicker();
                 press(menu, down);
@@ -523,30 +612,29 @@ int main() {
             press(menu, up);
             CHECK(menu.selected() == list.back());
             press(menu, down);
-            press(menu, right);
+            press(menu, '\t');
         }
         CHECK(menu.tab() == SettingsEditor::Tab::About && menu.rows().empty());
         const auto beforeAbout = state();
-        for (char key : {up, down, char('\n'), char('\b'), 'r', '1', 'o', 'p'}) {
+        for (char key : {up, down, left, right, char('\n'), char('\b'), 'r', 'o', 'p'}) {
             press(menu, key);
             CHECK(menu.tab() == SettingsEditor::Tab::About && menu.selected() == -1);
             CHECK(!menu.pickerOpen() && !menu.tempoOpen() && !menu.backingOpen());
             CHECK(state() == beforeAbout);
         }
-        press(menu, right);
+        press(menu, '\t'); // Tab wraps from the last tab to the first.
         CHECK(menu.tab() == SettingsEditor::Tab::Style && menu.selected() == 2);
-        press(menu, left);
+        press(menu, '3');
         CHECK(menu.tab() == SettingsEditor::Tab::About);
         press(menu, 27); CHECK(!menu.settingsOpen);
-        press(menu, '\t'); CHECK(menu.tab() == SettingsEditor::Tab::About);
-        press(menu, left);
+        press(menu, '\t'); CHECK(menu.settingsOpen && menu.tab() == SettingsEditor::Tab::About);
+        press(menu, '2');
         CHECK(menu.tab() == SettingsEditor::Tab::App && menu.selected() == 18);
         row(menu, 22);
         for (int mode = 0; mode < 2; mode++) {
             walker.settings.frontMode = mode;
             press(menu, '\n');
-            while (menu.frontKey() != -1)
-                press(menu, right);
+            press(menu, '1');
             for (int key = -1; key < 7; key++) {
                 CHECK(menu.frontKey() == key);
                 const auto list = menu.visibleRows();
@@ -559,7 +647,7 @@ int main() {
                 press(menu, up);
                 CHECK(menu.selected() == list.back());
                 press(menu, down);
-                press(menu, right);
+                press(menu, '\t');
             }
             CHECK(menu.frontKey() == -1);
             press(menu, 27);
@@ -576,10 +664,10 @@ int main() {
                 press(menu, down);
             }
             CHECK(menu.selected() == list.front());
-            press(menu, right);
+            press(menu, '\t');
         }
         CHECK(menu.scope() == -1);
-        press(menu, left);
+        press(menu, '8');
         CHECK(menu.scope() == 6);
         press(menu, '1');
         CHECK(menu.scope() == -1);
@@ -589,10 +677,10 @@ int main() {
         const auto before = state();
         press(menu, '\n');
         press(menu, down);
-        press(menu, '\t');
-        CHECK(!menu.settingsOpen && !menu.pickerOpen() && !menu.tempoOpen() && state() == before);
-        press(menu, '\t');
-        CHECK(menu.settingsOpen && menu.selected() == 8);
+        press(menu, '\t'); // Typing a tempo ignores Tab; Esc cancels it.
+        CHECK(menu.tempoOpen() && state() == before);
+        press(menu, 27);
+        CHECK(menu.settingsOpen && !menu.tempoOpen() && state() == before && menu.selected() == 8);
     }
     {
         Capture captured; Instrument player(captured); SettingsEditor envelopes(player);
@@ -645,10 +733,109 @@ int main() {
         CHECK(player.settings.chordOctave == 3 && player.settings.tonic == 0 && player.settings.echo == 42);
         press(config, 27); row(config, 22); press(config, '\n');
         set(1); // Front mode -> Scale notes.
+        // Scale notes follow the chord key and scale until either front Key or Scale is set.
+        press(config, 18); CHECK(config.selected() == 5);
+        CHECK(player.settings.frontFollow && player.settings.frontKeyTonic() == player.settings.tonic);
+        set(2);
+        CHECK(!player.settings.frontFollow && player.settings.frontTonic == 2 &&
+              player.settings.frontKeyScale() == 0 && player.settings.chordRoot(1) == 52);
+        CHECK(frontNotes({48, -1, 6, Quality::Major}, player.settings)[0] == 62);
+        press(config, '\b'); CHECK(player.settings.frontFollow);
         press(config, 18); CHECK(config.selected() == 4); set(1);
-        CHECK(player.settings.scale == 1 && player.settings.chordRoot(1) == 52);
+        CHECK(player.settings.scale == 1 && !player.settings.frontFollow &&
+              player.settings.frontTonic == player.settings.tonic && player.settings.chordRoot(1) == 52);
         CHECK(frontNotes({48, -1, 6, Quality::Major}, player.settings)[2] == 63);
-        press(config, '\b'); CHECK(player.settings.scale == 0);
+        press(config, '\b'); CHECK(player.settings.frontFollow && player.settings.frontKeyScale() == 0);
+        player.settings.chordScale = 1; // Following picks up the chord's natural minor.
+        CHECK(frontNotes({48, -1, 6, Quality::Major}, player.settings)[2] == 63);
+    }
+    // 1.2 settings files: Arp copies the Chord sound and envelope; Key and Scale keep sounding the same.
+    for (int scale = 0; scale < 2; scale++) {
+        auto file = path + ".legacy";
+        std::ofstream(file) << "frontMappingVersion 2\ntonic 2\nscale " << scale
+                            << "\nchordProgram 24\nenvelope13 300\nchordSound pack/strings\n";
+        Settings loaded;
+        loadSettings(loaded, file);
+        CHECK(loaded.arpProgram == 24 && loaded.arpSound == "pack/strings" &&
+              loaded.envelopes[ArpEnvelope].values[3] == 300);
+        CHECK(loaded.chordScale == 0 && loaded.frontKeyTonic() == 2 && loaded.frontKeyScale() == scale &&
+              loaded.frontFollow == (scale == 0));
+        saveSettings(loaded, file);
+        Settings again;
+        loadSettings(again, file);
+        CHECK(again.frontFollow == loaded.frontFollow && again.arpProgram == 24 &&
+              again.frontKeyScale() == scale);
+        std::filesystem::remove(file);
+    }
+    // Holding an arrow repeats after a delay, stops at the ends, and auditions once on release.
+    {
+        Capture captured;
+        Instrument player(captured);
+        SettingsEditor e(player);
+        press(e, '\t');
+        row(e, 4); // Backing volume, 80%.
+        e.tick(1000);
+        e.key('z', true);
+        CHECK(player.settings.chordVolume == 75 && !captured.events.empty());
+        captured.events.clear();
+        e.tick(1390);
+        CHECK(player.settings.chordVolume == 75);
+        e.tick(1400);
+        CHECK(player.settings.chordVolume == 70);
+        for (uint64_t now = 1400; now <= 4000; now += 10) e.tick(now);
+        CHECK(player.settings.chordVolume == 0 &&
+              std::none_of(captured.events.begin(), captured.events.end(),
+                           [](const Command &c) { return c.type == CommandType::On; }));
+        e.key('z', false);
+        CHECK(std::any_of(captured.events.begin(), captured.events.end(),
+                          [](const Command &c) { return c.type == CommandType::On; }));
+        e.tick(5000); // Released keys do not repeat.
+        CHECK(player.settings.chordVolume == 0);
+        e.key('x', true);
+        for (uint64_t now = 5000; now <= 8000; now += 10) e.tick(now);
+        e.key('x', false);
+        CHECK(e.selected() == 28); // Rows stop at the last one instead of wrapping.
+        e.key(19, true); // Left/right on a tabbed page never repeat.
+        e.key(19, false);
+        CHECK(player.settings.eqDb[2] == -1);
+    }
+    // A preview ends as soon as the player leaves its option, including back to playing.
+    {
+        Capture captured;
+        Instrument player(captured);
+        player.library.restore(player.settings);
+        SettingsEditor e(player);
+        press(e, 'o'); // Quick Backing from playing, nothing sounding yet.
+        press(e, '2');
+        press(e, 'x'); press(e, 'x');
+        press(e, '\n'); // Chord envelope page.
+        CHECK(e.page() == SettingsEditor::Page::Envelope);
+        press(e, 20);
+        CHECK(player.auditioning());
+        press(e, '\t'); // No tabs here: the preview keeps playing.
+        CHECK(player.auditioning());
+        press(e, 18);
+        CHECK(!player.auditioning()); // Moving to another row ends it.
+        press(e, 20);
+        CHECK(player.auditioning());
+        press(e, 27);
+        CHECK(!player.auditioning() && e.page() == SettingsEditor::Page::Backing);
+        press(e, 'x'); press(e, '\n'); // Back to Envelope, then the playing screen.
+        press(e, 20);
+        CHECK(player.auditioning());
+        press(e, 27); press(e, 27);
+        CHECK(!e.settingsOpen && !player.auditioning());
+        press(e, '\t'); // Front envelope: a previewed note stops when leaving the page.
+        row(e, 23);
+        press(e, '\n');
+        press(e, 20);
+        CHECK(player.auditioning());
+        press(e, 27);
+        CHECK(!player.auditioning());
+        press(e, '\n'); press(e, '\n'); // A list preview stops when the list closes.
+        CHECK(e.pickerOpen() && player.auditioning());
+        press(e, 27);
+        CHECK(!e.pickerOpen() && !player.auditioning());
     }
     // P and menu Tempo share a transactional numeric editor with no audio restart.
     {
@@ -672,8 +859,10 @@ int main() {
         CHECK(tempo.tempoText() == "80");
         press(tempo, '\b'); press(tempo, '8'); press(tempo, '0'); press(tempo, '\n');
         CHECK(player.settings.bpm == 80 && captured.events.empty());
-        press(tempo, 'p'); press(tempo, '\t');
-        CHECK(!tempo.tempoOpen() && tempo.settingsOpen);
+        press(tempo, 'p'); press(tempo, '\t'); // Tab is ignored while typing a tempo.
+        CHECK(tempo.tempoOpen() && !tempo.settingsOpen);
+        press(tempo, 27);
+        CHECK(!tempo.tempoOpen() && !tempo.settingsOpen && player.settings.bpm == 80);
     }
     std::filesystem::remove_all(dir);
     std::cout << "PASS: defaults, no3/sus voicings, shared/degree resolution, scope shortcuts, "

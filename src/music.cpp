@@ -130,15 +130,26 @@ const char *modeName(PlaybackMode mode) {
                                  "Chord + Arp", "Pad + Arp", "Chord + Pad + Arp"};
     return names[std::clamp(int(mode), 0, 7)];
 }
+int layerIndex(PlaybackMode layer) {
+    return layer == PlaybackMode::Chord ? 0 : layer == PlaybackMode::Arp ? 1 : 2;
+}
+unsigned PerformanceSettings::audibleLayers() const {
+    unsigned result = 0;
+    for (auto layer : backingLayerOrder)
+        if (layerEnabled(mode, layer) && mix(layer) > 0) result |= backingLayers(layer);
+    return result;
+}
 bool PerformanceSettings::operator==(const PerformanceSettings &b) const {
-    return std::tie(mode, chordProgram, harpProgram, padProgram, chordSound, padSound, frontSound,
-                    chordPattern, padMotion, bpm, pattern, envelopes) ==
-           std::tie(b.mode, b.chordProgram, b.harpProgram, b.padProgram, b.chordSound, b.padSound,
-                    b.frontSound, b.chordPattern, b.padMotion, b.bpm, b.pattern, b.envelopes);
+    return std::tie(mode, chordProgram, harpProgram, padProgram, arpProgram, chordSound, padSound,
+                    frontSound, arpSound, layerMix, chordPattern, padMotion, bpm, pattern,
+                    envelopes) ==
+           std::tie(b.mode, b.chordProgram, b.harpProgram, b.padProgram, b.arpProgram, b.chordSound,
+                    b.padSound, b.frontSound, b.arpSound, b.layerMix, b.chordPattern, b.padMotion,
+                    b.bpm, b.pattern, b.envelopes);
 }
 int Settings::chordRoot(int column) const {
     int octave = degreeChordOctave[column] == -2 ? chordOctave : degreeChordOctave[column];
-    int pitch = degreeChordRoot[column] < 0 ? rootFor(tonic, 0, column) % 12 : degreeChordRoot[column];
+    int pitch = degreeChordRoot[column] < 0 ? rootFor(tonic, chordScale, column) % 12 : degreeChordRoot[column];
     return pitch + 12 * (octave + 1);
 }
 void Settings::clamp() {
@@ -162,11 +173,16 @@ void Settings::clamp() {
     }
     tonic = std::clamp(tonic, 0, 11);
     scale = std::clamp(scale, 0, 1);
+    chordScale = std::clamp(chordScale, 0, 1);
+    frontFollow = !!frontFollow;
+    frontTonic = std::clamp(frontTonic, 0, 11);
     preset = std::clamp(preset, 0, 127);
     mode = PlaybackMode(std::clamp(int(mode), 0, 7));
     chordProgram = std::clamp(chordProgram, -1, 127);
     harpProgram = std::clamp(harpProgram, -1, 127);
     padProgram = std::clamp(padProgram, -1, 127);
+    arpProgram = std::clamp(arpProgram, -1, 127);
+    for (auto &level : layerMix) level = std::clamp(level, 0, 100);
     chordPattern = std::clamp(chordPattern, 0, 7);
     padMotion = std::clamp(padMotion, 0, 3);
     hold = !!hold;
@@ -195,7 +211,7 @@ std::array<int, 7> frontNotes(const Chord &chord, const Settings &s) {
         int octave = s.frontMode ? s.scaleOctave[n] : s.frontOctave[n];
         if (s.frontMode) {
             static constexpr int scale[2][7]{{0, 2, 4, 5, 7, 9, 11}, {0, 2, 3, 5, 7, 8, 10}};
-            result[n] = 60 + s.tonic + scale[s.scale != 0][s.frontDegree[n]];
+            result[n] = 60 + s.frontKeyTonic() + scale[s.frontKeyScale() != 0][s.frontDegree[n]];
         } else {
             if (s.frontSource[n] >= 0 && s.frontSource[n] < 4)
                 result[n] = tones[s.frontSource[n]] + 12;

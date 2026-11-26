@@ -95,15 +95,17 @@ try:
         tap(9) # 8: chord
         for code in [44,45,46,47,48,49,50,38]: tap(code) # Z-M and L
         time.sleep(.3)
-        tap(24) # O: backing-layers popup; all layers start on
-        tap(45); tap(28); tap(45); tap(28); tap(45); tap(28) # clear Arp and Pad, Apply: Chord only
-        tap(15) # Tab: Style
-        for _ in range(3): tap(45) # X -> Chord pattern
+        tap(24) # O: Backing layers, Layers tab; all layers start on
+        tap(45); tap(28); tap(45); tap(28) # Mute Arp and Pad at once: Chord only
+        tap(1) # Esc: back to playing
+        tap(15) # Tab: settings, Style
+        tap(45); tap(45); tap(28) # X X -> Backing layers, Enter
+        tap(3) # 2: Chord tab, Pattern
         tap(28); tap(45); tap(28) # Enter, next item after the default Sustained, Enter
-        tap(1) # Esc: performance
+        tap(1); tap(1) # Esc Esc: performance
         tap(9); time.sleep(.9)
         # App > Volume & effects, using the printed Z/C/X arrows.
-        tap(15); tap(46)
+        tap(15); tap(15) # Tab: settings, then Tab: App
         tap(45); tap(28)
         tap(45); tap(44) # App Vol: 100% to 95%.
         for _ in range(4): tap(45) # App Vol to EQ Low.

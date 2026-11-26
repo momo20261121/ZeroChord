@@ -48,8 +48,13 @@ int main() {
             CHECK(captured.events.size() == count && p.playingFrontNotes() == raised);
             captured.events.clear();
             p.key('z', true, 22);
+            CHECK(p.frontHeld(0) && !p.frontHeld(1)); // The screen lights a key while it sounds.
             p.key('z', false, 23);
-            CHECK(captured.events.size() == 1 && captured.events[0].pitch == raised[0]);
+            CHECK(!p.frontHeld(0));
+            // A front key sounds while held and its release starts the envelope's release.
+            CHECK(captured.events.size() == 2 && captured.events[0].pitch == raised[0] &&
+                  captured.events[0].durationMs == 0 && captured.events[1].type == CommandType::Off &&
+                  captured.events[1].id == captured.events[0].id);
             p.key('1', false, 24);
             CHECK(p.semitoneShift() == 0 && p.chord == harmony);
             CHECK(p.playingFrontNotes() == before);
@@ -241,7 +246,9 @@ int main() {
     CHECK(i.settings.preset == 0);
     sink.events.clear();
     i.tick(1700);
-    CHECK(sink.events.empty());
+    // Switching presets cancels the queued strum; backing layers may keep playing.
+    CHECK(std::none_of(sink.events.begin(), sink.events.end(),
+                       [](const Command &c) { return c.part == Part::Harp; }));
 
     // Chord strikes are simultaneous and finite; manual mode never repeats.
     Capture modes;
@@ -514,10 +521,36 @@ int main() {
         CHECK(p.active && chordName(p.chord) == "C");
         captured.events.clear();
         p.key('z', true, 102); p.key('z', false, 103);
-        CHECK(captured.events.size() == 1 && captured.events[0].part == Part::Harp);
+        CHECK(captured.events.size() == 2 && captured.events[0].part == Part::Harp &&
+              captured.events[1].type == CommandType::Off);
         p.setBackingMode(PlaybackMode::FrontOnly);
         captured.events.clear(); p.tick(5000);
         CHECK(captured.events.empty() && p.active);
+    }
+    // A 0% mix silences an unmuted layer. Mix changes apply live and keep the harmony.
+    {
+        Capture captured; Instrument p(captured);
+        p.settings.mode = PlaybackMode::All; p.settings.combinationMs = 0;
+        p.settings.chordPattern = 0;
+        p.settings.mix(PlaybackMode::Pad) = 0;
+        p.key('8', true, 100); p.tick(100);
+        auto ons = [&](Part part) {
+            return std::count_if(captured.events.begin(), captured.events.end(), [&](const Command &c) {
+                return c.type == CommandType::On && c.part == part;
+            });
+        };
+        CHECK(ons(Part::Pad) == 0 && ons(Part::Chord) == 4);
+        const auto harmony = p.chord;
+        captured.events.clear();
+        auto mix = p.settings.layerMix;
+        mix[layerIndex(PlaybackMode::Pad)] = 50;
+        p.setBacking(p.settings.mode, mix);
+        CHECK(ons(Part::Pad) == 4 && p.active && p.chord == harmony);
+        captured.events.clear();
+        mix[layerIndex(PlaybackMode::Pad)] = 40;
+        p.setBacking(p.settings.mode, mix); // A level change keeps ringing notes.
+        CHECK(captured.events.size() == 1 && captured.events[0].type == CommandType::Configure &&
+              captured.events[0].settings.mix(PlaybackMode::Pad) == 40);
     }
     // The Waltz and Bossa bass notes sit below the harmony, rather than replacing its upper voice.
     for (int pattern : {4, 7}) {

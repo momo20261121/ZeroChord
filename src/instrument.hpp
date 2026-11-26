@@ -33,14 +33,18 @@ class Instrument {
     std::array<int, 2> frontOctaveShift{}; // Live playing register, not saved key mappings.
     int semitoneShift() const { return pressed_['1'] ? 1 : 0; }
     std::array<int, 7> playingFrontNotes() const;
+    bool frontHeld(int key) const { return frontVoices_[key] != 0; } // Z-M sounding while held.
     void key(char key, bool down, uint64_t now);
     void tick(uint64_t now);
     void panic();
     void configure();
     void setBackingMode(PlaybackMode mode);
+    void setBacking(PlaybackMode mode, const std::array<int, 3> &mix); // Live, keeps the chord.
     void clearKeys();
     void auditionFront(const Settings &settings, int key);
     void audition(const Chord &chord, const Settings &settings, bool loop = false);
+    void stopAudition(); // End a running preview, if any, keeping live playing intact.
+    bool auditioning() const { return previewUntil_ || frontAudition_; }
 
   private:
     Sink &sink_;
@@ -61,8 +65,9 @@ class Instrument {
     Settings previewSettings_;
     Chord previewChord_;
     uint64_t previewUntil_ = 0;
-    bool previewLoop_ = false;
+    bool previewLoop_ = false, frontAudition_ = false;
     std::vector<uint32_t> chordVoices_;
+    std::array<uint32_t, 7> frontVoices_{}; // Held Z-M notes, released on key up.
     struct Pending {
         uint64_t at;
         int pitch, index;
@@ -75,7 +80,7 @@ class Instrument {
     void resetTransport();
     void runTick(uint64_t now);
     void hit(unsigned mask, int duration, float accent = 1.f, Part part = Part::Chord, bool bass = false);
-    void pluck(int pitch, int index, uint64_t now);
+    void pluck(int pitch, int index, uint64_t now, bool held = false);
     unsigned mask(int column) const;
     bool anyChordKey() const;
 };

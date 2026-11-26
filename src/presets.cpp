@@ -17,10 +17,14 @@ template <class F> void fields(Settings &s, F f) {
     f("backing_sound", s.chordProgram, 0, 127);
     f("pad_sound", s.padProgram, 0, 127);
     f("foreground_sound", s.harpProgram, 0, 127);
+    f("arp_sound", s.arpProgram, 0, 127);
     f("bpm", s.bpm, 40, 240);
-    static const char *parts[]{"front", "chord", "pad"};
+    f("chord_mix", s.layerMix[0], 0, 100);
+    f("arp_mix", s.layerMix[1], 0, 100);
+    f("pad_mix", s.layerMix[2], 0, 100);
+    static const char *parts[]{"front", "chord", "pad", "arp"};
     static const char *controls[]{"attack_ms", "decay_ms", "sustain_percent", "release_ms"};
-    for (int part = 0; part < 3; part++)
+    for (int part = 0; part < 4; part++)
         for (int control = 0; control < 4; control++) {
             auto name = std::string(parts[part]) + "_" + controls[control];
             f(name.c_str(), s.envelopes[part].values[control], -1, control == 2 ? 100 : 5000);
@@ -37,10 +41,15 @@ void materialize(Settings &s) {
         s.padProgram = s.chordProgram;
     if (s.harpProgram < 0)
         s.harpProgram = p.harpProgram;
+    if (s.arpProgram < 0) {
+        // Arp shared the Chord sound before 1.3; keep older setups sounding the same.
+        s.arpProgram = s.chordProgram;
+        s.arpSound = s.chordSound;
+    }
 }
 bool oldStockDream(const Settings &s) {
     Settings old;
-    old.chordProgram = old.padProgram = 89;
+    old.chordProgram = old.padProgram = old.arpProgram = 89;
     old.harpProgram = 10;
     return static_cast<const PerformanceSettings &>(s) ==
            static_cast<const PerformanceSettings &>(old);
@@ -85,7 +94,8 @@ void writePreset(const PresetDefinition &p, const std::string &path) {
     for (const auto &[key, value] :
          std::vector<std::pair<const char *, std::string>>{{"pad_sound_id", s.padSound},
                                                            {"backing_sound_id", s.chordSound},
-                                                           {"foreground_sound_id", s.frontSound}})
+                                                           {"foreground_sound_id", s.frontSound},
+                                                           {"arp_sound_id", s.arpSound}})
         if (!value.empty())
             t.insert(key, value);
     t.insert("mode", modeName(s.mode));
@@ -126,7 +136,8 @@ PresetDefinition readPreset(const std::string &path) {
     for (auto [key, target] : std::vector<std::pair<const char *, std::string *>>{
              {"pad_sound_id", &p.sound.padSound},
              {"backing_sound_id", &p.sound.chordSound},
-             {"foreground_sound_id", &p.sound.frontSound}}) {
+             {"foreground_sound_id", &p.sound.frontSound},
+             {"arp_sound_id", &p.sound.arpSound}}) {
         allowed.insert(key);
         if (!t.contains(key))
             continue;
@@ -230,11 +241,18 @@ PresetDefinition readPreset(const std::string &path) {
                 p.sound.degreeCombinations[col][n] = quality(*row->get(n), true);
         }
     }
+    if (!t.contains("arp_attack_ms") && !t.contains("arp_decay_ms") &&
+        !t.contains("arp_sustain_percent") && !t.contains("arp_release_ms"))
+        p.sound.envelopes[ArpEnvelope] = p.sound.envelopes[ChordEnvelope];
     materialize(p.sound);
     return p;
 }
 namespace {
-std::vector<PresetDefinition> factoryPresets(bool legacy, bool previousTuning = false) {
+// Generations of the built-in presets. Saved copies equal to an older generation upgrade.
+enum class Factory { Legacy, FirstTuning, Release12, Current };
+std::vector<PresetDefinition> factoryPresets(Factory generation = Factory::Current) {
+    const bool legacy = generation == Factory::Legacy;
+    const bool previousTuning = generation == Factory::FirstTuning;
     std::vector<PresetDefinition> entries;
     const char *ids[] = {"harp", "dream", "keys", "organ"};
     for (int n = 0; n < 4; n++) {
@@ -290,10 +308,22 @@ std::vector<PresetDefinition> factoryPresets(bool legacy, bool previousTuning = 
         entries[3].sound.envelopes[1].values = {5,100,85,100};
         entries[6].sound.envelopes[1].values = {3,160,45,65};
     }
+    for (auto &entry : entries) {
+        auto &s = entry.sound;
+        s.envelopes[ArpEnvelope] = s.envelopes[ChordEnvelope];
+        s.arpProgram = s.chordProgram;
+        s.arpSound = s.chordSound;
+        if (generation != Factory::Current) continue;
+        // Every layer starts selected. Layers that were off join quietly, so each preset
+        // keeps its main character; mix or mute them in Backing.
+        for (auto layer : backingLayerOrder)
+            if (!layerEnabled(s.mode, layer)) s.mix(layer) = 30;
+        s.mode = PlaybackMode::All;
+    }
     return entries;
 }
 } // namespace
-PresetLibrary::PresetLibrary() : entries(factoryPresets(false)) {}
+PresetLibrary::PresetLibrary() : entries(factoryPresets()) {}
 const PresetDefinition &PresetLibrary::current(const Settings &s) const {
     return entries.at(std::clamp(s.preset, 0, int(entries.size()) - 1));
 }
@@ -328,8 +358,15 @@ void PresetLibrary::load(const std::string &dir, Settings &s, bool canWrite) {
     directory = dir;
     writable = canWrite;
     auto warn = [&](const std::exception &e) { warning += std::string(e.what()) + "\n"; };
-    const auto previousFactory = factoryPresets(true);
-    const auto previousTuning = factoryPresets(false, true);
+    const std::vector<std::vector<PresetDefinition>> generations{
+        factoryPresets(Factory::Legacy), factoryPresets(Factory::FirstTuning),
+        factoryPresets(Factory::Release12)};
+    auto stock = [&](const std::string &id, const Settings &sound) {
+        for (const auto &generation : generations)
+            for (const auto &old : generation)
+                if (old.id == id && samePresetSettings(sound, old.sound)) return true;
+        return id == "dream" && oldStockDream(sound);
+    };
     for (auto &p : entries) {
         fs::path path = fs::path(dir) / "presets" / "factory" / (p.id + ".toml");
         try {
@@ -337,13 +374,7 @@ void PresetLibrary::load(const std::string &dir, Settings &s, bool canWrite) {
                 auto loaded = readPreset(path.string());
                 if (loaded.id != p.id)
                     throw std::runtime_error("Factory preset id changed");
-                auto old = std::find_if(previousFactory.begin(), previousFactory.end(),
-                                        [&](const auto &x) { return x.id == p.id; });
-                auto previous = std::find_if(previousTuning.begin(), previousTuning.end(),
-                                             [&](const auto &x) { return x.id == p.id; });
-                if (samePresetSettings(loaded.sound, previous->sound) ||
-                    samePresetSettings(loaded.sound, old->sound) ||
-                    (p.id == "dream" && oldStockDream(loaded.sound))) {
+                if (stock(p.id, loaded.sound)) {
                     loaded.sound = p.sound;
                     if (writable) writePreset(loaded, path.string());
                 }
@@ -385,15 +416,7 @@ void PresetLibrary::load(const std::string &dir, Settings &s, bool canWrite) {
                     auto w = readPreset(path.string());
                     if (w.id != p.id)
                         throw std::runtime_error("Working preset id mismatch");
-                    auto old = std::find_if(previousFactory.begin(), previousFactory.end(),
-                                            [&](const auto &x) { return x.id == p.id; });
-                    auto previous = std::find_if(previousTuning.begin(), previousTuning.end(),
-                                                 [&](const auto &x) { return x.id == p.id; });
-                    if (old != previousFactory.end() &&
-                        (samePresetSettings(w.sound, previous->sound) ||
-                         samePresetSettings(w.sound, old->sound) ||
-                         (p.id == "dream" && oldStockDream(w.sound))))
-                        w.sound = p.sound;
+                    if (p.factory && stock(p.id, w.sound)) w.sound = p.sound;
                     working[p.id] = w.sound;
                 }
             } catch (const std::exception &e) {
