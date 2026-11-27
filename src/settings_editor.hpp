@@ -14,7 +14,7 @@ class SettingsEditor {
         Setup, Combinations, FrontNotes, Envelope, VolumeEffects, Backing, FrontSound, MidiInput,
         AllFront, Loop, LoopMix
     };
-    enum class Tab { Style, App, About };
+    enum class Tab { Style, App, Shortcuts, About };
     // Number rows change with left/right; Opens rows (pages, lists, actions) open with Enter.
     enum class RowKind { Plain, Number, Opens };
     struct Choice {
@@ -104,6 +104,13 @@ class SettingsEditor {
     static const char *settingName(int index);
     static const char *combinationName(int index);
     static int envelopeField(int part);
+    // The Shortcuts tab: a read-only list of every key, in groups.
+    struct Shortcut {
+        const char *group;
+        std::string keys, action, detail;
+    };
+    static std::vector<Shortcut> shortcuts(const Settings &settings);
+    int shortcutRow() const { return shortcut_; }
 
   protected:
     static constexpr int chordHoldField = 9;
@@ -122,7 +129,8 @@ class SettingsEditor {
     Page page_ = Page::Setup;
     Page envelopeParent_ = Page::Backing;
     Tab tab_ = Tab::Style;
-    int tabRows_[3] = {0, 0, 0};
+    int tabRows_[4] = {0, 0, 0, 0};
+    int shortcut_ = 0; // Highlighted row of the Shortcuts tab.
     int volumeEffectsRow_ = 0, midiRow_ = 1;
     std::array<int, backingTabCount> backingRows_{};
     int frontSoundRow_ = 0;
@@ -137,6 +145,9 @@ class SettingsEditor {
     bool tempo_ = false, tempoReplace_ = true;
     int tempoRow_ = 0;
     std::string tempoInput_, tempoError_;
+    // Tap tempo: P on the Tempo page. Times of the recent taps; a pause of 2 s starts over.
+    std::vector<uint64_t> taps_;
+    void tapTempo();
     int choice_ = 0;
     std::vector<Choice> choices_;
     std::string status_;

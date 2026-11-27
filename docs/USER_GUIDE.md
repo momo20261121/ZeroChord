@@ -165,9 +165,17 @@ rows. Use `F` / `X` (↑ / ↓) to move between them.
 
 | Row | What it does |
 | --- | --- |
-| **Tempo** | Type 40 to 240 BPM and press `Enter` to apply it. Typing digits always returns to this row. |
+| **Tempo** | Type 40 to 240 BPM and press `Enter` to apply it, or tap `P` in time with the beat. Typing digits always returns to this row. |
 | **Swing** | **Off**, **8ths**, or **16ths**. `Enter` or `Z` / `C` (← / →) step through them. |
 | **Swing amount** | `Z` / `C` (← / →) set 0–100% in 5% steps; 50% by default. Dimmed while Swing is Off. |
+
+**Tap tempo.** On this page, press `P` on each beat. From the second tap, the tempo
+follows the average of your last four taps and applies at once, so you can tap along
+while the music plays. Pause for two seconds to start a new count.
+
+The line under the title shows the style's time: **3/4 time** when any of its layers
+uses a 3/4 pattern (**Chords on 2 and 3**, **Broken 3/4**, or a **Waltz 3/4**
+pattern), even a muted one, and **4/4 time** otherwise. Loops count bars in this time.
 
 Swing and Swing amount apply at once. At 0% the notes are straight; at 100% they have
 a full triplet feel. **8ths** delays the "and" of each beat, and **16ths** delays
@@ -252,7 +260,9 @@ Choose the layout in **App → All front**. These settings apply to every preset
 3. Press `Enter` to finish. The loop ends on the nearest whole bar: pressing up to
    a 1/8 note late ends on the bar just played, and a little early completes the
    bar. Reaching **Length limit** finishes the take too. Whatever was playing
-   stops with the take, and the light turns yellow.
+   stops with the take, and the light turns yellow. Bars follow the style's time
+   when the take began: in a 3/4 style such as **Waltz**, a bar has three beats, the
+   light counts **REC 2.3**, and the count-in clicks three times a bar.
 4. Press `Enter` to play the loop. A bar of side-stick clicks counts you in (the
    light flashes green with the beat), then the loop starts on beat 1; press
    `Enter` again to stop it, or to cancel the count-in.
@@ -316,6 +326,7 @@ The line below the rows says what the highlighted option does. In a list,
 | --- | --- |
 | **Style** | **Settings for this preset** covers tempo and swing, backing layers and mix, patterns, sounds, and envelopes |
 | **App** | **Applies to all presets** covers theme, volume and effects, chord config, and front notes |
+| **Shortcuts** | Every key in one list: playing, loop and modes, All front, the Tempo page, and settings pages. `F` / `X` (↑ / ↓) scroll it; the line below explains the highlighted key. |
 | **About** | The installed version and a QR code to the repository and documentation |
 
 The About QR code works in either theme. Open it on a phone with internet access.
@@ -429,7 +440,12 @@ over the chords and drums. A layer at 0% is silent from the keyboard too.
 The sustain pedal works, and `Space` stops MIDI notes along with everything else.
 While a keyboard is connected, the playing screen shows a **MIDI Front** (or other
 part) badge that lights while notes sound. Changing a setting or preset ends notes
-that are still ringing. Pitch bend and the mod wheel are not used yet.
+that are still ringing.
+
+**Pitch bend** moves the notes you are playing up or down by up to two semitones, and
+the **mod wheel** adds vibrato, deeper as you push it. Both apply to MIDI notes only:
+`Z`–`M`, chords and the backing stay in tune. **Drums** ignore them. A loop records
+the bend and the wheel along with the notes.
 
 ## Keyboard reference
 
@@ -444,7 +460,7 @@ that are still ringing. Pitch bend and the mod wheel are not used yet.
 | `1` + chord | Raise the chord root and bass by one semitone |
 | `I` | Toggle **Hold** |
 | `O` | Open **Backing layers** to mute and mix Chord, Arp, Pad, Bass, and Drums |
-| `P` | Type a tempo and set swing |
+| `P` | Type a tempo and set swing; press `P` again on the Tempo page to tap the tempo |
 | `Tab` | Open settings |
 | Tap `Space` | Stop backing, bass, drums, front notes, and queued strums |
 | Hold `Space` | Switch to [All front](#play-every-key-all-front) and back |

@@ -3,6 +3,7 @@
 #include "patterns.hpp"
 #include "sounds.hpp"
 #include <algorithm>
+#include <cmath>
 #include <iterator>
 #include <tuple>
 namespace zc {
@@ -175,7 +176,7 @@ const std::vector<int> &SettingsEditor::rows() const {
         return instrument_.settings.allFrontMode ? allFrontFreeRows : allFrontScaleRows;
     if (page_ == Page::Backing) return backing[backingTab_];
     if (page_ == Page::FrontSound) return frontSound;
-    return tab_ == Tab::About ? about : tab_ == Tab::Style ? style : app;
+    return tab_ == Tab::Style ? style : tab_ == Tab::App ? app : about; // Shortcuts, About: none.
 }
 int SettingsEditor::rowIndex() const {
     const auto &list = rows();
@@ -1333,12 +1334,62 @@ void SettingsEditor::selectBackingTab(int tab) {
     backingTab_ = std::clamp(tab, 0, backingTabCount - 1);
     selection_ = rows()[std::min<int>(backingRows_[backingTab_], int(rows().size()) - 1)];
 }
+std::vector<SettingsEditor::Shortcut> SettingsEditor::shortcuts(const Settings &s) {
+    const bool octave = s.frontAction[size_t(std::clamp(s.frontMode, 0, 1))] != 0;
+    constexpr const char *play = "Playing", *loop = "Loop & modes", *all = "All front",
+                         *tempo = "Tempo page", *menus = "Settings pages";
+    return {
+        {play, "2-8 Q-U A-J", "Major / minor / 7th chord", "Columns are the key's degrees"},
+        {play, "Same column", "Richer chord", "Together: dim, maj7, m7 or aug (Chord config)"},
+        {play, "Chord + column", "Chord over another bass", "Hold 8 and press 5: C over G in C"},
+        {play, "1 + chord", "Raise a semitone", "The chord stays raised after you let go"},
+        {play, "Z-M", "Front notes", "Each note sounds while you hold its key"},
+        {play, "K / L", octave ? "Octave down / up" : "Strum down / up",
+         "Choose in App > Front notes > K/L action"},
+        {play, "I", "Hold on / off", "Hold keeps the chord after you let go"},
+        {play, "O", "Backing layers", "Mute and mix Chord, Arp, Pad, Bass, Drums"},
+        {play, "P", "Tempo and swing", "Type a tempo, or press P again to tap it"},
+        {play, "9 / 0", "Previous / next preset", "Each preset keeps its own edits"},
+        {play, "Space", "Stop sound", "Stops backing, notes and the loop"},
+        {loop, "Enter", "Record, finish, play, stop", "Your first chord or note starts the take"},
+        {loop, "Hold Enter", "Delete the loop", "Asks first; drops a take in progress"},
+        {loop, "Hold Space", "All front on / off", "Every letter and number key plays notes"},
+        {loop, "Tab", "Setup", "Settings, these shortcuts and About"},
+        {loop, "Hold Esc", "Save and exit", "Back to the launcher"},
+        {all, "4-0 E-O D-L Z-M", "Play notes", "Choose the layout in App > All front"},
+        {all, "Q / W", "Octave down / up", "For this session"},
+        {all, "1", "Sharpen", "Scale layout: new notes a semitone up"},
+        {tempo, "0-9 Enter", "Type and apply a tempo", "40 to 240 BPM"},
+        {tempo, "P", "Tap the tempo", "Tap the beat; a 2-second pause starts over"},
+        {tempo, "R", "Preset tempo and swing", "Loads the preset's own values"},
+        {menus, "F / X", "Move up / down", "The arrow keys work too"},
+        {menus, "Z / C", "Change a number", "Hold to repeat, faster after a moment"},
+        {menus, "Enter", "Open or confirm", "Rows marked > open a page or a list"},
+        {menus, "Backspace", "Restore default", "For the highlighted option"},
+        {menus, "Tab / 1-8", "Next tab / jump to a tab", "The bottom line shows the range"},
+        {menus, "Esc", "Back", "Closes settings from the top"},
+    };
+}
 void SettingsEditor::openTempo() {
     tempo_ = true;
     tempoRow_ = 0;
     tempoReplace_ = true;
     tempoInput_ = std::to_string(instrument_.settings.bpm);
     tempoError_.clear();
+    taps_.clear();
+}
+void SettingsEditor::tapTempo() {
+    // From the second tap the tempo follows the average of up to the last four gaps, at once.
+    if (!taps_.empty() && now_ - taps_.back() > 2000) taps_.clear();
+    taps_.push_back(now_);
+    if (taps_.size() > 5) taps_.erase(taps_.begin());
+    tempoRow_ = 0;
+    if (taps_.size() < 2 || taps_.back() == taps_.front()) return;
+    const double gap = double(taps_.back() - taps_.front()) / double(taps_.size() - 1);
+    const int bpm = std::clamp(int(std::lround(60000. / gap)), 40, 240);
+    instrument_.settings.bpm = bpm; // Keep the accompaniment clock running.
+    tempoInput_ = std::to_string(bpm);
+    tempoReplace_ = true;
 }
 SettingsEditor::SetupDestination SettingsEditor::setupDestination() const {
     if (mixField(selection_)) return SetupDestination::Mix;
@@ -1506,7 +1557,7 @@ SettingsEditor::RowKind SettingsEditor::rowKind(int field) const {
     return RowKind::Opens; // Choices open their list with Enter.
 }
 SettingsEditor::RowKind SettingsEditor::selectedKind() const {
-    if (page_ == Page::Setup && tab_ == Tab::About) return RowKind::Plain;
+    if (page_ == Page::Setup && tab_ > Tab::App) return RowKind::Plain;
     return rowKind(selected());
 }
 void SettingsEditor::adjust(int direction) {
@@ -1561,7 +1612,7 @@ void SettingsEditor::adjust(int direction) {
 }
 void SettingsEditor::nextTab() {
     switch (page_) {
-    case Page::Setup: jumpTab((int(tab_) + 1) % 3); break;
+    case Page::Setup: jumpTab((int(tab_) + 1) % 4); break;
     case Page::Backing: jumpTab((backingTab_ + 1) % backingTabCount); break;
     case Page::Combinations: jumpTab((scope_ + 2) % 8); break;
     case Page::FrontNotes: jumpTab((frontKey_ + 2) % 8); break;
@@ -1571,8 +1622,8 @@ void SettingsEditor::nextTab() {
 void SettingsEditor::jumpTab(int tab) {
     switch (page_) {
     case Page::Setup:
-        if (tab >= 3) return;
-        if (tab_ != Tab::About) tabRows_[int(tab_)] = rowIndex();
+        if (tab >= 4) return;
+        if (tab_ <= Tab::App) tabRows_[int(tab_)] = rowIndex();
         tab_ = Tab(tab);
         selection_ = rows().empty() ? -1 : rows()[tabRows_[int(tab_)]];
         break;
@@ -1746,7 +1797,7 @@ bool SettingsEditor::canRestoreField() const {
     if (page_ == Page::LoopMix) return hasLoop();
     if (page_ != Page::Setup) return true;
     const auto destination = setupDestination();
-    return tab_ != Tab::About && selection_ != 2 &&
+    return tab_ <= Tab::App && selection_ != 2 &&
            (destination == SetupDestination::Picker || destination == SetupDestination::Tempo);
 }
 void SettingsEditor::restoreField() {
@@ -1944,7 +1995,10 @@ void SettingsEditor::handleKey(char key, bool down) {
                 instrument_.settings.bpm = bpm; // Keep the accompaniment clock running.
                 tempo_ = false;
             }
+        } else if (key == 'p') {
+            tapTempo();
         } else if (key == ' ') instrument_.stopEverything();
+        if (key != 'p') taps_.clear();
         return;
     }
     if (!settingsOpen) {
@@ -2009,8 +2063,12 @@ void SettingsEditor::handleKey(char key, bool down) {
         jumpTab(key - '1');
         return;
     }
-    // About is informational: no hidden row, picker or restore action.
-    if (page_ == Page::Setup && tab_ == Tab::About) return;
+    // Shortcuts and About are informational: no hidden row, picker or restore action.
+    if (page_ == Page::Setup && tab_ == Tab::Shortcuts && direction) {
+        shortcut_ = step(shortcut_, direction, int(shortcuts(instrument_.settings).size()));
+        return;
+    }
+    if (page_ == Page::Setup && tab_ > Tab::App) return;
     if (key == '\b') {
         restoreField();
         return;

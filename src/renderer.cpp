@@ -86,6 +86,21 @@ struct Renderer::Impl {
         return sum;
     }
     std::array<Voice, 64> voices{};
+    // MIDI pitch bend and mod wheel per slot. Each voice has its own channel, so the wheel
+    // moves only MIDI notes (Voice::live) and never drums.
+    std::array<int, 2> bend{}, modulation{};
+    float vibratoPhase = 0;
+    int wheel(const Voice &v) const {
+        if (!v.live || v.part == Part::Drums) return 8192;
+        // The mod wheel adds a 5.5 Hz vibrato of up to ±50 cents (2048 of the ±2 semitones).
+        const float vibrato = modulation[size_t(v.owner)] / 127.f * 2048.f * std::sin(vibratoPhase);
+        return std::clamp(8192 + bend[size_t(v.owner)] + int(std::lround(vibrato)), 0, 16383);
+    }
+    void bendVoices() {
+        for (int i = 0; i < 64; i++)
+            if (voices[i].id && voices[i].synth && voices[i].live)
+                tsf_channel_set_pitchwheel(voices[i].synth, i, wheel(voices[i]));
+    }
     struct Pending {
         uint64_t at;
         uint32_t id;
@@ -190,6 +205,7 @@ void Renderer::send(const Command &c) {
         if (owner == 1) {
             s.loopOn = false;
             s.reverb.configure(s.fx().reverbMs);
+            s.bend[1] = s.modulation[1] = 0; // The loop's controllers start each pass afresh.
         }
         // With the other slot still sounding, stop only this slot's notes.
         bool others = owner == 0 && s.loopOn;
@@ -242,6 +258,12 @@ void Renderer::send(const Command &c) {
     if (c.type == CommandType::Tempo) { // A dotted eighth, as a delay in time with the music.
         s.settings.bpm = std::clamp(c.pitch, 40, 240);
         s.echo.setTime(std::clamp(45000 / s.settings.bpm, 150, 700));
+        return;
+    }
+    if (c.type == CommandType::Bend || c.type == CommandType::Modulation) {
+        if (c.type == CommandType::Bend) s.bend[size_t(owner)] = std::clamp(c.pitch, -8192, 8191);
+        else s.modulation[size_t(owner)] = std::clamp(c.pitch, 0, 127);
+        s.bendVoices();
         return;
     }
     if (c.type == CommandType::Route) {
@@ -385,8 +407,11 @@ void Renderer::Impl::start(const Pending &c) {
     voice.gain = c.gain;
     voice.level = soundLibrary().gain(builtinBank ? std::string() : sound->bank, program);
     voice.owner = c.owner;
+    voice.live = c.live;
     tsf_channel_set_pan(synth, slot, pan);
     tsf_channel_set_volume(synth, slot, s.volume(voice));
+    // A reused channel may still be bent from an earlier MIDI note.
+    tsf_channel_set_pitchwheel(synth, slot, s.wheel(voice));
     tsf_channel_note_on(synth, slot, c.pitch, front ? 0.9f : std::clamp(.68f * c.gain, 0.f, 1.f));
     if (!front && !pad)
         soundfontArticulate(synth, slot, c.pitch, s.rate, c.durationMs == 0);
@@ -429,6 +454,11 @@ void Renderer::render(float *stereo, int frames) {
             for (auto &[id, parts] : s.synths) tsf_render_float(parts[size_t(p)], bus.data(), n, 1);
         }
         s.frame += uint64_t(n);
+        if (s.modulation[0] || s.modulation[1]) { // Vibrato moves on between blocks.
+            s.vibratoPhase = std::fmod(s.vibratoPhase + 6.2831853f * 5.5f * float(n) / float(s.rate),
+                                       6.2831853f);
+            s.bendVoices();
+        }
         float *out = stereo + start * 2;
         if (s.muted) {
             std::fill(out, out + n * 2, 0.f);

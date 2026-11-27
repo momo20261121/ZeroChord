@@ -30,6 +30,7 @@ void MidiParser::feed(const uint8_t *bytes, size_t count,
         if (type == 0x90 && data_[1] > 0) out({MidiEvent::NoteOn, channel, data_[0], data_[1]});
         else if (type == 0x80 || type == 0x90) out({MidiEvent::NoteOff, channel, data_[0], 0});
         else if (type == 0xb0) out({MidiEvent::Control, channel, data_[0], data_[1]});
+        else if (type == 0xe0) out({MidiEvent::PitchBend, channel, data_[0] | data_[1] << 7, 0});
     }
 }
 const char *midiTargetName(int target) {

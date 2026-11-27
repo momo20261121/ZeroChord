@@ -5,11 +5,12 @@
 namespace zc {
 // A channel message from a MIDI keyboard. Note on with velocity 0 arrives as NoteOff.
 struct MidiEvent {
-    enum Type { NoteOn, NoteOff, Control } type = NoteOn;
-    int channel = 0, data1 = 0, data2 = 0; // Note and velocity, or controller and value.
+    enum Type { NoteOn, NoteOff, Control, PitchBend } type = NoteOn;
+    // Note and velocity, controller and value, or the bend (0-16383, centre 8192) in data1.
+    int channel = 0, data1 = 0, data2 = 0;
 };
 // Turns a raw MIDI byte stream into note and controller events. Handles running status and
-// skips SysEx, other system messages and real-time bytes such as clock and active sensing.
+// pitch bend; skips SysEx, other system messages and real-time bytes such as clock and active sensing.
 class MidiParser {
   public:
     void feed(const uint8_t *bytes, size_t count, const std::function<void(const MidiEvent &)> &out);

@@ -69,6 +69,78 @@ int main(int argc, char **argv) {
             if (!(live > .01f && backing < live * .05f))
                 throw std::runtime_error("chord stop cut a MIDI note, or kept a backing note");
         }
+        // MIDI pitch bend and mod wheel move only MIDI (live) notes of their own slot. Pitch is
+        // measured as the autocorrelation period of a sustained organ tone.
+        {
+            auto period = [](const std::vector<float> &stereo, size_t from, size_t frames) {
+                int best = 0;
+                double bestScore = -1;
+                for (int lag = 60; lag < 400; ++lag) {
+                    double score = 0, energy = 0;
+                    for (size_t n = from; n < from + frames; ++n) {
+                        score += double(stereo[2 * n]) * stereo[2 * (n + size_t(lag))];
+                        energy += double(stereo[2 * (n + size_t(lag))]) * stereo[2 * (n + size_t(lag))];
+                    }
+                    score /= std::sqrt(energy + 1e-12);
+                    if (score > bestScore) bestScore = score, best = lag;
+                }
+                return best;
+            };
+            // Renders note 60 (or `pitch`) after `before` commands, then `after` commands.
+            auto tone = [&](int pitch, bool live, std::vector<Command> before,
+                            std::vector<Command> after = {}, std::vector<Command> again = {}) {
+                Renderer r(argv[1]);
+                Command config{CommandType::Configure};
+                config.settings.harpProgram = config.settings.chordProgram = 16;
+                config.settings.echo = 0;
+                config.settings.reverbSend.fill(0);
+                r.send(config);
+                for (auto &c : before) r.send(c);
+                Command note{CommandType::On, 7, pitch, 0, live ? Part::Harp : Part::Chord};
+                note.live = live;
+                r.send(note);
+                std::vector<float> out(2 * 48000);
+                r.render(out.data(), 4800);
+                for (auto &c : after) r.send(c);
+                if (!again.empty()) { // A second note after these, on the same voice channel.
+                    for (auto &c : again) r.send(c);
+                }
+                r.render(out.data(), 48000);
+                return out;
+            };
+            const int plain = period(tone(60, true, {}), 4800, 4096);
+            const int up = period(tone(62, true, {}), 4800, 4096);
+            if (!(up < plain - 4)) throw std::runtime_error("pitch measurement cannot tell a tone");
+            const Command bend{CommandType::Bend, 0, 8191};
+            auto near = [](int a, int b) { return std::abs(a - b) <= 1; };
+            if (!near(period(tone(60, true, {bend}), 4800, 4096), up))
+                throw std::runtime_error("a full pitch bend did not raise a MIDI note 2 semitones");
+            if (!near(period(tone(60, true, {}, {bend}), 4800, 4096), up))
+                throw std::runtime_error("a pitch bend did not move a ringing MIDI note");
+            if (!near(period(tone(60, false, {bend}), 4800, 4096), plain))
+                throw std::runtime_error("a pitch bend moved a backing note");
+            Command loopBend = bend;
+            loopBend.slot = 1;
+            if (!near(period(tone(60, true, {loopBend}), 4800, 4096), plain))
+                throw std::runtime_error("the loop's pitch bend moved a live MIDI note");
+            // A channel left bent by a MIDI note must not bend the next key note on it.
+            Command key{CommandType::On, 8, 60, 0, Part::Harp};
+            if (!near(period(tone(60, true, {bend}, {Command{}}, {key}), 4800, 4096), plain))
+                throw std::runtime_error("a reused voice channel kept a MIDI pitch bend");
+            // The mod wheel wobbles the pitch; at 0 it stays steady.
+            auto spread = [&](const std::vector<float> &out) {
+                int low = 1000, high = 0;
+                for (size_t at = 4800; at + 2048 + 400 < 48000; at += 2400) {
+                    const int p = period(out, at, 2048);
+                    low = std::min(low, p), high = std::max(high, p);
+                }
+                return high - low;
+            };
+            const Command wheel{CommandType::Modulation, 0, 127}, still{CommandType::Modulation, 0, 0};
+            if (!(spread(tone(60, true, {wheel})) >= 3 && spread(tone(60, true, {wheel}, {still})) <= 1 &&
+                  spread(tone(60, false, {wheel})) <= 1))
+                throw std::runtime_error("the mod wheel vibrato is missing, stuck, or on backing notes");
+        }
         // EQ must be wired after echo on the complete mix, before master volume.
         {
             Renderer flat(argv[1]), shaped(argv[1]);

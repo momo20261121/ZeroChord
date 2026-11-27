@@ -163,5 +163,33 @@ int main() {
         p.midi(on(91), 5);
         CHECK(sink.count(CommandType::Off) == 2 && sink.events[sink.events.size() - 2].id == oldestHeld);
     }
+    { // Pitch bend: 14 bits, low byte first, with running status; centre is 8192.
+        MidiParser parser;
+        auto events = parse(parser, {0xe2, 0x00, 0x40, 0x7f, 0x7f, 0x00, 0x00});
+        CHECK(events.size() == 3 && events[0].type == MidiEvent::PitchBend && events[0].channel == 2);
+        CHECK(events[0].data1 == 8192 && events[1].data1 == 16383 && events[2].data1 == 0);
+    }
+    { // Bend and mod wheel reach the renderer once per change; reset centres both.
+        Capture sink;
+        Instrument p(sink);
+        auto last = [&](CommandType type) {
+            for (size_t n = sink.events.size(); n-- > 0;)
+                if (sink.events[n].type == type) return sink.events[n].pitch;
+            return -99999;
+        };
+        p.midi({MidiEvent::PitchBend, 0, 16383, 0}, 1);
+        p.midi({MidiEvent::PitchBend, 0, 16383, 0}, 2); // Unchanged: nothing more to send.
+        CHECK(sink.count(CommandType::Bend) == 1 && last(CommandType::Bend) == 8191 && p.midiBend() == 8191);
+        p.midi(control(1, 90), 3);
+        CHECK(last(CommandType::Modulation) == 90 && p.midiModulation() == 90);
+        p.midi(control(123, 0), 4); // All notes off leaves the controllers alone.
+        CHECK(p.midiBend() == 8191 && p.midiModulation() == 90);
+        p.midi(control(121, 0), 5);
+        CHECK(last(CommandType::Bend) == 0 && last(CommandType::Modulation) == 0);
+        CHECK(p.midiBend() == 0 && p.midiModulation() == 0);
+        p.midi({MidiEvent::PitchBend, 0, 0, 0}, 6);
+        p.midiResetControllers(); // As when the keyboard is unplugged.
+        CHECK(last(CommandType::Bend) == 0 && p.midiBend() == 0);
+    }
     std::cout << "MIDI input tests passed\n";
 }

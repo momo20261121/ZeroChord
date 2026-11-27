@@ -24,7 +24,8 @@ struct LoopChord {
     int bassColumn = -1; // Degree of a slash bass, or -1.
 };
 struct LoopEvent {
-    enum Kind { ChordOn, ChordOff, NoteOn, NoteOff, Style };
+    // Bend and Modulation: the MIDI pitch bend (-8192 to 8191) or mod wheel (0-127) in `pitch`.
+    enum Kind { ChordOn, ChordOff, NoteOn, NoteOff, Style, Bend, Modulation };
     Kind kind = ChordOn;
     double tick = 0; // 16ths from the loop's beat 1.
     // ChordOn: the chord. NoteOn: the chord sounding when the note was played, so Follow
@@ -42,10 +43,12 @@ struct LoopTake {
     std::vector<Settings> styles;  // [0] when the take began, then each change during it.
     std::vector<LoopEvent> events; // As played, in time order. Clean-up never edits these.
     int bars = 0;
+    int beats = 4;     // Per bar, from the style when the take began (beatsPerBar).
     uint32_t seed = 1; // Humanizing restarts from here every pass, so each pass is the same.
     // Loop mix: -1 plays the layer as the style has it; otherwise its own level and on/off.
     std::array<int, loopLayerCount> level{-1, -1, -1, -1, -1, -1}, on{-1, -1, -1, -1, -1, -1};
-    double length() const { return bars * 16.; }
+    double barTicks() const { return beats * 4.; }
+    double length() const { return bars * barTicks(); }
 };
 // Chord changes as they will play. Each chord decides on its own, from the raw take: a chord
 // shorter than `shortTicks` that leads into another chord joins it (the next chord starts when
@@ -78,6 +81,7 @@ class Looper {
     void noteOff(uint32_t voice, uint64_t at);
     void allNotesOff(uint64_t at);
     void styleChanged(const Settings &settings, uint64_t at);
+    void controller(bool bend, int value, uint64_t at); // MIDI pitch bend or mod wheel.
     // Playback.
     bool playing() const { return state_ == LoopState::Playing; }
     // 16ths, while recording or playing; negative during the count-in, reaching 0 on beat 1.
@@ -130,6 +134,7 @@ class Looper {
     void seek(); // Sets the chord and next event for position_ after a re-clean.
     void sync(bool force);
     void releaseNotes();
+    void controllers(int bend, int modulation); // The loop's pitch bend and mod wheel.
     void save() const;
     Settings effective(int style) const;
     Chord follow(const LoopChord &chord) const;

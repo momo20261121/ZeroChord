@@ -41,7 +41,7 @@ struct DeviceMenu : SettingsEditor {
     }
     void valid() {
         if (tempoOpen()) { CHECK(tempoText().size() <= 3); return; }
-        if (page() == Page::Setup && tab() == Tab::About) {
+        if (page() == Page::Setup && (tab() == Tab::About || tab() == Tab::Shortcuts)) {
             CHECK(rows().empty() && selected() == -1 && !pickerOpen());
             return;
         }

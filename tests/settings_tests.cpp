@@ -812,6 +812,23 @@ int main() {
             press(menu, down);
             press(menu, '\t');
         }
+        // Shortcuts is a read-only list: up/down scroll it and change nothing else.
+        CHECK(menu.tab() == SettingsEditor::Tab::Shortcuts && menu.rows().empty());
+        const auto beforeShortcuts = state();
+        const int shortcutCount = int(SettingsEditor::shortcuts(walker.settings).size());
+        CHECK(menu.shortcutRow() == 0 && shortcutCount > 20);
+        press(menu, down);
+        CHECK(menu.shortcutRow() == 1);
+        press(menu, up);
+        press(menu, up); // Wraps to the last shortcut.
+        CHECK(menu.shortcutRow() == shortcutCount - 1);
+        for (char key : {left, right, char('\n'), char('\b'), 'r', 'o', 'p'}) {
+            press(menu, key);
+            CHECK(menu.tab() == SettingsEditor::Tab::Shortcuts && menu.selected() == -1);
+            CHECK(!menu.pickerOpen() && !menu.tempoOpen() && !menu.backingOpen());
+            CHECK(state() == beforeShortcuts);
+        }
+        press(menu, '\t');
         CHECK(menu.tab() == SettingsEditor::Tab::About && menu.rows().empty());
         const auto beforeAbout = state();
         for (char key : {up, down, left, right, char('\n'), char('\b'), 'r', 'o', 'p'}) {
@@ -823,6 +840,8 @@ int main() {
         press(menu, '\t'); // Tab wraps from the last tab to the first.
         CHECK(menu.tab() == SettingsEditor::Tab::Style && menu.selected() == 2);
         press(menu, '3');
+        CHECK(menu.tab() == SettingsEditor::Tab::Shortcuts);
+        press(menu, '4');
         CHECK(menu.tab() == SettingsEditor::Tab::About);
         press(menu, 27); CHECK(!menu.settingsOpen);
         press(menu, '\t'); CHECK(menu.settingsOpen && menu.tab() == SettingsEditor::Tab::About);
@@ -1132,6 +1151,27 @@ int main() {
         CHECK(int(menu.choices().size()) == chordScaleCount);
         choose(menu, 4); press(menu, '\n');
         CHECK(player.settings.chordScale == 4 && player.settings.frontKeyScale() == 4);
+    }
+    {
+        // Tap tempo: P on the Tempo page. From the second tap the tempo is the average of up
+        // to the last four gaps and applies at once; a pause over 2 s starts over.
+        Capture captured; Instrument player(captured); SettingsEditor menu(player);
+        player.settings.bpm = 70;
+        auto tapAt = [&](uint64_t at) { menu.tick(at); press(menu, 'p'); };
+        tapAt(1000); // Opens the Tempo page.
+        CHECK(menu.tempoOpen());
+        tapAt(1100);
+        CHECK(player.settings.bpm == 70); // One tap sets nothing yet.
+        tapAt(1600);
+        CHECK(player.settings.bpm == 120 && menu.tempoText() == "120");
+        for (uint64_t at : {2100, 2600, 3100, 3500, 3900, 4300, 4700}) tapAt(at);
+        CHECK(player.settings.bpm == 150); // The last four gaps of 400 ms.
+        tapAt(7000); // After a pause: the first tap of a new count.
+        CHECK(player.settings.bpm == 150);
+        tapAt(7250);
+        CHECK(player.settings.bpm == 240); // Clamped to the range.
+        press(menu, 27); // Already applied: Esc keeps it.
+        CHECK(!menu.tempoOpen() && player.settings.bpm == 240);
     }
     std::cout << "PASS: defaults, no3/sus voicings, shared/degree resolution, scope shortcuts, "
                  "preview/save/cancel, resets, performance and persistence\n";

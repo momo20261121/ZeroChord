@@ -1,5 +1,6 @@
 #include "ui.hpp"
 #include "looper.hpp"
+#include "patterns.hpp"
 #include "sounds.hpp"
 #include <algorithm>
 #include <array>
@@ -101,7 +102,7 @@ constexpr int detailY = 137;
 constexpr int hintY = 154;
 constexpr int visibleRows = 5;
 constexpr int rowHeight = 17;
-const std::vector<std::string> setupTabNames{"Style", "App", "About"};
+const std::vector<std::string> setupTabNames{"Style", "App", "Shortcuts", "About"};
 constexpr char frontKeys[] = "ZXCVBNM";
 
 std::string keyLabel(const Settings &s) {
@@ -268,6 +269,33 @@ void UI::drawAbout() {
     if (lv_qrcode_update(qr, url, std::strlen(url)) != LV_RESULT_OK)
         label(210, 80, 100, "Scan unavailable", colors.muted);
 }
+void UI::drawShortcuts() {
+    label(8, 5, 304, "ZeroChord / Setup", colors.accent, titleFont);
+    tabs(setupTabNames, int(tab_));
+    const auto list = shortcuts(instrument_.settings);
+    const int count = int(list.size()), row = std::clamp(shortcut_, 0, count - 1);
+    label(10, 46, 200, list[size_t(row)].group, colors.muted);
+    label(214, 46, 98, std::to_string(row + 1) + "/" + std::to_string(count), colors.muted, small,
+          LV_TEXT_ALIGN_RIGHT);
+    constexpr int top = 59, spacing = 15;
+    const int first = firstVisibleRow(row, count, visibleRows);
+    for (int n = first; n < count && n < first + visibleRows; n++) {
+        const auto &shortcut = list[size_t(n)];
+        const int y = top + (n - first) * spacing;
+        const bool selected = n == row;
+        if (selected) rowFocus(y, spacing);
+        // A new group starts on this row: a thin rule above it.
+        if (n > first && list[size_t(n - 1)].group != shortcut.group)
+            box(16, y - 1, 290, 1, colors.panel);
+        auto *keys = label(16, y, 108, shortcut.keys, colors.signal, body);
+        lv_label_set_long_mode(keys, LV_LABEL_LONG_CLIP);
+        auto *action = label(128, y, 178, shortcut.action, selected ? colors.accent : colors.text, body);
+        lv_obj_set_height(action, body->line_height);
+        lv_label_set_long_mode(action, LV_LABEL_LONG_DOT);
+    }
+    scrollIndicator(top - 1, first, count, visibleRows, spacing);
+    footer(list[size_t(row)].detail, "", {});
+}
 bool UI::drawSettingRows(int top, int limit, int spacing) {
     const auto &fields = rows();
     const int first = firstVisibleRow(rowIndex(), int(fields.size()), limit);
@@ -415,7 +443,10 @@ void UI::drawTempo() {
     const auto &s = instrument_.settings;
     const auto &preset = instrument_.library.current(s).sound;
     label(8, 5, 304, "Tempo", colors.accent, titleFont);
-    label(8, 26, 304, instrument_.library.current(s).name + " / 40-240 BPM", colors.muted, body);
+    label(8, 26, 304,
+          instrument_.library.current(s).name + " / " + std::to_string(beatsPerBar(s)) +
+              "/4 time / 40-240 BPM",
+          colors.muted, body);
     // Tempo is typed and applied with Enter; Swing and Swing amount apply as they change.
     const bool tempoRow = tempoRow_ == 0;
     box(28, 44, 264, 32, tempoRow ? colors.panel : colors.bg);
@@ -436,9 +467,14 @@ void UI::drawTempo() {
     static const char *details[]{"Type a tempo, then press Enter",
                                  "Enter or left/right: Off, 8ths, 16ths",
                                  "0% straight, 100% triplet feel"};
-    footer(details[tempoRow_], tempoError_,
+    std::string detail = details[tempoRow_];
+    if (taps_.size() == 1) detail = "Tap P again to set the tempo";
+    else if (taps_.size() > 1)
+        detail = "Tapped " + std::to_string(taps_.size()) + " times: " + tempoInput_ + " BPM";
+    footer(detail, tempoError_,
            {{"Backspace", tempoReplace_ ? "Clear" : "Delete digit", "Clear"},
-            {"R", "Load preset tempo", "Preset"}});
+            {"R", "Preset", "Preset"},
+            {"P", "Tap", "Tap"}});
 }
 void UI::drawCombinations() {
     const auto &s = instrument_.settings;
@@ -676,6 +712,8 @@ void UI::updateLoopLight(PerformanceView &v, const std::string &title, bool shar
     if (!shown) return;
     const auto &s = instrument_.settings;
     const double at = loop->position();
+    const int meter = loop->take().beats; // Beats per bar: 3 for a take in 3/4.
+    const double bar = loop->take().barTicks();
     std::string text;
     uint32_t color = colors.recording;
     double share = 0;
@@ -684,23 +722,23 @@ void UI::updateLoopLight(PerformanceView &v, const std::string &title, bool shar
         color = loop->blink() ? colors.recording : colors.panel;
     } else if (state == LoopState::Counting) {
         // Counts the beats of the count-in; the light flashes on each one.
-        const int bars = std::max(1, s.loopCount), beats = 4 * bars;
+        const int bars = std::max(1, s.loopCount), beats = meter * bars;
         const double left = -at / 4.; // Beats until beat 1.
         const int beat = std::clamp(beats - int(std::ceil(left)) + 1, 1, beats);
         text = "Count " + std::to_string(beat) + " / " + std::to_string(beats);
         color = left - std::floor(left) > .5 || left == std::floor(left) ? colors.looping : colors.panel;
     } else if (state == LoopState::Recording) {
         const int beat = int(at / 4);
-        text = "REC " + std::to_string(beat / 4 + 1) + "." + std::to_string(beat % 4 + 1) + " / " +
-               std::to_string(s.loopBars);
-        share = at / (16. * std::max(1, s.loopBars));
+        text = "REC " + std::to_string(beat / meter + 1) + "." + std::to_string(beat % meter + 1) +
+               " / " + std::to_string(s.loopBars);
+        share = at / (bar * std::max(1, s.loopBars));
     } else {
         const int bars = loop->recordedBars();
         color = state == LoopState::Playing ? colors.looping : colors.holding;
         text = state == LoopState::Playing
-                   ? "Loop " + std::to_string(int(at / 16) + 1) + "/" + std::to_string(bars)
+                   ? "Loop " + std::to_string(int(at / bar) + 1) + "/" + std::to_string(bars)
                    : "Loop " + std::to_string(bars) + (bars == 1 ? " bar" : " bars");
-        share = at / (16. * std::max(1, bars));
+        share = at / (bar * std::max(1, bars));
     }
     if (sharpened) text += " +1";
     setFace(v.lamp, color);
@@ -967,7 +1005,9 @@ void UI::draw() {
               << ',' << tempoRow_;
     signature << ',' << tempo_ << ',' << tempoReplace_ << ',' << tempoInput_ << ',' << tempoError_
               << ',' << int(page_) << ',' << combination_ << ',' << scope_ << ',' << picker_
-              << ',' << choice_ << ',' << int(tab_);
+              << ',' << choice_ << ',' << int(tab_) << ',' << shortcut_ << ',' << taps_.size()
+              << ',' << s.pattern << ',' << s.frontMode << ',' << s.frontAction[0] << ','
+              << s.frontAction[1];
     for (auto value : s.combinations)
         signature << ',' << value;
     for (const auto &row : s.degreeCombinations)
@@ -1058,6 +1098,10 @@ void UI::draw() {
     }
     if (settingsOpen && tab_ == Tab::About) {
         drawAbout();
+        return;
+    }
+    if (settingsOpen && tab_ == Tab::Shortcuts) {
+        drawShortcuts();
         return;
     }
     if (!settingsOpen) {

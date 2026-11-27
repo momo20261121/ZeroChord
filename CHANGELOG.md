@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **3/4 loops.** A style is in 3/4 when any layer uses a 3/4 pattern (Chords on 2 and
+  3, Broken 3/4, or a Waltz 3/4 pattern), muted or not. Loops recorded in it have
+  three-beat bars: the light counts REC 2.3, the take ends on a whole 3/4 bar, the
+  length limit counts 3/4 bars, and the count-in clicks three times a bar. Each loop
+  keeps its own time; loops saved earlier stay 4/4. The Tempo page shows the time.
+- **Tap tempo.** Press `P` on the Tempo page in time with the beat. From the second tap
+  the tempo follows the average of the last four gaps and applies at once; a 2-second
+  pause starts a new count.
+- **Shortcuts tab.** Settings gains a Shortcuts tab before About, listing every key by
+  group (Playing, Loop & modes, All front, Tempo page, Settings pages), with a line
+  explaining the highlighted one. About is now tab 4.
+- **MIDI pitch bend and mod wheel.** Pitch bend moves MIDI notes up to two semitones
+  either way, and the mod wheel adds a vibrato of up to ±50 cents. Only MIDI notes
+  move; drums ignore both. Reset all controllers and unplugging centre them. Loops
+  record and replay them.
+
 - **Loop.** `Enter` arms a loop, the first chord or note starts it on beat 1,
   `Enter` finishes it on the nearest bar (a press up to a 1/8 note late ends on the
   bar just played) and stops what was playing, and `Enter` plays and stops it. Hold `Enter` to delete it (asks

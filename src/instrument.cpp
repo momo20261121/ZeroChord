@@ -484,14 +484,34 @@ void Instrument::endMidiNote(size_t index) {
 void Instrument::midiReleaseAll() {
     while (!midiNotes_.empty()) endMidiNote(0);
 }
+void Instrument::midiController(CommandType type, int value) {
+    int &current = type == CommandType::Bend ? midiBend_ : midiModulation_;
+    if (current == value) return;
+    current = value;
+    Command c{type, 0, value};
+    sink_.send(c);
+    if (looper) looper->controller(type == CommandType::Bend, value, now_);
+}
+void Instrument::midiResetControllers() {
+    midiController(CommandType::Bend, 0);
+    midiController(CommandType::Modulation, 0);
+}
 void Instrument::midi(const MidiEvent &e, uint64_t now) {
     now_ = now;
+    if (e.type == MidiEvent::PitchBend) {
+        midiController(CommandType::Bend, std::clamp(e.data1, 0, 16383) - 8192);
+        return;
+    }
     if (e.type == MidiEvent::Control) {
         if (e.data1 == 64) { // Sustain pedal: lifting it ends the notes it was holding.
             sustain_ = e.data2 >= 64;
             if (!sustain_)
                 for (size_t n = midiNotes_.size(); n-- > 0;)
                     if (!midiNotes_[n].down) endMidiNote(n);
+        } else if (e.data1 == 1) { // Mod wheel: vibrato depth.
+            midiController(CommandType::Modulation, std::clamp(e.data2, 0, 127));
+        } else if (e.data1 == 121) { // Reset all controllers.
+            midiResetControllers();
         } else if (e.data1 == 120 || e.data1 == 123) { // All sound off, all notes off.
             midiReleaseAll();
         }

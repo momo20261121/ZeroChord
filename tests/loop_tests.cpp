@@ -1,4 +1,6 @@
 #include "looper.hpp"
+#include "patterns.hpp"
+#include <string>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -281,5 +283,100 @@ int main() {
         loop.discard();
         CHECK(loop.state() == LoopState::Empty);
     }
-    std::cout << "PASS: loop clean-up, recording, playback, style, mix, limit and saving\n";
+    {
+        // 3/4: a style is in 3/4 when any layer plays a 3/4 pattern, even a muted one.
+        auto index = [](PlaybackMode mode, const char *id) {
+            const auto &list = patterns(mode);
+            for (size_t n = 0; n < list.size(); ++n)
+                if (std::string(list[n].id) == id) return int(n);
+            std::exit(1);
+        };
+        Settings pop;
+        pop.chordPattern = index(PlaybackMode::Chord, "pop_strum");
+        pop.pattern = index(PlaybackMode::Arp, "sixteenths");
+        pop.bassPattern = index(PlaybackMode::Bass, "root");
+        pop.drumPattern = index(PlaybackMode::Drums, "pop");
+        CHECK(beatsPerBar(pop) == 4);
+        for (auto [mode, id] : {std::pair{PlaybackMode::Chord, "waltz_chords"},
+                                std::pair{PlaybackMode::Arp, "waltz"},
+                                std::pair{PlaybackMode::Bass, "waltz"},
+                                std::pair{PlaybackMode::Drums, "waltz"}}) {
+            Settings s = pop;
+            s.mode = mode;
+            setPatternIndex(s, index(mode, id));
+            s.setEnabledLayers(0); // Muted layers still set the meter.
+            CHECK(beatsPerBar(s) == 3);
+        }
+        // A Waltz take: bars of 12 16ths (1.5 s at 120 BPM), ended on the nearest bar, counted
+        // in with three clicks, and wrapping after its own length.
+        Capture out;
+        Instrument live(out);
+        Looper loop(live, out);
+        live.looper = &loop;
+        live.settings.bpm = 120;
+        live.settings.combinationMs = 0;
+        live.settings.loopCount = 1;
+        live.settings.drumPattern = index(PlaybackMode::Drums, "waltz");
+        live.configure();
+        uint64_t now = 0;
+        loop.tap(0, 0);
+        live.key('2', true, 0);
+        // A held bend and a mod wheel move during the take are recorded with it.
+        live.midi({MidiEvent::PitchBend, 0, 12288, 0}, 0);
+        run(live, now, 700);
+        live.midi(MidiEvent{MidiEvent::Control, 0, 1, 64}, now);
+        run(live, now, 3100); // 100 ms after bar 3 begins: inside the 1/8 window.
+        loop.tap(3100, 3180);
+        CHECK(loop.state() == LoopState::Holding && loop.take().beats == 3 && loop.recordedBars() == 2);
+        CHECK(loop.take().length() == 24);
+        int bends = 0, wheels = 0;
+        for (const auto &e : loop.take().events) {
+            if (e.kind == LoopEvent::Bend) {
+                bends++;
+                CHECK(e.tick == 0 && e.pitch == 4096);
+            }
+            if (e.kind == LoopEvent::Modulation) {
+                wheels++;
+                CHECK(e.pitch == 64 && e.tick > 4);
+            }
+        }
+        CHECK(bends == 1 && wheels == 1);
+        // It saves with its meter; a loop saved before 3/4 existed reads as 4/4.
+        std::stringstream file;
+        writeLoop(loop.take(), file);
+        LoopTake copy;
+        CHECK(readLoop(copy, file) && copy.beats == 3 && copy.length() == 24);
+        std::string old = file.str();
+        old.erase(old.find("beats 3\n"), 8);
+        std::stringstream oldFile(old);
+        CHECK(readLoop(copy, oldFile) && copy.beats == 4 && copy.length() == 32);
+        // Count-in: one 3/4 bar is three clicks, beat 1 accented.
+        live.midiResetControllers();
+        out.events.clear();
+        loop.tap(now, now);
+        const uint64_t counted = now;
+        run(live, now, counted + 1490);
+        std::vector<float> clicks;
+        for (const auto &c : out.events)
+            if (c.type == CommandType::On && c.click) clicks.push_back(c.gain);
+        CHECK(clicks.size() == 3 && clicks[0] > clicks[1] && clicks[1] == clicks[2]);
+        CHECK(loop.state() == LoopState::Counting);
+        // Playback sends the take's bend to the loop's slot from beat 1...
+        out.events.clear();
+        run(live, now, counted + 1520);
+        CHECK(loop.state() == LoopState::Playing);
+        auto sentBend = [&](int value) {
+            for (const auto &c : out.events)
+                if (c.type == CommandType::Bend && c.slot == 1 && c.pitch == value) return true;
+            return false;
+        };
+        CHECK(sentBend(4096));
+        // ...and wraps after two 3/4 bars (3 s), restarting from beat 1 with the bend again.
+        run(live, now, counted + 1500 + 2900);
+        CHECK(loop.position() > 22);
+        out.events.clear();
+        run(live, now, counted + 1500 + 3100);
+        CHECK(loop.position() < 2 && sentBend(0) && sentBend(4096));
+    }
+    std::cout << "PASS: loop clean-up, recording, playback, style, mix, limit, saving and 3/4\n";
 }

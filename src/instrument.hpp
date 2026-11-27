@@ -10,8 +10,9 @@ struct PatternStep;
 class Looper;
 enum class Part { Chord, Harp, Pad, Arp, Drums, Bass };
 // Tempo carries the BPM in `pitch` (for the echo time); Route sets `pitch` 1 when the
-// headphone jack is in use, 0 for the speaker.
-enum class CommandType { On, Off, Panic, Configure, StopChord, ChordGain, Tempo, Route };
+// headphone jack is in use, 0 for the speaker. Bend (-8192 to 8191, ±2 semitones) and
+// Modulation (0-127, vibrato depth) in `pitch` move the slot's MIDI notes, but not drums.
+enum class CommandType { On, Off, Panic, Configure, StopChord, ChordGain, Tempo, Route, Bend, Modulation };
 struct Command {
     CommandType type = CommandType::Panic;
     uint32_t id = 0;
@@ -82,6 +83,9 @@ class Instrument {
     int midiLastNote = -1, midiLastVelocity = 0;
     void midi(const MidiEvent &event, uint64_t now);
     void midiReleaseAll(); // Release every MIDI note, as when the keyboard is unplugged.
+    void midiResetControllers(); // Centre the pitch bend and turn off the mod wheel.
+    int midiBend() const { return midiBend_; }             // -8192 to 8191.
+    int midiModulation() const { return midiModulation_; } // 0-127.
     bool midiLit() const { return !midiNotes_.empty() || now_ < midiFlashUntil_; }
     static constexpr size_t maxMidiNotes = 16; // The oldest note makes way beyond this.
 
@@ -146,6 +150,8 @@ class Instrument {
     };
     std::vector<MidiNote> midiNotes_; // Sounding MIDI notes, oldest first.
     bool sustain_ = false;
+    int midiBend_ = 0, midiModulation_ = 0;
+    void midiController(CommandType type, int value);
     uint64_t midiFlashUntil_ = 0;
     void endMidiNote(size_t index);
 

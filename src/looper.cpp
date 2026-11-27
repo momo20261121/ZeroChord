@@ -1,4 +1,5 @@
 #include "looper.hpp"
+#include "patterns.hpp"
 #include "presets.hpp"
 #include "settings_io.hpp"
 #include "sounds.hpp"
@@ -15,7 +16,9 @@ int priority(LoopEvent::Kind kind) {
     case LoopEvent::Style: return 0;
     case LoopEvent::ChordOff:
     case LoopEvent::ChordOn: return 1;
-    case LoopEvent::NoteOff: return 2;
+    case LoopEvent::NoteOff:
+    case LoopEvent::Bend:
+    case LoopEvent::Modulation: return 2; // Before notes, which then start bent.
     case LoopEvent::NoteOn: return 3;
     }
     return 3;
@@ -102,7 +105,7 @@ std::vector<LoopEvent> cleanLoop(const std::vector<LoopEvent> &events, double le
     return out;
 }
 void writeLoop(const LoopTake &take, std::ostream &out) {
-    out << "zerochord-loop 1\nbars " << take.bars << "\nseed " << take.seed << "\nmix";
+    out << "zerochord-loop 1\nbars " << take.bars << "\nbeats " << take.beats << "\nseed " << take.seed << "\nmix";
     for (int v : take.level) out << ' ' << v;
     for (int v : take.on) out << ' ' << v;
     out << '\n';
@@ -130,6 +133,7 @@ bool readLoop(LoopTake &take, std::istream &in) {
         std::string name;
         row >> name;
         if (name == "bars") row >> t.bars;
+        else if (name == "beats") row >> t.beats; // Loops from before 3/4 have none: 4/4.
         else if (name == "seed") row >> t.seed;
         else if (name == "mix") {
             for (int &v : t.level) row >> v;
@@ -147,7 +151,7 @@ bool readLoop(LoopTake &take, std::istream &in) {
             row >> kind >> e.tick >> c.chord.root >> c.chord.bass >> c.chord.column >> quality >>
                 c.mask >> sharp >> c.bassColumn >> e.note >> e.pitch >> e.durationMs >> part >>
                 e.gain >> source >> e.index >> e.shift >> e.style;
-            if (!row || kind < 0 || kind > LoopEvent::Style || quality < 0 || quality >= qualityCount ||
+            if (!row || kind < 0 || kind > LoopEvent::Modulation || quality < 0 || quality >= qualityCount ||
                 part < 0 || part > int(Part::Bass) || source < 0 || source > int(LoopNoteSource::Midi))
                 return false;
             e.kind = LoopEvent::Kind(kind);
@@ -163,6 +167,7 @@ bool readLoop(LoopTake &take, std::istream &in) {
         }
     }
     if (t.bars < 1 || t.bars > 64 || t.styles.empty()) return false;
+    if (t.beats != 3) t.beats = 4;
     for (const auto &e : t.events)
         if (e.style >= int(t.styles.size())) return false;
     for (int &v : t.level) v = v < 0 ? -1 : std::min(v, 100);
@@ -243,6 +248,7 @@ void Looper::stop() {
 void Looper::begin(uint64_t at, bool byChord) {
     take_ = {};
     take_.styles.push_back(live_.settings);
+    take_.beats = beatsPerBar(live_.settings);
     heardStyle_ = live_.settings;
     take_.seed = uint32_t(at * 2654435761u) | 1u;
     recording_.clear();
@@ -255,6 +261,15 @@ void Looper::begin(uint64_t at, bool byChord) {
     if (live_.active && !byChord) {
         LoopEvent e;
         e.chord = {live_.chord, live_.selectedMask(), live_.selectedSharp(), live_.bassColumn()};
+        take_.events.push_back(e);
+    }
+    // A bend or mod wheel already held when the take starts is part of it.
+    for (const bool bend : {true, false}) {
+        const int value = bend ? live_.midiBend() : live_.midiModulation();
+        if (!value) continue;
+        LoopEvent e;
+        e.kind = bend ? LoopEvent::Bend : LoopEvent::Modulation;
+        e.pitch = value;
         take_.events.push_back(e);
     }
     if (live_.active) live_.restartTransport(at);
@@ -270,8 +285,9 @@ void Looper::finish(double end) {
     const auto &s = live_.settings;
     const int limit = std::max(1, s.loopBars);
     const int window = std::max(loopGridTicks[size_t(s.loopShort)], loopGridTicks[size_t(s.loopSnap)]);
-    const double whole = std::floor(end / 16. + 1e-9);
-    const double spare = end - whole * 16.;
+    const double bar = take_.barTicks();
+    const double whole = std::floor(end / bar + 1e-9);
+    const double spare = end - whole * bar;
     take_.bars = std::clamp(int(whole) + (spare > window + 1e-9 ? 1 : 0), 1, limit);
     for (const auto &[voice, note] : recording_) { // Notes still held end with the take.
         LoopEvent e;
@@ -316,6 +332,14 @@ void Looper::noteOff(uint32_t voice, uint64_t at) {
 }
 void Looper::allNotesOff(uint64_t at) {
     while (!recording_.empty()) noteOff(recording_.begin()->first, at);
+}
+void Looper::controller(bool bend, int value, uint64_t at) {
+    if (state_ != LoopState::Recording) return;
+    LoopEvent e;
+    e.kind = bend ? LoopEvent::Bend : LoopEvent::Modulation;
+    e.tick = tickAt(at);
+    e.pitch = value;
+    add(e);
 }
 void Looper::styleChanged(const Settings &settings, uint64_t at) {
     if (state_ != LoopState::Recording) return;
@@ -429,6 +453,10 @@ int Looper::pitchFor(const LoopEvent &e) const {
     }
     return pitch < 0 ? -1 : std::min(pitch, 127);
 }
+void Looper::controllers(int bend, int modulation) {
+    sink_.send(Command{CommandType::Bend, 0, bend});
+    sink_.send(Command{CommandType::Modulation, 0, modulation});
+}
 void Looper::releaseNotes() {
     for (const auto &[note, voice] : sounding_) sink_.send(Command{CommandType::Off, voice});
     sounding_.clear();
@@ -441,7 +469,7 @@ void Looper::countIn(uint64_t now) {
         return;
     }
     state_ = LoopState::Counting;
-    position_ = nextClick_ = -16. * bars;
+    position_ = nextClick_ = -take_.barTicks() * bars;
     clock_ = now;
     tick(now);
 }
@@ -484,6 +512,11 @@ void Looper::apply(const LoopEvent &e) {
             sync(true);
         }
         break;
+    case LoopEvent::Bend:
+    case LoopEvent::Modulation:
+        sink_.send(Command{e.kind == LoopEvent::Bend ? CommandType::Bend : CommandType::Modulation, 0,
+                           e.pitch});
+        break;
     case LoopEvent::NoteOff: {
         auto it = sounding_.find(e.note);
         if (it == sounding_.end()) break;
@@ -507,6 +540,7 @@ void Looper::apply(const LoopEvent &e) {
 }
 void Looper::wrap() {
     releaseNotes();
+    controllers(0, 0); // Each pass starts as the take did; a held bend is recorded at its start.
     if (style_ != 0) {
         style_ = 0;
         sync(true);
@@ -530,11 +564,15 @@ void Looper::seek() {
     next_ = 0;
     carry_ = size_t(-1);
     const LoopEvent *chord = nullptr;
+    int bend = 0, modulation = 0;
     while (next_ < events_.size() && events_[next_].tick <= position_) {
         const auto &e = events_[next_];
         if (e.kind == LoopEvent::ChordOn || e.kind == LoopEvent::ChordOff) chord = &e;
+        if (e.kind == LoopEvent::Bend) bend = e.pitch;
+        if (e.kind == LoopEvent::Modulation) modulation = e.pitch;
         ++next_;
     }
+    controllers(bend, modulation);
     if (!chord || chord->kind == LoopEvent::ChordOff) engine_.releaseChord();
     else if (!engine_.active || !(follow(chord->chord) == engine_.chord))
         engine_.playChord(follow(chord->chord), now_);
@@ -553,7 +591,7 @@ void Looper::tick(uint64_t now) {
     if (state_ == LoopState::Recording) {
         position_ = tickAt(now);
         clock_ = now;
-        const double limit = std::max(1, live_.settings.loopBars) * 16.;
+        const double limit = std::max(1, live_.settings.loopBars) * take_.barTicks();
         if (position_ >= limit) finish(limit); // The limit acts as Enter.
         return;
     }
@@ -562,7 +600,7 @@ void Looper::tick(uint64_t now) {
         clock_ = now;
         // A side stick on each beat, beat 1 accented, from the built-in kit at a fixed level.
         while (nextClick_ < 0 && nextClick_ <= position_) {
-            const bool downbeat = std::fmod(nextClick_ + 1024., 16.) == 0;
+            const bool downbeat = std::fmod(-nextClick_, take_.barTicks()) == 0;
             Command c{CommandType::On, loopNoteIds | (++nextVoice_ & 0x3fffffffu), 37, 120, Part::Drums};
             c.gain = downbeat ? 1.f : .6f;
             c.click = true;

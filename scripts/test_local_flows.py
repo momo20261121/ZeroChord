@@ -119,9 +119,12 @@ run('restore-preset-keep', ['TAB','f','ENTER','ESC'], {'bpm':120}, 'bpm 120\n')
 run('front-source-rate', ['TAB','x','x','x','ENTER','ENTER'], {'harpProgram':11})
 run('mixed-source-rate', ['TAB','x','x','ENTER','2','x','ENTER'], {'chordProgram':49})
 run('strings-source-rate', ['TAB','x','x','x','ENTER','ENTER','TAB'], {'harpProgram':11})
-run('about-dark', ['TAB','TAB','TAB','x','ENTER','BACKSPACE'], {'theme':0, 'preset':0})
-run('about-light', ['TAB','3'], {'theme':1}, 'theme 1\n')
-run('about-wrap', ['TAB','3','TAB','x','ENTER','1','3','7','ENTER'], {'bpm':137})
+run('shortcuts-read-only', ['TAB','3','x','x','c','ENTER','BACKSPACE'], {'theme':0, 'preset':0, 'bpm':70})
+run('about-dark', ['TAB','TAB','TAB','TAB','x','ENTER','BACKSPACE'], {'theme':0, 'preset':0})
+run('about-light', ['TAB','4'], {'theme':1}, 'theme 1\n')
+run('about-wrap', ['TAB','4','TAB','x','ENTER','1','3','7','ENTER'], {'bpm':137})
+# Keys 12 ms apart tap faster than the range allows: the tempo stops at 240 BPM.
+run('tap-tempo', ['p','p','p','p','ENTER'], {'bpm':240})
 
 
 def playing_screen(name, events, end, seed=''):
@@ -168,4 +171,4 @@ for mode in ('', 'allFrontMode 1\n'):
     chords = playing_screen('all-front-back', enter + [(800,'SPACE','down'), (1500,'SPACE','up')], 1600, mode)
     assert chords == playing_screen('chord-screen', [], 1600, mode), ('Space hold did not return', mode)
 print('PASS: All front matches a fresh drawing in both modes; holding Space returns to chords')
-print('PASS: 44 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')
+print('PASS: 46 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')

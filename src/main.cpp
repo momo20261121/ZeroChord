@@ -215,7 +215,8 @@ int main(int argc, char **argv) {
                                }))
                 quit = true;
             if (!midi.poll([&](const zc::MidiEvent &e) { instrument.midi(e, now); })) {
-                instrument.midiReleaseAll(); // Unplugged: nothing may hang.
+                instrument.midiReleaseAll(); // Unplugged: nothing may hang or stay bent.
+                instrument.midiResetControllers();
                 instrument.midiDevice = midi.name();
             }
             while (eventIndex < events.size() && events[eventIndex].at <= now) {

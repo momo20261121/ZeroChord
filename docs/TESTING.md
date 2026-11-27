@@ -1,5 +1,22 @@
 # Testing ZeroChord
 
+## 3/4 loops, tap tempo, Shortcuts, MIDI bend — 2026-11-27
+
+- **Local:** all eight desktop suites and 46 real-app flows pass. `loop_tests` checks the
+  meter rule (each of the four 3/4 patterns makes a style 3/4, muted or not), a Waltz
+  take ending on its second 3/4 bar, three count-in clicks a bar, wrapping after 24
+  16ths, the meter surviving save and load (older files read as 4/4), and a held bend
+  and a mod wheel move recorded and replayed on the loop's slot. `audio_tests` measures
+  rendered pitch: a full bend raises a MIDI note two semitones, before or during the
+  note, while backing notes, the other slot's notes and a reused voice channel stay
+  in tune; the mod wheel wobbles the pitch and stops when returned to 0. Each of these
+  checks was confirmed to fail with the feature disabled. `midi_tests` covers parsing
+  14-bit bends and controller handling; `settings_tests` covers tap timing, the pause
+  reset and the 240 BPM limit, and walks the Shortcuts tab as read-only.
+- **UI:** the Shortcuts tab (both themes), the Tempo page with taps and with Waltz's
+  3/4 time, the 3/4 recording light and count-in were checked at 320×170.
+- **Not yet:** a real MIDI keyboard's bend and wheel, and listening on the device.
+
 ## Loop — 2026-11-27
 
 - **Local:** all eight desktop suites pass, including the new `loop_tests`. It covers
