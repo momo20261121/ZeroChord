@@ -46,6 +46,29 @@ int main(int argc, char **argv) {
                     throw std::runtime_error("shelf EQ changed the opposite band");
             }
         }
+        // A MIDI note (live) keeps sounding through a chord stop; a backing note does not.
+        {
+            std::vector<float> buffer(2 * 9600);
+            auto afterStop = [&](bool live) {
+                Renderer r(argv[1]);
+                Command config{CommandType::Configure};
+                config.settings.echo = 0;
+                config.settings.reverbSend.fill(0);
+                r.send(config);
+                Command note{CommandType::On, 1, 60, 0, Part::Pad};
+                note.live = live;
+                r.send(note);
+                r.render(buffer.data(), 9600);
+                r.send(Command{CommandType::StopChord});
+                for (int n = 0; n < 3; n++) r.render(buffer.data(), 9600);
+                r.meter();
+                r.render(buffer.data(), 9600);
+                return r.meter().peak;
+            };
+            const float live = afterStop(true), backing = afterStop(false);
+            if (!(live > .01f && backing < live * .05f))
+                throw std::runtime_error("chord stop cut a MIDI note, or kept a backing note");
+        }
         // EQ must be wired after echo on the complete mix, before master volume.
         {
             Renderer flat(argv[1]), shaped(argv[1]);

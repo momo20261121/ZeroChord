@@ -152,17 +152,17 @@ void setShown(lv_obj_t *o, bool shown) {
 }
 
 void hintLine(int y, const std::vector<Hint> &hints, const lv_font_t *font = body,
-              bool caps = true, int gap = 8) {
+              bool caps = true, int gap = 8, int right = 314) {
     int x = 8;
     for (const auto &hint : hints) {
         if (!hint.key) continue;
         const auto *keyFont = caps && std::strlen(hint.key) == 1 ? mono : small;
         const int keyWidth = textWidth(hint.key, keyFont) + (caps ? 8 : 0);
         std::string action = hint.action;
-        if (x + keyWidth + 4 + textWidth(action, font) > 314 && !hint.shortAction.empty())
+        if (x + keyWidth + 4 + textWidth(action, font) > right && !hint.shortAction.empty())
             action = hint.shortAction;
         const int actionWidth = action.empty() ? 0 : textWidth(action, font);
-        if (x + keyWidth + 4 + actionWidth > 314) break; // Never clip a hint mid-word.
+        if (x + keyWidth + 4 + actionWidth > right) break; // Never clip a hint mid-word.
         if (caps) keycap(x, y, keyWidth, hint.key, keyFont, colors.keyFace, colors.keyText);
         else label(x, y, keyWidth, hint.key, colors.signal, keyFont);
         x += keyWidth + (action.empty() ? 3 : 4);
@@ -279,6 +279,11 @@ void UI::drawVolumeEffects() {
     label(8, 5, 222, settingName(volumeEffectsField), colors.accent, titleFont);
     label(230, 8, 84, "All presets", colors.muted, small, LV_TEXT_ALIGN_RIGHT);
     menuFooter(drawSettingRows(21, 8, 14));
+}
+void UI::drawMidiInput() {
+    label(8, 5, 222, settingName(midiInputField), colors.accent, titleFont);
+    label(230, 8, 84, "All presets", colors.muted, small, LV_TEXT_ALIGN_RIGHT);
+    menuFooter(drawSettingRows(26, 3, 18));
 }
 void UI::drawEnvelope() {
     const auto &s = instrument_.settings;
@@ -457,6 +462,7 @@ void UI::drawPicker() {
     case Page::Backing:
     case Page::FrontSound:
     case Page::VolumeEffects:
+    case Page::MidiInput:
         title = settingName(selection_);
         if (confirming) {
             title = action == Confirmation::Create ? "Create preset copy?" : "Restore preset?";
@@ -555,6 +561,7 @@ struct UI::PerformanceView {
     int degreeWidth = -1;
     std::array<lv_obj_t *, 7> degrees, roots, frontBoxes, frontNotes, frontKeys;
     std::array<std::array<lv_obj_t *, 3>, 7> chordKeys;
+    lv_obj_t *midi = nullptr; // "MIDI Front" while a keyboard is connected; lights on notes.
 };
 
 void UI::drawPerformance() {
@@ -596,8 +603,16 @@ void UI::drawPerformance() {
                                            colors.keyText, 15);
     }
 
+    int hintsRight = 314;
+    if (!i.midiDevice.empty()) {
+        const std::string badge = std::string("MIDI ") + midiTargetName(s.midiTarget);
+        const int width = textWidth(badge, small) + 10;
+        v.midi = keycap(312 - width, 93, width, badge, small, colors.panel, colors.muted);
+        hintsRight = 312 - width - 6;
+    }
     hintLine(93, {{"I", s.hold ? "Hold on" : "Hold off"}, {"O", backingLabel(s)},
-                  {"P", std::to_string(s.bpm) + " BPM" + (s.swingMode ? " swing" : "")}});
+                  {"P", std::to_string(s.bpm) + " BPM" + (s.swingMode ? " swing" : "")}},
+             body, true, 8, hintsRight);
     for (int n = 0; n < 7; n++) {
         const int x = 8 + n * 44;
         v.frontBoxes[n] = box(x, 108, 40, 30, colors.frontPanel);
@@ -650,6 +665,11 @@ void UI::updatePerformance() {
         }
     }
 
+    if (v.midi) {
+        setFace(v.midi, i.midiLit() ? colors.signal : colors.panel);
+        setInk(v.midi, i.midiLit() ? colors.bg : colors.muted);
+    }
+
     const auto pitches = i.playingFrontNotes();
     const bool frontReady = i.active || s.frontMode == 1;
     for (int n = 0; n < 7; n++) {
@@ -677,6 +697,12 @@ void UI::draw() {
             << i.harpFlash << ',' << i.semitoneShift() << ',' << i.frontOctaveShift[0] << ','
             << i.frontOctaveShift[1];
     for (int n = 0; n < 7; n++) playing << ',' << i.frontHeld(n);
+    playing << ',' << i.midiLit();
+    // The keyboard and its target change the playing screen; the last note only this page.
+    signature << ',' << i.midiDevice << ',' << s.midiTarget << ',' << s.midiVelocity << ','
+              << midiRow_;
+    if (settingsOpen && page_ == Page::MidiInput)
+        signature << ',' << i.midiLastNote << ',' << i.midiLastVelocity;
     signature << ',' << backingTab_ << ',' << fromPlay_ << ',' << s.arpProgram << ',' << s.arpSound
               << ',' << s.chordScale << ',' << s.frontFollow << ',' << s.frontTonic << ','
               << int(envelopeParent_);
@@ -743,6 +769,10 @@ void UI::draw() {
     }
     if (settingsOpen && page_ == Page::VolumeEffects) {
         drawVolumeEffects();
+        return;
+    }
+    if (settingsOpen && page_ == Page::MidiInput) {
+        drawMidiInput();
         return;
     }
     if (settingsOpen && page_ == Page::Envelope) {

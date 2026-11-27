@@ -146,6 +146,8 @@ struct Settings : PerformanceSettings {
     int chordVolume = 80, harpVolume = 100, echo = 15, strumMs = 210;
     int masterVolume = 100, theme = 0;
     int output = OutputAuto;
+    // MIDI keyboard: the layer whose sound it plays (MidiTarget) and its velocity curve.
+    int midiTarget = 0, midiVelocity = 1;
     std::array<int, 3> eqDb{}; // App-wide Low / Mid / High gain, in dB.
     int chordOctave = 3;
     std::array<int, 7> degreeChordRoot{-1, -1, -1, -1, -1, -1, -1}; // -1 follows Key; otherwise absolute pitch class.

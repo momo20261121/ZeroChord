@@ -13,6 +13,7 @@ through Chord, Arp, Pad, Bass, and Drums.
 - [Find and edit settings](#find-and-edit-settings)
 - [Shape your sound](#shape-your-sound)
 - [Import your own sounds](#import-your-own-sounds)
+- [Play a MIDI keyboard](#play-a-midi-keyboard)
 - [Keyboard reference](#keyboard-reference)
 - [Troubleshooting](#troubleshooting)
 
@@ -328,6 +329,30 @@ The [sound pack guide](../sounds/README.md) covers supported locations, manifest
 size limits, and the optional Grand Piano, Synths, and Drums downloads. Use sounds with licenses
 that allow your intended use.
 
+## Play a MIDI keyboard
+
+Plug a class-compliant USB MIDI keyboard into the USB port; no setup is needed and
+it can be plugged in or out while ZeroChord runs. Open **App → MIDI input**:
+
+- **Keyboard** names the connected keyboard. With it highlighted, the bottom line
+  shows the last note and velocity, which is a quick connection check.
+- **Plays** chooses the sound the keyboard uses: **Front** (the default, alongside
+  `Z`–`M`), **Chord**, **Arp**, **Pad**, **Bass**, or **Drums**. Notes use that
+  part's sound, envelope, level, pan, and effects in the current style, at the
+  pitch you play; Key, Scale, and the octave shift do not change them. **Drums**
+  plays the style's kit with General MIDI drum notes.
+- **Velocity**: **Normal** follows how hard you play, **Soft** makes light playing
+  louder, **Hard** needs a firmer touch, and **Fixed** plays every note at full level.
+
+These settings apply to every preset. Muting a layer with `O` stops only its
+pattern, so you can, for example, mute **Bass** and play the bass line yourself
+over the chords and drums. A layer at 0% is silent from the keyboard too.
+
+The sustain pedal works, and `Space` stops MIDI notes along with everything else.
+While a keyboard is connected, the playing screen shows a **MIDI Front** (or other
+part) badge that lights while notes sound. Changing a setting or preset ends notes
+that are still ringing. Pitch bend and the mod wheel are not used yet.
+
 ## Keyboard reference
 
 ### While playing
@@ -372,6 +397,7 @@ Dedicated arrow keys also work in settings. Hold `Esc` to exit from any page.
 | **Sound distorts** | Reduce EQ boosts or turn down **App Vol**. |
 | **A chord combination attacks twice** | In **App → Chord config → All**, increase **Chord combo timing** slightly. |
 | **An imported sound is missing** | Restart and check the [sound pack formats and limits](../sounds/README.md). |
+| **MIDI keyboard does nothing** | Check **App → MIDI input → Keyboard**. If it reads **None**, try another cable or a powered USB hub; the keyboard must be class-compliant. If notes arrive but are silent, raise the mix of the part shown in **Plays**. |
 | **Recent edits disappeared** | Hold `Esc` to exit and save settings before turning off the device. |
 
 For development and verification, see the [build guide](DEVELOPMENT.md) and

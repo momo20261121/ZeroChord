@@ -25,6 +25,7 @@ class UI : public SettingsEditor {
     void drawAbout();
     bool drawSettingRows(int top, int limit, int spacing); // True when a listed row is edited.
     void drawVolumeEffects();
+    void drawMidiInput();
     void drawPicker();
     void drawTempo();
     void drawBacking();

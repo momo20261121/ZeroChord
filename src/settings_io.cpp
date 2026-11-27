@@ -58,6 +58,8 @@ template <class F> void fields(Settings &s, F field) {
         field("echoSend" + std::to_string(n), s.echoSend[n]);
     }
     field("output", s.output);
+    field("midiTarget", s.midiTarget);
+    field("midiVelocity", s.midiVelocity);
     field("drums", s.drums);
     field("drumKit", s.drumKit);
     field("drumPattern", s.drumPattern);

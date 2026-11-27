@@ -84,10 +84,10 @@ run('absolute-roots-and-octaves',
 run('chord-scale-and-hold', chord_config + ['x','x','ENTER','x','ENTER','x','ENTER','f','ENTER'],
     {'chordScale':1, 'hold':0})
 run('chord-timing', chord_config + ['x']*8 + ['c']*18 + ['c'], {'combinationMs':120})
-run('front-scale-physical', ['TAB','TAB','f','ENTER','ENTER','x','ENTER','x','x','ENTER','x','x','ENTER'],
+run('front-scale-physical', ['TAB','TAB','f','f','ENTER','ENTER','x','ENTER','x','x','ENTER','x','x','ENTER'],
     {'frontMode':1, 'scale':1, 'frontFollow':0})
 run('front-key-follows-again',
-    ['TAB','TAB','f','ENTER','ENTER','x','ENTER','x','ENTER','x','ENTER','BACKSPACE'],
+    ['TAB','TAB','f','f','ENTER','ENTER','x','ENTER','x','ENTER','x','ENTER','BACKSPACE'],
     {'frontMode':1, 'frontFollow':1})
 run('envelope-physical', front_envelope + ['c','ESC','ESC','f','ENTER','2','x','x','ENTER','x','x','c'],
     {'envelope00':5000, 'envelope12':55}, 'envelope00 3000\nenvelope12 50\n')

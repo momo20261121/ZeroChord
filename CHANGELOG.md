@@ -1,5 +1,19 @@
 # Release notes
 
+## Unreleased
+
+- **MIDI input.** A class-compliant USB MIDI keyboard plays one part of the
+  current style: Front (default), Chord, Arp, Pad, Bass, or Drums. Notes use that
+  part's sound, envelope, level, pan, and effects at the pitch played. Muting the
+  layer with `O` stops only its pattern, so you can play the part yourself. New
+  **App → MIDI input** page: **Keyboard** (connected keyboard; the bottom line
+  shows the last note and velocity), **Plays**, and **Velocity** (Soft, Normal,
+  Hard, Fixed). These settings apply to all presets. The sustain pedal and All
+  notes off work, `Space` stops MIDI notes, keyboards can be plugged in or out at
+  any time, and the playing screen shows a **MIDI** badge that lights on notes.
+  Up to 16 MIDI notes sound at once. When more arrive, a pedal-held note ends
+  first, otherwise the oldest.
+
 ## 1.4.0 - 2026-11-26
 
 - New **Bass** and **Drums** layers. Both play on the beat clock while a chord

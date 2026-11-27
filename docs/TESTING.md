@@ -1,5 +1,21 @@
 # Testing ZeroChord
 
+## MIDI input — 2026-11-27
+
+- **Local:** all seven desktop suites pass, including the new `midi_tests`. It covers
+  parsing (running status, note on at velocity 0, split reads, SysEx, system common
+  and real-time bytes), each Plays target, velocity curves, the sustain pedal,
+  restarting the same key, the 16-note limit, `Space`, All notes off and unplugging.
+  `audio_tests` checks that a chord stop leaves a MIDI note sounding.
+  `settings_tests` covers the page, restore, the app-wide setting across presets,
+  and persistence. All 43 real-app flows pass.
+- **UI:** the App row, MIDI input page, Plays list and lit playing-screen badge
+  were checked at 320×170 in the headless preview. A FIFO named `midiC9D0` in
+  `ZEROCHORD_MIDI_DIR` stood in for a raw MIDI port and fed a note.
+- **Device:** cross-built and launched; the device supports USB host mode and has
+  `snd-usb-audio`. Not yet tested with a real keyboard: detection, unplugging
+  (ENODEV), bus power, and note latency.
+
 ## 1.4.0 release — 2026-11-26
 
 - **Local:** all six desktop suites, 43 real-app flows and the playing-screen check passed. The

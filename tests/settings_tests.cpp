@@ -22,6 +22,7 @@ struct Capture : Sink {
 };
 struct MenuAudit : SettingsEditor {
     using SettingsEditor::SettingsEditor;
+    using SettingsEditor::settingValue;
     std::vector<int> visibleRows() const {
         return page() == Page::FrontNotes ? frontRows()
                : page() == Page::Combinations ? combinationRows()
@@ -88,7 +89,7 @@ int main() {
     std::optional<int> outputVolume = 43;
     bool allowVolumeChange = true;
     int volumeWrites = 0;
-    SettingsEditor editor(instrument, [&] { return outputVolume; }, [&](int value) {
+    MenuAudit editor(instrument, [&] { return outputVolume; }, [&](int value) {
         ++volumeWrites;
         if (!allowVolumeChange) return false;
         outputVolume = value;
@@ -101,7 +102,8 @@ int main() {
     const auto original = instrument.settings;
     press(editor, '\t'); // Tab moves to the next tab; left/right stay for values.
     CHECK(editor.tab() == SettingsEditor::Tab::App && editor.selected() == 18);
-    CHECK((editor.rows() == std::vector<int>{18, SettingsEditor::volumeEffectsField, 3, 22}));
+    CHECK((editor.rows() == std::vector<int>{18, SettingsEditor::volumeEffectsField, 3, 22,
+                                             SettingsEditor::midiInputField}));
     row(editor, SettingsEditor::volumeEffectsField);
     press(editor, '\n');
     CHECK(editor.page() == SettingsEditor::Page::VolumeEffects &&
@@ -141,6 +143,47 @@ int main() {
           instrument.settings.strumMs == defaults.strumMs);
     press(editor, 27);
     CHECK(editor.page() == SettingsEditor::Page::Setup && editor.selected() == SettingsEditor::volumeEffectsField);
+    // MIDI input: an app-wide page. Plays and Velocity are lists; Keyboard only reports.
+    CHECK(editor.settingValue(SettingsEditor::midiInputField) == "No keyboard");
+    row(editor, SettingsEditor::midiInputField);
+    press(editor, '\n');
+    CHECK(editor.page() == SettingsEditor::Page::MidiInput &&
+          editor.selected() == SettingsEditor::midiTargetField);
+    CHECK((editor.rows() == std::vector<int>{SettingsEditor::midiDeviceField,
+                                            SettingsEditor::midiTargetField,
+                                            SettingsEditor::midiVelocityField}));
+    sink.events.clear();
+    press(editor, '\n');
+    CHECK(editor.pickerOpen() && editor.choices().size() == midiTargetCount &&
+          editor.choices()[editor.highlighted()].value == MidiFront);
+    for (int n = 0; n < MidiBass; n++) press(editor, 18);
+    press(editor, '\n');
+    CHECK(!editor.pickerOpen() && instrument.settings.midiTarget == MidiBass);
+    CHECK(std::none_of(sink.events.begin(), sink.events.end(), // Choosing plays no preview.
+                       [](const Command &c) { return c.type == CommandType::On; }));
+    instrument.midiDevice = "Keystation 49";
+    CHECK(editor.settingValue(SettingsEditor::midiInputField) == "Plays Bass");
+    CHECK(editor.settingValue(SettingsEditor::midiDeviceField) == "Keystation 49");
+    press(editor, 17);
+    CHECK(editor.selected() == SettingsEditor::midiDeviceField);
+    press(editor, '\n');
+    CHECK(!editor.pickerOpen() && editor.page() == SettingsEditor::Page::MidiInput);
+    row(editor, SettingsEditor::midiVelocityField);
+    press(editor, '\n');
+    press(editor, 18);
+    press(editor, '\n');
+    CHECK(instrument.settings.midiVelocity == VelocityHard);
+    press(editor, '\b'); // Restore the default.
+    CHECK(instrument.settings.midiVelocity == VelocityNormal);
+    // Style presets keep the app-wide MIDI choice.
+    instrument.library.select(instrument.settings, 1);
+    CHECK(instrument.settings.midiTarget == MidiBass);
+    press(editor, 27);
+    CHECK(editor.page() == SettingsEditor::Page::Setup &&
+          editor.selected() == SettingsEditor::midiInputField);
+    instrument.settings.midiTarget = defaults.midiTarget;
+    instrument.library.select(instrument.settings, original.preset);
+    instrument.midiDevice.clear();
     press(editor, '1'); // Number keys jump to a tab.
     CHECK(editor.tab() == SettingsEditor::Tab::Style && editor.selected() == 2);
     CHECK(samePresetSettings(original, instrument.settings));
@@ -333,6 +376,8 @@ int main() {
     instrument.settings.combinations[3] = int(Quality::Sus4);
     instrument.settings.degreeCombinations[6][0] = int(Quality::No3);
     instrument.settings.eqDb = {6, -3, 2};
+    instrument.settings.midiTarget = MidiDrums;
+    instrument.settings.midiVelocity = VelocityFixed;
     saveSettings(instrument.settings, path);
     Settings loaded;
     loadSettings(loaded, path);
@@ -340,6 +385,10 @@ int main() {
     CHECK(loaded.degreeCombinations == instrument.settings.degreeCombinations);
     CHECK(loaded.preset == 2 && loaded.tonic == 4);
     CHECK(loaded.eqDb == instrument.settings.eqDb);
+    CHECK(loaded.midiTarget == MidiDrums && loaded.midiVelocity == VelocityFixed);
+    loaded.midiTarget = 99, loaded.midiVelocity = -4;
+    loaded.clamp();
+    CHECK(loaded.midiTarget == MidiDrums && loaded.midiVelocity == VelocitySoft);
     loaded.eqDb = {-99, 0, 99}; loaded.clamp();
     CHECK((loaded.eqDb == std::array<int, 3>{-12, 0, 12}));
     {
@@ -557,6 +606,22 @@ int main() {
                     CHECK(menu.page() == SettingsEditor::Page::VolumeEffects && menu.selected() == fields.back());
                     press(menu, 27);
                     CHECK(menu.page() == SettingsEditor::Page::Setup && menu.selected() == SettingsEditor::volumeEffectsField);
+                } else if (menu.selected() == SettingsEditor::midiInputField) {
+                    press(menu, '\n');
+                    CHECK(menu.page() == SettingsEditor::Page::MidiInput);
+                    press(menu, up); // It opens on Plays; Keyboard is above.
+                    for (int field : menu.visibleRows()) {
+                        CHECK(menu.selected() == field);
+                        if (field == SettingsEditor::midiDeviceField) {
+                            const auto before = state();
+                            for (char key : {char('\n'), left, right, char('\b')}) press(menu, key);
+                            CHECK(!menu.pickerOpen() && state() == before);
+                        } else checkPicker();
+                        press(menu, down);
+                    }
+                    press(menu, 27);
+                    CHECK(menu.page() == SettingsEditor::Page::Setup &&
+                          menu.selected() == SettingsEditor::midiInputField);
                 } else if (menu.selected() == SettingsEditor::backingField ||
                            menu.selected() == SettingsEditor::frontSoundField) {
                     const int opener = menu.selected();

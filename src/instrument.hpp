@@ -1,7 +1,9 @@
 #pragma once
+#include "midi.hpp"
 #include "music.hpp"
 #include "presets.hpp"
 #include <cstdint>
+#include <string>
 #include <vector>
 namespace zc {
 struct PatternStep;
@@ -14,6 +16,7 @@ struct Command {
     uint32_t id = 0;
     int pitch = 0, durationMs = 0;
     int delayUs = 0; // On: start this much later (strums and humanized timing).
+    bool live = false; // On: a MIDI note; it ends on its own Off, not with the chord.
     Part part = Part::Harp;
     float gain = 1.f;
     Settings settings;
@@ -56,6 +59,14 @@ class Instrument {
     // Notes a backing part plays for the current chord: [0] root or slash bass, [1]-[3] upper
     // voices (Chord and Pad voicings), or the chord tones an octave up for Arp. -1 is silent.
     std::array<int, 4> partNotes(Part part);
+    // MIDI keyboard: notes play Settings::midiTarget's sound, envelope and level at their own
+    // pitch. Muting that layer stops only its pattern.
+    std::string midiDevice; // Connected keyboard's name; empty when none.
+    int midiLastNote = -1, midiLastVelocity = 0;
+    void midi(const MidiEvent &event, uint64_t now);
+    void midiReleaseAll(); // Release every MIDI note, as when the keyboard is unplugged.
+    bool midiLit() const { return !midiNotes_.empty() || now_ < midiFlashUntil_; }
+    static constexpr size_t maxMidiNotes = 16; // The oldest note makes way beyond this.
 
   private:
     Sink &sink_;
@@ -108,5 +119,14 @@ class Instrument {
     void bassHit(const PatternStep &step, int duration);
     unsigned mask(int column) const;
     bool anyChordKey() const;
+    struct MidiNote {
+        int pitch;
+        uint32_t id;
+        bool down; // Key still held; released notes ring on while the pedal is down.
+    };
+    std::vector<MidiNote> midiNotes_; // Sounding MIDI notes, oldest first.
+    bool sustain_ = false;
+    uint64_t midiFlashUntil_ = 0;
+    void endMidiNote(size_t index);
 };
 } // namespace zc

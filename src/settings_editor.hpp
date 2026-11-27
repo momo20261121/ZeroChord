@@ -10,7 +10,9 @@
 namespace zc {
 class SettingsEditor {
   public:
-    enum class Page { Setup, Combinations, FrontNotes, Envelope, VolumeEffects, Backing, FrontSound };
+    enum class Page {
+        Setup, Combinations, FrontNotes, Envelope, VolumeEffects, Backing, FrontSound, MidiInput
+    };
     enum class Tab { Style, App, About };
     // Number rows change with left/right; Opens rows (pages, lists, actions) open with Enter.
     enum class RowKind { Plain, Number, Opens };
@@ -36,7 +38,11 @@ class SettingsEditor {
     static constexpr int chordVoicingField = 45;
     static constexpr int padVoicingField = 46;
     static constexpr int frontMixField = 47;
-    static constexpr int settingCount = frontMixField + 1;
+    static constexpr int midiInputField = 48;    // App row that opens the MIDI input page.
+    static constexpr int midiDeviceField = 49;   // Connected keyboard; information only.
+    static constexpr int midiTargetField = 50;   // Plays: the layer whose sound MIDI uses.
+    static constexpr int midiVelocityField = 51; // Velocity curve.
+    static constexpr int settingCount = midiVelocityField + 1;
     static constexpr int backingTabCount = 6; // Layers, Chord, Arp, Pad, Bass, Drums.
     explicit SettingsEditor(Instrument &instrument,
                             std::function<std::optional<int>()> readSystemVolume = {},
@@ -83,7 +89,8 @@ class SettingsEditor {
     static constexpr int chordScaleField = 10;
     static constexpr int frontKeyField = 5;
     enum class SetupDestination {
-        Picker, Tempo, Backing, Envelope, FrontNotes, Combinations, VolumeEffects, FrontSound, Mix
+        Picker, Tempo, Backing, Envelope, FrontNotes, Combinations, VolumeEffects, FrontSound, Mix,
+        MidiInput
     };
     enum class Confirmation { None, Create, Restore };
     RowKind rowKind(int field) const;
@@ -95,7 +102,7 @@ class SettingsEditor {
     Page envelopeParent_ = Page::Backing;
     Tab tab_ = Tab::Style;
     int tabRows_[3] = {0, 0, 0};
-    int volumeEffectsRow_ = 0;
+    int volumeEffectsRow_ = 0, midiRow_ = 1;
     std::array<int, backingTabCount> backingRows_{};
     int frontSoundRow_ = 0;
     int backingTab_ = 0;
@@ -115,7 +122,7 @@ class SettingsEditor {
     std::optional<int> systemVolume_;
     bool settingListPage() const {
         return page_ == Page::Setup || page_ == Page::VolumeEffects || page_ == Page::Backing ||
-               page_ == Page::FrontSound;
+               page_ == Page::FrontSound || page_ == Page::MidiInput;
     }
     static bool mixField(int index) {
         return (index >= chordMixField && index < chordMixField + 3) || index == drumMixField ||

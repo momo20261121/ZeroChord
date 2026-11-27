@@ -395,9 +395,66 @@ void Instrument::clearKeys() {
     frontVoices_.fill(0);
     baseColumn_ = -1;
 }
+void Instrument::endMidiNote(size_t index) {
+    sink_.send(Command{CommandType::Off, midiNotes_[index].id});
+    midiNotes_.erase(midiNotes_.begin() + long(index));
+}
+void Instrument::midiReleaseAll() {
+    while (!midiNotes_.empty()) endMidiNote(0);
+}
+void Instrument::midi(const MidiEvent &e, uint64_t now) {
+    if (e.type == MidiEvent::Control) {
+        if (e.data1 == 64) { // Sustain pedal: lifting it ends the notes it was holding.
+            sustain_ = e.data2 >= 64;
+            if (!sustain_)
+                for (size_t n = midiNotes_.size(); n-- > 0;)
+                    if (!midiNotes_[n].down) endMidiNote(n);
+        } else if (e.data1 == 120 || e.data1 == 123) { // All sound off, all notes off.
+            midiReleaseAll();
+        }
+        return;
+    }
+    const int pitch = std::clamp(e.data1, 0, 127);
+    if (e.type == MidiEvent::NoteOff) {
+        for (size_t n = 0; n < midiNotes_.size(); ++n)
+            if (midiNotes_[n].pitch == pitch && midiNotes_[n].down) {
+                if (sustain_) midiNotes_[n].down = false;
+                else endMidiNote(n);
+                break;
+            }
+        return;
+    }
+    midiLastNote = pitch;
+    midiLastVelocity = e.data2;
+    midiFlashUntil_ = now + 150;
+    static constexpr Part parts[]{Part::Harp, Part::Chord, Part::Arp,
+                                  Part::Pad,  Part::Bass,  Part::Drums};
+    const Part part = parts[std::clamp(settings.midiTarget, 0, midiTargetCount - 1)];
+    Command c{CommandType::On, ++nextId_, pitch, 0, part};
+    c.gain = midiGain(e.data2, settings.midiVelocity);
+    c.live = true;
+    if (part == Part::Drums) { // Hits ring out like the drum layer's; releases do nothing.
+        c.durationMs = 1500;
+        sink_.send(c);
+        return;
+    }
+    for (size_t n = 0; n < midiNotes_.size(); ++n)
+        if (midiNotes_[n].pitch == pitch) { // The same key again: restart it.
+            endMidiNote(n);
+            break;
+        }
+    if (midiNotes_.size() >= maxMidiNotes) { // Make way: a pedal-held note first, else the oldest.
+        size_t oldest = 0;
+        while (oldest < midiNotes_.size() && midiNotes_[oldest].down) ++oldest;
+        endMidiNote(oldest < midiNotes_.size() ? oldest : 0);
+    }
+    sink_.send(c);
+    midiNotes_.push_back({pitch, c.id, true});
+}
 void Instrument::panic() {
     chordPending_ = false;
     sink_.send(Command{});
+    midiNotes_.clear(); // The pedal keeps its physical state.
     chordVoices_.clear();
     pending_.clear();
     active = false;
@@ -435,6 +492,7 @@ void Instrument::configure() {
     settings.clamp();
     previewUntil_ = 0;
     sink_.send(Command{});
+    midiNotes_.clear();
     chordVoices_.clear();
     pending_.clear();
     lastGain_ = 1;

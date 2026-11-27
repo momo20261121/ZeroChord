@@ -54,6 +54,7 @@ struct Renderer::Impl {
         tsf *synth = nullptr;
         bool releaseOverride = false;
         float level = 1.f; // The sound's level-matching gain.
+        bool live = false;  // A MIDI note: chord changes leave it alone.
     };
     // The built-in kits' kicks are 13-42 ms clicks: add a short sine "thump" beneath them,
     // falling from about 140 to 50 Hz.
@@ -84,6 +85,7 @@ struct Renderer::Impl {
         int pitch, durationMs;
         Part part;
         float gain;
+        bool live;
     };
     std::array<Pending, 128> pending{};
     int pendingCount = 0;
@@ -220,7 +222,7 @@ void Renderer::send(const Command &c) {
     if (c.type == CommandType::StopChord) {
         for (int i = 0; i < 64; i++) // Drum hits ring out on their own.
             if (s.voices[i].part != Part::Harp && s.voices[i].part != Part::Drums &&
-                s.voices[i].synth) {
+                s.voices[i].synth && !s.voices[i].live) {
                 if (s.voices[i].releaseOverride) {
                     if (s.voices[i].held)
                         tsf_channel_note_off(s.voices[i].synth, i, s.voices[i].pitch);
@@ -230,7 +232,8 @@ void Renderer::send(const Command &c) {
         // Strum notes still waiting belong to the stopped chord.
         int kept = 0;
         for (int n = 0; n < s.pendingCount; ++n)
-            if (s.pending[n].part == Part::Harp || s.pending[n].part == Part::Drums)
+            if (s.pending[n].part == Part::Harp || s.pending[n].part == Part::Drums ||
+                s.pending[n].live)
                 s.pending[kept++] = s.pending[n];
         s.pendingCount = kept;
         return;
@@ -254,7 +257,7 @@ void Renderer::send(const Command &c) {
     }
     s.muted = false;
     Impl::Pending note{s.frame + uint64_t(std::max(0, c.delayUs)) * uint64_t(s.rate) / 1000000,
-                       c.id, c.pitch, c.durationMs, c.part, c.gain};
+                       c.id, c.pitch, c.durationMs, c.part, c.gain, c.live};
     if (c.delayUs <= 0 || s.pendingCount == int(s.pending.size())) {
         s.start(note);
         return;
@@ -301,7 +304,7 @@ void Renderer::Impl::start(const Pending &c) {
             t = {0.f, 0.f, .22f * std::clamp(c.gain, 0.f, 1.f) * s.volume(voice)};
         }
         s.voices[slot] = {c.id, c.pitch, s.frame + uint64_t(c.durationMs) * s.rate / 1000,
-                          s.frame + 1, true, c.part, c.gain, synth, false};
+                          s.frame + 1, true, c.part, c.gain, synth, false, 1.f, c.live};
         return;
     }
     const auto &preset = presets[std::clamp(s.settings.preset, 0, 3)];
@@ -351,7 +354,8 @@ void Renderer::Impl::start(const Pending &c) {
     s.voices[slot] = {
         c.id,        c.pitch, c.durationMs ? s.frame + uint64_t(c.durationMs) * s.rate / 1000 : 0,
         s.frame + 1, true,    c.part,
-        c.gain,      synth, s.settings.envelopes[envelopePart].values[3] >= 0, voice.level};
+        c.gain,      synth, s.settings.envelopes[envelopePart].values[3] >= 0, voice.level,
+        c.live};
 }
 void Renderer::render(float *stereo, int frames) {
     auto &s = *impl_;

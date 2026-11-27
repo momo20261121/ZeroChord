@@ -1,4 +1,5 @@
 #include "audio.hpp"
+#include "midi_device.hpp"
 #include "platform.hpp"
 #include "settings_io.hpp"
 #include "sounds.hpp"
@@ -160,6 +161,7 @@ int main(int argc, char **argv) {
                 instrument.key(key, down, now);
         };
         uint64_t nextJackCheck = 0;
+        zc::MidiInput midi;
         auto elapsed = [&] {
             return uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
                                 std::chrono::steady_clock::now() - start)
@@ -173,6 +175,10 @@ int main(int argc, char **argv) {
                                    escDown = false;
                                }))
                 quit = true;
+            if (!midi.poll([&](const zc::MidiEvent &e) { instrument.midi(e, now); })) {
+                instrument.midiReleaseAll(); // Unplugged: nothing may hang.
+                instrument.midiDevice = midi.name();
+            }
             while (eventIndex < events.size() && events[eventIndex].at <= now) {
                 auto e = events[eventIndex++];
                 input(e.key, e.down, now);
@@ -188,6 +194,8 @@ int main(int argc, char **argv) {
                 quit = true;
             if (now >= nextJackCheck) { // Auto output follows the headphone jack.
                 instrument.setJack(platform.headphones());
+                midi.scan(); // Keyboards may be plugged in at any time.
+                instrument.midiDevice = midi.name();
                 nextJackCheck = now + 1000;
             }
             ui.tick(now);

@@ -33,14 +33,17 @@ inline void goToRow(SettingsEditor &e, int field) {
     const bool front = field == 14 || field == 23;
     const bool volume = field == SettingsEditor::systemVolumeField || field == 17 ||
                         (field >= 4 && field <= 6) || (field >= 26 && field <= 28);
+    const bool midi = field >= SettingsEditor::midiDeviceField && field <= SettingsEditor::midiVelocityField;
     using Page = SettingsEditor::Page;
     const Page page = tab >= 0 ? Page::Backing
                       : front  ? Page::FrontSound
-                      : volume ? Page::VolumeEffects : Page::Setup;
+                      : volume ? Page::VolumeEffects
+                      : midi   ? Page::MidiInput : Page::Setup;
     if (e.page() != page && e.page() != Page::Setup) tap(e, 27);
     if (page != Page::Setup && e.page() != page) {
         goToRow(e, tab >= 0  ? SettingsEditor::backingField
-                   : front ? SettingsEditor::frontSoundField : SettingsEditor::volumeEffectsField);
+                   : front ? SettingsEditor::frontSoundField
+                   : midi  ? SettingsEditor::midiInputField : SettingsEditor::volumeEffectsField);
         tap(e, '\n');
     }
     if (tab >= 0) tap(e, char('1' + tab));

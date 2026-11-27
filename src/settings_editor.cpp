@@ -8,6 +8,8 @@ namespace zc {
 namespace {
 const std::vector<int> volumeEffectsRows{SettingsEditor::systemVolumeField, 17, 4, 5, 6, 26, 27, 28,
                                         SettingsEditor::outputField};
+const std::vector<int> midiRows{SettingsEditor::midiDeviceField, SettingsEditor::midiTargetField,
+                                SettingsEditor::midiVelocityField};
 const char *scaleName(int scale) { return scaleInfo(scale).name; }
 // Built-in General MIDI kits (drum bank 128).
 const std::vector<std::pair<int, const char *>> drumKits{
@@ -101,15 +103,16 @@ int SettingsEditor::envelopeValue(const Settings &s) const {
 bool SettingsEditor::appField(int index) {
     return index == 0 || index == 1 || (index >= 3 && index <= 7) || index == 17 ||
            index == 18 || index == 22 || (index >= 26 && index <= systemVolumeField) ||
-           index == outputField;
+           index == outputField || (index >= midiInputField && index <= midiVelocityField);
 }
 bool SettingsEditor::appPage() const {
     return page_ == Page::Combinations || page_ == Page::FrontNotes ||
-           page_ == Page::VolumeEffects || (page_ == Page::Setup && tab_ == Tab::App);
+           page_ == Page::VolumeEffects || page_ == Page::MidiInput ||
+           (page_ == Page::Setup && tab_ == Tab::App);
 }
 const std::vector<int> &SettingsEditor::rows() const {
     static const std::vector<int> style{2, 8, backingField, frontSoundField, 19, 20};
-    static const std::vector<int> app{18, volumeEffectsField, 3, 22};
+    static const std::vector<int> app{18, volumeEffectsField, 3, 22, midiInputField};
     static const std::vector<int> about;
     static const std::vector<int> backing[backingTabCount]{
         {chordMixField, chordMixField + 1, chordMixField + 2, bassMixField, drumMixField},
@@ -120,6 +123,7 @@ const std::vector<int> &SettingsEditor::rows() const {
         {drumKitField, drumPatternField}};
     static const std::vector<int> frontSound{14, 23, frontMixField};
     if (page_ == Page::VolumeEffects) return volumeEffectsRows;
+    if (page_ == Page::MidiInput) return midiRows;
     if (page_ == Page::Backing) return backing[backingTab_];
     if (page_ == Page::FrontSound) return frontSound;
     return tab_ == Tab::About ? about : tab_ == Tab::Style ? style : app;
@@ -156,7 +160,8 @@ const char *SettingsEditor::settingName(int index) {
                                   "Arp sound", "Arp envelope", "Chord mix", "Arp mix", "Pad mix",
                                   "Front sound", "Drum mix", "Drum kit", "Drum pattern",
                                   "Bass mix", "Bass sound", "Bass pattern", "Bass envelope",
-                                  "Output", "Chord voicing", "Pad voicing", "Front level"};
+                                  "Output", "Chord voicing", "Pad voicing", "Front level",
+                                  "MIDI input", "Keyboard", "Plays", "Velocity"};
     return names[index];
 }
 std::string SettingsEditor::rowName(int index) const {
@@ -223,6 +228,19 @@ std::string SettingsEditor::rowDescription() const {
     case 5: return "Z-M notes and strums";
     case 6: return "Repeats in time with the tempo";
     case outputField: return "Speaker adds bass harmonics; Auto follows the jack";
+    case midiInputField: return "Play a USB MIDI keyboard";
+    case midiDeviceField:
+        if (instrument_.midiDevice.empty()) return "Plug in a class-compliant USB MIDI keyboard";
+        if (instrument_.midiLastNote < 0) return "Play a key to check the connection";
+        return "Last note " + noteName(instrument_.midiLastNote) +
+               std::to_string(instrument_.midiLastNote / 12 - 1) + ", velocity " +
+               std::to_string(instrument_.midiLastVelocity);
+    case midiTargetField:
+        if (instrument_.settings.midiTarget == MidiFront)
+            return "Front sound and level, alongside Z-M";
+        return std::string("This style's ") + midiTargetName(instrument_.settings.midiTarget) +
+               " sound and level. Mute it (O) to stop its pattern only.";
+    case midiVelocityField: return "How hard you play sets each note's level";
     case chordVoicingField: case padVoicingField: return "How the chord notes are spread";
     case frontMixField: return "Level of Z-M and strums in this style";
     case 26: return "Bass of the whole mix";
@@ -402,6 +420,9 @@ int SettingsEditor::valueFor(const Settings &s, int index) const {
     if (index == drumPatternField) return s.drumPattern;
     if (index == bassPatternField) return s.bassPattern;
     if (index == outputField) return s.output;
+    if (index == midiTargetField) return s.midiTarget;
+    if (index == midiVelocityField) return s.midiVelocity;
+    if (index == midiInputField || index == midiDeviceField) return 0;
     if (index == frontMixField) return s.frontMix;
     if (index == chordVoicingField) return s.chordVoicing;
     if (index == padVoicingField) return s.padVoicing;
@@ -440,7 +461,8 @@ int SettingsEditor::fieldValue() const {
     case Page::Setup:
     case Page::Backing:
     case Page::FrontSound:
-    case Page::VolumeEffects: return settingValueNumber();
+    case Page::VolumeEffects:
+    case Page::MidiInput: return settingValueNumber();
     case Page::Envelope: return envelopeValue(s);
     case Page::FrontNotes: return frontValue(s, frontField_);
     case Page::Combinations: return chordConfigValue(s);
@@ -469,6 +491,8 @@ bool SettingsEditor::fieldModified(int index) const {
     if (index == volumeEffectsField)
         return std::any_of(volumeEffectsRows.begin(), volumeEffectsRows.end(),
                            [&](int field) { return fieldModified(field); });
+    if (index == midiInputField)
+        return fieldModified(midiTargetField) || fieldModified(midiVelocityField);
     if (envelopeRow(index))
         return s.envelopes[envelopePartFor(index)] != preset.envelopes[envelopePartFor(index)];
     if (mixField(index)) {
@@ -560,6 +584,15 @@ std::string SettingsEditor::settingValue(int index) const {
     case outputField:
         if (s.output != OutputAuto) return s.output == OutputSpeaker ? "Speaker" : "Headphones";
         return instrument_.jack < 0 ? "Auto" : instrument_.jack ? "Auto (headphones)" : "Auto (speaker)";
+    case midiInputField:
+        return instrument_.midiDevice.empty() ? "No keyboard"
+                                              : std::string("Plays ") + midiTargetName(s.midiTarget);
+    case midiDeviceField:
+        return instrument_.midiDevice.empty() ? "None" : instrument_.midiDevice;
+    case midiTargetField:
+        return midiTargetName(s.midiTarget);
+    case midiVelocityField:
+        return midiVelocityName(s.midiVelocity);
     case chordVoicingField:
         return voicingName(s.chordVoicing);
     case padVoicingField:
@@ -670,6 +703,12 @@ void SettingsEditor::assign(Settings &s, int index, int value) {
     case outputField:
         s.output = value;
         break;
+    case midiTargetField:
+        s.midiTarget = value;
+        break;
+    case midiVelocityField:
+        s.midiVelocity = value;
+        break;
     case chordVoicingField:
         s.chordVoicing = value;
         break;
@@ -720,6 +759,22 @@ void SettingsEditor::buildChoices() {
         choices_ = {{OutputAuto, "Auto", "Speaker sound unless headphones are plugged in"},
                     {OutputSpeaker, "Speaker", "Bass harmonics and a little click for small speakers"},
                     {OutputHeadphones, "Headphones", "Full range with no extra processing"}};
+        return;
+    }
+    if (page_ == Page::MidiInput && selection_ == midiTargetField) {
+        static const char *about[]{"Z-M's sound, alongside the front keys",
+                                   "Chord sound and envelope", "Arp sound and envelope",
+                                   "Pad sound and envelope", "Bass sound and envelope",
+                                   "This style's kit; General MIDI drum notes"};
+        for (int target = 0; target < midiTargetCount; target++)
+            choices_.push_back({target, midiTargetName(target), about[target]});
+        return;
+    }
+    if (page_ == Page::MidiInput && selection_ == midiVelocityField) {
+        choices_ = {{VelocitySoft, "Soft", "Light playing sounds louder"},
+                    {VelocityNormal, "Normal", "Level follows how hard you play"},
+                    {VelocityHard, "Hard", "Play firmly for full level"},
+                    {VelocityFixed, "Fixed", "Every note at full level"}};
         return;
     }
     if (page_ == Page::VolumeEffects) {
@@ -999,6 +1054,7 @@ void SettingsEditor::preview() {
     }
     // A chord playing from O already sounds each change; do not interrupt it.
     if (!picker_ && backingOpen() && instrument_.active) return;
+    if (page_ == Page::MidiInput) return; // Play the keyboard to hear a choice.
     ++previews_;
     if (page_ == Page::VolumeEffects) {
         // Audition with the saved mix so returning to playing needs no audio reconfiguration.
@@ -1100,6 +1156,7 @@ SettingsEditor::SetupDestination SettingsEditor::setupDestination() const {
     case 22: return SetupDestination::FrontNotes;
     case 3: return SetupDestination::Combinations;
     case volumeEffectsField: return SetupDestination::VolumeEffects;
+    case midiInputField: return SetupDestination::MidiInput;
     default: return SetupDestination::Picker;
     }
 }
@@ -1153,12 +1210,17 @@ void SettingsEditor::openSetting() {
         selection_ = volumeEffectsRows[volumeEffectsRow_];
         refreshSystemVolume();
         break;
+    case SetupDestination::MidiInput:
+        page_ = Page::MidiInput;
+        selection_ = midiRows[size_t(midiRow_)];
+        break;
     }
     instrument_.panic();
 }
 void SettingsEditor::returnToSetup() {
     if (page_ == Page::Envelope) page_ = envelopeParent_;
     if (page_ == Page::VolumeEffects) selection_ = volumeEffectsField;
+    if (page_ == Page::MidiInput) selection_ = midiInputField;
     if (page_ == Page::Backing) {
         backingRows_[backingTab_] = std::max(0, rowIndex());
         selection_ = backingField;
@@ -1213,6 +1275,7 @@ SettingsEditor::RowKind SettingsEditor::rowKind(int field) const {
     case Page::VolumeEffects:
         if (field == outputField) return RowKind::Opens;
         return field == systemVolumeField && !systemVolume_ ? RowKind::Plain : RowKind::Number;
+    case Page::MidiInput: return field == midiDeviceField ? RowKind::Plain : RowKind::Opens;
     default: break;
     }
     if (mixField(field) || field == 8 || field == frontMixField) return RowKind::Number;
@@ -1450,6 +1513,7 @@ void SettingsEditor::applyChoice(int value) {
 bool SettingsEditor::canRestoreField() const {
     if (confirmation() != Confirmation::None) return false;
     if (page_ == Page::VolumeEffects) return selection_ != systemVolumeField;
+    if (page_ == Page::MidiInput) return selection_ != midiDeviceField;
     if (page_ != Page::Setup) return true;
     const auto destination = setupDestination();
     return tab_ != Tab::About && selection_ != 2 &&
@@ -1725,6 +1789,7 @@ void SettingsEditor::handleKey(char key, bool down) {
             const auto &fields = rows();
             int next = step(rowIndex(), direction, int(fields.size()));
             if (page_ == Page::VolumeEffects) volumeEffectsRow_ = next;
+            else if (page_ == Page::MidiInput) midiRow_ = next;
             else if (page_ == Page::Setup) tabRows_[int(tab_)] = next;
             selection_ = fields[next];
         }
@@ -1734,7 +1799,9 @@ void SettingsEditor::handleKey(char key, bool down) {
     }
     if (key == '\n') {
         if (page_ == Page::Setup || page_ == Page::Backing || page_ == Page::FrontSound) openSetting();
-        else if (page_ != Page::VolumeEffects || selection_ == outputField) openPicker();
+        else if (page_ == Page::MidiInput) {
+            if (selection_ != midiDeviceField) openPicker();
+        } else if (page_ != Page::VolumeEffects || selection_ == outputField) openPicker();
     }
 }
 } // namespace zc

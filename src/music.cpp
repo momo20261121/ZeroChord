@@ -294,6 +294,8 @@ void Settings::clamp() {
     reverbMs = std::clamp(reverbMs, 300, 8000);
     frontMix = std::clamp(frontMix, 0, 100);
     output = std::clamp(output, 0, 2);
+    midiTarget = std::clamp(midiTarget, 0, 5);
+    midiVelocity = std::clamp(midiVelocity, 0, 3);
     chordPattern = std::clamp(chordPattern, 0, chordPatternCount - 1);
     padMotion = std::clamp(padMotion, 0, 3);
     hold = !!hold;
