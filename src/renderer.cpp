@@ -36,7 +36,12 @@ struct Renderer::Impl {
     std::map<std::string, std::array<tsf *, partCount>> synths;
     tsf *builtin(Part part) const { return synths.at("")[size_t(part)]; }
     int rate;
-    Settings settings;
+    // Live playing (slot 0) and the loop (slot 1) each have their own sounds and levels. The
+    // effect buses are shared: while the loop plays they use its style's reverb and sends.
+    Settings settings, loop;
+    bool loopOn = false;
+    const Settings &of(int slot) const { return slot == 1 ? loop : settings; }
+    const Settings &fx() const { return loopOn ? loop : settings; }
     Equalizer equalizer;
     Reverb reverb;
     Echo echo;
@@ -55,6 +60,8 @@ struct Renderer::Impl {
         bool releaseOverride = false;
         float level = 1.f; // The sound's level-matching gain.
         bool live = false;  // A MIDI note: chord changes leave it alone.
+        int owner = 0;      // Command::slot.
+        bool click = false; // Command::click: a fixed level.
     };
     // The built-in kits' kicks are 13-42 ms clicks: add a short sine "thump" beneath them,
     // falling from about 140 to 50 Hz.
@@ -86,6 +93,8 @@ struct Renderer::Impl {
         Part part;
         float gain;
         bool live;
+        int owner;
+        bool click;
     };
     std::array<Pending, 128> pending{};
     int pendingCount = 0;
@@ -94,7 +103,7 @@ struct Renderer::Impl {
     double meterSum = 0;
     uint64_t meterFrames = 0;
     bool muted = true;
-    float chordGain = 1.f;
+    std::array<float, 2> chordGain{1.f, 1.f};
     std::array<std::array<float, block * 2>, partCount> bus{};
     explicit Impl(int r) : rate(r), reverb(r), echo(r), limiter(r) {
         dcBlock = Biquad::highpass(22, r); // Sample offsets and rumble.
@@ -106,7 +115,7 @@ struct Renderer::Impl {
     }
     // A fader: 100% is full level, 50% about -12 dB. Layers are independent.
     static float fader(int percent) { return std::pow(percent / 100.f, 2.f); }
-    float layerGain(Part part) const {
+    float layerGain(Part part, const Settings &settings) const {
         if (part == Part::Harp) return 1.f;
         const auto layer = part == Part::Pad    ? PlaybackMode::Pad
                            : part == Part::Arp   ? PlaybackMode::Arp
@@ -116,12 +125,15 @@ struct Renderer::Impl {
         return fader(settings.mix(layer));
     }
     float volume(const Voice &v) const {
+        if (v.click) return .55f * v.gain;
+        const auto &settings = of(v.owner);
         // The front sits a little above the backing: 1.6 is about +4 dB.
         if (v.part == Part::Harp)
             return 1.6f * settings.harpVolume / 100.f * fader(settings.frontMix) * v.gain * v.level;
         // Backing accents arrive as velocity; the channel volume carries only the mix.
-        return settings.chordVolume / 100.f * (v.part == Part::Pad ? chordGain : 1.f) *
-               layerGain(v.part) * v.level;
+        return settings.chordVolume / 100.f *
+               (v.part == Part::Pad ? chordGain[size_t(v.owner)] : 1.f) *
+               layerGain(v.part, settings) * v.level;
     }
     void route() {
         speaker = settings.output == OutputSpeaker ||
@@ -173,7 +185,28 @@ Renderer::Renderer(const std::string &path, int rate) : impl_(new Impl(rate)) {
 Renderer::~Renderer() = default;
 void Renderer::send(const Command &c) {
     auto &s = *impl_;
+    const int owner = std::clamp(c.slot, 0, 1);
     if (c.type == CommandType::Panic) {
+        if (owner == 1) {
+            s.loopOn = false;
+            s.reverb.configure(s.fx().reverbMs);
+        }
+        // With the other slot still sounding, stop only this slot's notes.
+        bool others = owner == 0 && s.loopOn;
+        for (const auto &v : s.voices) others = others || (v.id && v.owner != owner);
+        if (others) {
+            for (int i = 0; i < 64; i++)
+                if (s.voices[i].id && s.voices[i].owner == owner) {
+                    if (s.voices[i].synth) tsf_channel_sounds_off_all(s.voices[i].synth, i);
+                    s.voices[i] = {};
+                }
+            int kept = 0;
+            for (int n = 0; n < s.pendingCount; ++n)
+                if (s.pending[n].owner != owner) s.pending[kept++] = s.pending[n];
+            s.pendingCount = kept;
+            s.chordGain[size_t(owner)] = 1.f;
+            return;
+        }
         for (int i = 0; i < 64; i++) {
             for (auto &[id, parts] : s.synths)
                 for (auto *synth : parts) tsf_channel_sounds_off_all(synth, i);
@@ -190,15 +223,19 @@ void Renderer::send(const Command &c) {
         return;
     }
     if (c.type == CommandType::Configure) {
-        s.settings = c.settings;
-        s.settings.clamp();
-        s.equalizer.configure(s.settings.eqDb, s.rate);
-        s.reverb.configure(s.settings.reverbMs);
-        s.echo.setTime(std::clamp(45000 / std::max(1, s.settings.bpm), 150, 700));
-        s.route();
-        s.chordGain = 1.f;
+        auto &target = owner == 1 ? s.loop : s.settings;
+        target = c.settings;
+        target.clamp();
+        if (owner == 1) s.loopOn = true;
+        else {
+            s.equalizer.configure(s.settings.eqDb, s.rate);
+            s.echo.setTime(std::clamp(45000 / std::max(1, s.settings.bpm), 150, 700));
+            s.route();
+        }
+        s.reverb.configure(s.fx().reverbMs);
+        s.chordGain[size_t(owner)] = 1.f;
         for (int i = 0; i < 64; i++) // Mix changes reach notes already ringing.
-            if (s.voices[i].synth && s.voices[i].part != Part::Harp)
+            if (s.voices[i].synth && s.voices[i].part != Part::Harp && s.voices[i].owner == owner)
                 tsf_channel_set_volume(s.voices[i].synth, i, s.volume(s.voices[i]));
         return;
     }
@@ -213,16 +250,16 @@ void Renderer::send(const Command &c) {
         return;
     }
     if (c.type == CommandType::ChordGain) {
-        s.chordGain = std::clamp(c.gain, 0.f, 1.f);
+        s.chordGain[size_t(owner)] = std::clamp(c.gain, 0.f, 1.f);
         for (int i = 0; i < 64; i++)
-            if (s.voices[i].part == Part::Pad && s.voices[i].synth)
+            if (s.voices[i].part == Part::Pad && s.voices[i].synth && s.voices[i].owner == owner)
                 tsf_channel_set_volume(s.voices[i].synth, i, s.volume(s.voices[i]));
         return;
     }
     if (c.type == CommandType::StopChord) {
         for (int i = 0; i < 64; i++) // Drum hits ring out on their own.
             if (s.voices[i].part != Part::Harp && s.voices[i].part != Part::Drums &&
-                s.voices[i].synth && !s.voices[i].live) {
+                s.voices[i].synth && !s.voices[i].live && s.voices[i].owner == owner) {
                 if (s.voices[i].releaseOverride) {
                     if (s.voices[i].held)
                         tsf_channel_note_off(s.voices[i].synth, i, s.voices[i].pitch);
@@ -233,7 +270,7 @@ void Renderer::send(const Command &c) {
         int kept = 0;
         for (int n = 0; n < s.pendingCount; ++n)
             if (s.pending[n].part == Part::Harp || s.pending[n].part == Part::Drums ||
-                s.pending[n].live)
+                s.pending[n].live || s.pending[n].owner != owner)
                 s.pending[kept++] = s.pending[n];
         s.pendingCount = kept;
         return;
@@ -257,7 +294,7 @@ void Renderer::send(const Command &c) {
     }
     s.muted = false;
     Impl::Pending note{s.frame + uint64_t(std::max(0, c.delayUs)) * uint64_t(s.rate) / 1000000,
-                       c.id, c.pitch, c.durationMs, c.part, c.gain, c.live};
+                       c.id, c.pitch, c.durationMs, c.part, c.gain, c.live, owner, c.click};
     if (c.delayUs <= 0 || s.pendingCount == int(s.pending.size())) {
         s.start(note);
         return;
@@ -266,6 +303,7 @@ void Renderer::send(const Command &c) {
 }
 void Renderer::Impl::start(const Pending &c) {
     auto &s = *this;
+    const Settings &st = of(c.owner);
     int slot = 0;
     auto priority = [](const Impl::Voice &v) {
         return v.id == 0 ? 0 : (!v.held ? 1 : (v.part == Part::Harp ? 2 : 3));
@@ -277,13 +315,13 @@ void Renderer::Impl::start(const Pending &c) {
     }
     if (s.voices[slot].synth) tsf_channel_sounds_off_all(s.voices[slot].synth, slot);
     const size_t bus = size_t(c.part);
-    const float pan = .5f + s.settings.pan[size_t(fxPart(c.part))] / 100.f;
+    const float pan = .5f + st.pan[size_t(fxPart(c.part))] / 100.f;
     if (c.part == Part::Drums) {
         // A kit from the drum bank (128): the built-in bank, or a pack kit by ID.
         tsf *synth = s.builtin(c.part);
-        int bank = 128, kit = s.settings.drumKit;
+        int bank = 128, kit = c.click ? 0 : st.drumKit; // Clicks: the built-in Standard kit.
         bool builtinBank = true;
-        if (auto *sound = soundLibrary().find(s.settings.drumSound); sound && !sound->bank.empty())
+        if (auto *sound = soundLibrary().find(st.drumSound); !c.click && sound && !sound->bank.empty())
             if (auto it = s.synths.find(sound->bank); it != s.synths.end()) {
                 synth = it->second[bus];
                 bank = sound->bankNumber;
@@ -296,37 +334,40 @@ void Renderer::Impl::start(const Pending &c) {
         Impl::Voice voice{};
         voice.part = c.part;
         voice.gain = c.gain;
+        voice.owner = c.owner;
+        voice.click = c.click;
         tsf_channel_set_pan(synth, slot, pan);
         tsf_channel_set_volume(synth, slot, s.volume(voice));
         tsf_channel_note_on(synth, slot, c.pitch, std::clamp(.85f * c.gain, 0.f, 1.f));
-        if (builtinBank && (c.pitch == 35 || c.pitch == 36) && kit != 48) {
+        if (builtinBank && !c.click && (c.pitch == 35 || c.pitch == 36) && kit != 48) {
             auto &t = s.thumps[size_t(s.nextThump++ % int(s.thumps.size()))];
             t = {0.f, 0.f, .22f * std::clamp(c.gain, 0.f, 1.f) * s.volume(voice)};
         }
         s.voices[slot] = {c.id, c.pitch, s.frame + uint64_t(c.durationMs) * s.rate / 1000,
-                          s.frame + 1, true, c.part, c.gain, synth, false, 1.f, c.live};
+                          s.frame + 1, true, c.part, c.gain, synth, false, 1.f, c.live, c.owner,
+                          c.click};
         return;
     }
-    const auto &preset = presets[std::clamp(s.settings.preset, 0, 3)];
+    const auto &preset = presets[std::clamp(st.preset, 0, 3)];
     const bool front = c.part == Part::Harp;
     const bool pad = c.part == Part::Pad;
     const bool arp = c.part == Part::Arp;
     const bool bass = c.part == Part::Bass;
-    int program = front ? s.settings.harpProgram
-                  : pad ? s.settings.padProgram
-                  : bass ? s.settings.bassProgram
-                  : arp && s.settings.arpProgram >= 0 ? s.settings.arpProgram
-                        : s.settings.chordProgram;
+    int program = front ? st.harpProgram
+                  : pad ? st.padProgram
+                  : bass ? st.bassProgram
+                  : arp && st.arpProgram >= 0 ? st.arpProgram
+                        : st.chordProgram;
     if (program < 0)
         program = front ? preset.harpProgram : pad && preset.padProgram >= 0
                       ? preset.padProgram : preset.chordProgram;
     tsf *synth = s.builtin(c.part);
     bool builtinBank = true;
-    const std::string &soundId = front ? s.settings.frontSound
-                                 : pad ? s.settings.padSound
-                                 : bass ? s.settings.bassSound
-                                 : arp && s.settings.arpProgram >= 0 ? s.settings.arpSound
-                                       : s.settings.chordSound;
+    const std::string &soundId = front ? st.frontSound
+                                 : pad ? st.padSound
+                                 : bass ? st.bassSound
+                                 : arp && st.arpProgram >= 0 ? st.arpSound
+                                       : st.chordSound;
     auto *sound = soundLibrary().find(soundId);
     if (sound && !sound->bank.empty()) {
         auto it = s.synths.find(sound->bank);
@@ -343,6 +384,7 @@ void Renderer::Impl::start(const Pending &c) {
     voice.part = c.part;
     voice.gain = c.gain;
     voice.level = soundLibrary().gain(builtinBank ? std::string() : sound->bank, program);
+    voice.owner = c.owner;
     tsf_channel_set_pan(synth, slot, pan);
     tsf_channel_set_volume(synth, slot, s.volume(voice));
     tsf_channel_note_on(synth, slot, c.pitch, front ? 0.9f : std::clamp(.68f * c.gain, 0.f, 1.f));
@@ -350,20 +392,20 @@ void Renderer::Impl::start(const Pending &c) {
         soundfontArticulate(synth, slot, c.pitch, s.rate, c.durationMs == 0);
     int envelopePart = front ? FrontEnvelope : pad ? PadEnvelope : arp ? ArpEnvelope
                        : bass ? BassEnvelope : ChordEnvelope;
-    soundfontEnvelope(synth, slot, c.pitch, s.rate, s.settings.envelopes[envelopePart]);
+    soundfontEnvelope(synth, slot, c.pitch, s.rate, st.envelopes[envelopePart]);
     s.voices[slot] = {
         c.id,        c.pitch, c.durationMs ? s.frame + uint64_t(c.durationMs) * s.rate / 1000 : 0,
         s.frame + 1, true,    c.part,
-        c.gain,      synth, s.settings.envelopes[envelopePart].values[3] >= 0, voice.level,
-        c.live};
+        c.gain,      synth, st.envelopes[envelopePart].values[3] >= 0, voice.level,
+        c.live,      c.owner};
 }
 void Renderer::render(float *stereo, int frames) {
     auto &s = *impl_;
     std::array<float, fxPartCount> reverbSend{}, echoSend{};
     for (int p = 0; p < partCount; ++p) {
         const int fx = fxPart(Part(p));
-        reverbSend[size_t(p)] = s.settings.reverbSend[size_t(fx)] / 100.f;
-        echoSend[size_t(p)] = s.settings.echoSend[size_t(fx)] / 100.f;
+        reverbSend[size_t(p)] = s.fx().reverbSend[size_t(fx)] / 100.f;
+        echoSend[size_t(p)] = s.fx().echoSend[size_t(fx)] / 100.f;
     }
     const float echoLevel = s.settings.echo / 100.f;
     const float master = s.settings.masterVolume / 100.f;

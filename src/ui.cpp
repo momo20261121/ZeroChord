@@ -1,8 +1,10 @@
 #include "ui.hpp"
+#include "looper.hpp"
 #include "sounds.hpp"
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstring>
 #include <initializer_list>
 #include <lvgl.h>
@@ -11,11 +13,15 @@ namespace zc {
 namespace {
 struct Palette {
     uint32_t bg, panel, text, muted, accent, signal, keyFace, keyText, activeChord, frontPanel;
+    // The loop light (recording, holding, playing) and the loop's chord on the playing screen.
+    uint32_t recording, holding, looping, loopChord;
 };
 constexpr Palette dark{0x20192c, 0x30263f, 0xf9f0e8, 0xc1b3c8, 0xffc18d, 0x84e0bf,
-                       0x2d4a49, 0xc3f5df, 0x50333f, 0x29373f};
+                       0x2d4a49, 0xc3f5df, 0x50333f, 0x29373f,
+                       0xff6b6b, 0xffd84d, 0x7ddc6f, 0x21463f};
 constexpr Palette light{0xfff5e6, 0xefe2e8, 0x30213c, 0x5f4d65, 0x882f61, 0x0a6352,
-                        0xd2e9da, 0x174d43, 0xf7d3d2, 0xe8e9da};
+                        0xd2e9da, 0x174d43, 0xf7d3d2, 0xe8e9da,
+                        0xc62828, 0x8a6400, 0x2e7d32, 0xcdebe3};
 Palette colors = dark;
 constexpr auto *small = &lv_font_montserrat_10;
 constexpr auto *body = &lv_font_montserrat_12;
@@ -234,6 +240,7 @@ void statusField(int x, int width, const char *name, const std::string &value, b
 Hint UI::restoreHint() const {
     if (!canRestoreField()) return {};
     if (picker_) return {"Backspace", "Highlight the default"};
+    if (page_ == Page::LoopMix) return {"Backspace", "Restore this layer", "Restore"};
     return appPage() ? Hint{"Backspace", "Restore this option to its default", "Restore default"}
                      : Hint{"Backspace", "Restore this option to its preset default",
                             "Restore preset default"};
@@ -293,6 +300,58 @@ void UI::drawAllFrontPage() {
     // How to get there: the page sets the mode up, but it is opened from playing.
     label(8, 106, 304, "Hold Space while playing to open or close All front", colors.accent);
     menuFooter(edited);
+}
+void UI::drawLoopPage() {
+    label(8, 5, 222, settingName(loopField), colors.accent, titleFont);
+    label(230, 8, 84, "All presets", colors.muted, small, LV_TEXT_ALIGN_RIGHT);
+    menuFooter(drawSettingRows(22, 8, 14));
+}
+void UI::drawLoopMix() {
+    label(8, 5, 200, settingName(loopMixField), colors.accent, titleFont);
+    if (!hasLoop()) {
+        label(8, 46, 304, "No loop yet: press Enter on the playing screen,", colors.muted);
+        label(8, 62, 304, "play, then press Enter again to finish the take.", colors.muted);
+        menuFooter(false);
+        return;
+    }
+    const auto &loop = *instrument_.looper;
+    const auto &take = loop.take();
+    const std::string source = instrument_.settings.loopStyle == 0 && !take.styles.empty()
+                                   ? instrument_.library.current(take.styles[0]).name + " (take)"
+                                   : "Current style";
+    label(170, 8, 144, source, colors.muted, small, LV_TEXT_ALIGN_RIGHT);
+    bool edited = false;
+    for (int n = 0; n < loopLayerRows; ++n) {
+        const int field = loopLayerField + n;
+        const int y = 26 + n * 17;
+        const bool selected = field == selection_;
+        const bool on = loop.layerOn(n);
+        edited = edited || loop.layerEdited(n);
+        if (selected) rowFocus(y, rowHeight);
+        keycap(16, y + 1, 14, on ? LV_SYMBOL_OK : "", small, colors.keyFace, colors.keyText);
+        label(36, y, 120, std::string(loopLayerName(n)) + (loop.layerEdited(n) ? " *" : ""),
+              selected ? colors.accent : on ? colors.text : colors.muted, body);
+        const std::string level = std::to_string(loop.layerLevel(n)) + "%";
+        label(170, y, 80, selected ? LV_SYMBOL_LEFT "  " + level + "  " LV_SYMBOL_RIGHT : level,
+              selected ? colors.text : colors.muted, body, LV_TEXT_ALIGN_CENTER);
+        if (!on) label(254, y + 2, 56, "Muted", colors.muted, small, LV_TEXT_ALIGN_RIGHT);
+    }
+    menuFooter(edited);
+}
+void UI::drawLoopQuestion() {
+    const auto *loop = instrument_.looper;
+    label(8, 5, 306, "Delete loop?", colors.accent, titleFont);
+    if (loop) {
+        const int bars = loop->recordedBars();
+        std::string subtitle = std::to_string(bars) + (bars == 1 ? " bar" : " bars");
+        if (!loop->take().styles.empty())
+            subtitle += " / " + instrument_.library.current(loop->take().styles[0]).name;
+        label(8, 26, 306, subtitle, colors.muted);
+    }
+    box(20, 52, 280, 50, colors.panel);
+    label(30, 60, 260, "Delete the recorded loop", colors.text, body, LV_TEXT_ALIGN_CENTER);
+    label(30, 80, 260, "It cannot be brought back", colors.muted, small, LV_TEXT_ALIGN_CENTER);
+    footer("", "", {{"Enter", "Delete"}, {"Esc", "Keep"}});
 }
 void UI::drawEnvelope() {
     const auto &s = instrument_.settings;
@@ -473,6 +532,8 @@ void UI::drawPicker() {
     case Page::VolumeEffects:
     case Page::MidiInput:
     case Page::AllFront:
+    case Page::Loop:
+    case Page::LoopMix:
         title = settingName(selection_);
         if (confirming) {
             title = action == Confirmation::Create ? "Create preset copy?" : "Restore preset?";
@@ -572,11 +633,86 @@ struct UI::PerformanceView {
     std::array<lv_obj_t *, 7> degrees, roots, frontBoxes, frontNotes, frontKeys;
     std::array<std::array<lv_obj_t *, 3>, 7> chordKeys;
     lv_obj_t *midi = nullptr; // "MIDI Front" while a keyboard is connected; lights on notes.
+    // The loop light and its state replace the title while a loop exists; a thin bar shows
+    // where playback or recording is.
+    lv_obj_t *lamp = nullptr, *loopText = nullptr, *track = nullptr, *progress = nullptr;
+    lv_obj_t *enterHint = nullptr;
     // All front: one box, note and keycap per key, in allFrontKeys order.
     bool allFront = false;
     std::array<lv_obj_t *, allFrontKeyCount> keyBoxes{}, keyNotes{}, keyCaps{};
 };
 
+namespace {
+const char *enterAction(const Looper *loop) {
+    switch (loop ? loop->state() : LoopState::Empty) {
+    case LoopState::Empty: return "Loop";
+    case LoopState::Armed: return "Cancel";
+    case LoopState::Recording: return "Stop rec";
+    case LoopState::Holding: return "Play";
+    case LoopState::Counting: return "Cancel";
+    case LoopState::Playing: return "Stop loop";
+    }
+    return "Loop";
+}
+} // namespace
+void UI::drawLoopLight(PerformanceView &v) {
+    v.lamp = box(9, 9, 10, 10, colors.panel);
+    lv_obj_set_style_radius(v.lamp, 5, 0);
+    v.loopText = label(23, 7, 90, "", colors.text, body);
+    // Above the light: below it sit the degree labels and All front's top row.
+    v.track = box(8, 2, 104, 2, colors.panel);
+    v.progress = box(8, 2, 0, 2, colors.looping);
+}
+void UI::updateLoopLight(PerformanceView &v, const std::string &title, bool sharpened) {
+    const auto *loop = instrument_.looper;
+    const auto state = loop ? loop->state() : LoopState::Empty;
+    const bool shown = state != LoopState::Empty;
+    setShown(v.title, !shown);
+    setText(v.title, title + (sharpened ? "  +1" : ""));
+    for (auto *o : {v.lamp, v.loopText}) setShown(o, shown);
+    const bool moving = state == LoopState::Recording || state == LoopState::Playing;
+    setShown(v.track, moving);
+    setShown(v.progress, moving);
+    if (!shown) return;
+    const auto &s = instrument_.settings;
+    const double at = loop->position();
+    std::string text;
+    uint32_t color = colors.recording;
+    double share = 0;
+    if (state == LoopState::Armed) {
+        text = "Waiting to record";
+        color = loop->blink() ? colors.recording : colors.panel;
+    } else if (state == LoopState::Counting) {
+        // Counts the beats of the count-in; the light flashes on each one.
+        const int bars = std::max(1, s.loopCount), beats = 4 * bars;
+        const double left = -at / 4.; // Beats until beat 1.
+        const int beat = std::clamp(beats - int(std::ceil(left)) + 1, 1, beats);
+        text = "Count " + std::to_string(beat) + " / " + std::to_string(beats);
+        color = left - std::floor(left) > .5 || left == std::floor(left) ? colors.looping : colors.panel;
+    } else if (state == LoopState::Recording) {
+        const int beat = int(at / 4);
+        text = "REC " + std::to_string(beat / 4 + 1) + "." + std::to_string(beat % 4 + 1) + " / " +
+               std::to_string(s.loopBars);
+        share = at / (16. * std::max(1, s.loopBars));
+    } else {
+        const int bars = loop->recordedBars();
+        color = state == LoopState::Playing ? colors.looping : colors.holding;
+        text = state == LoopState::Playing
+                   ? "Loop " + std::to_string(int(at / 16) + 1) + "/" + std::to_string(bars)
+                   : "Loop " + std::to_string(bars) + (bars == 1 ? " bar" : " bars");
+        share = at / (16. * std::max(1, bars));
+    }
+    if (sharpened) text += " +1";
+    setFace(v.lamp, color);
+    setText(v.loopText, text);
+    setFont(v.loopText, textWidth(text, body) <= 90 ? body : small); // "Waiting to record".
+    setInk(v.loopText, state == LoopState::Armed || state == LoopState::Recording ? colors.recording
+                       : state == LoopState::Playing || state == LoopState::Counting
+                           ? colors.looping
+                           : colors.holding);
+    setFace(v.progress, state == LoopState::Recording ? colors.recording : colors.looping);
+    lv_obj_set_width(v.progress, std::clamp(int(104 * share), 0, 104));
+}
 void UI::drawAllFront() {
     const auto &i = instrument_;
     const auto &s = i.settings;
@@ -584,6 +720,7 @@ void UI::drawAllFront() {
     auto &v = *view;
     v.allFront = true;
     v.title = label(8, 5, 108, "", colors.accent, titleFont);
+    drawLoopLight(v);
     const bool free = s.allFrontMode == 1;
     std::string range;
     if (free) {
@@ -629,6 +766,7 @@ void UI::drawAllFront() {
     if (!free) hints.push_back({"1", "Sharpen"});
     hints.push_back({"Tab", "Setup"});
     hints.push_back({"Space", "Hold: chords", "Hold"});
+    // No room for Enter here; the loop light at the top left shows its state.
     hintLine(153, hints, body, true, 6, hintsRight);
     performance_ = view;
     updatePerformance();
@@ -645,6 +783,7 @@ void UI::drawPerformance() {
     auto &v = *view;
     // Objects that follow playing start blank; updatePerformance() fills them in.
     v.title = label(8, 5, 174, "", colors.accent, titleFont);
+    drawLoopLight(v);
     const auto key = keyLabel(s);
     const auto &preset = i.library.current(s).name;
     const bool presetEdited = i.library.modified(s);
@@ -659,7 +798,7 @@ void UI::drawPerformance() {
     v.chordBox = box(8, 33, 74, 55, colors.panel);
     v.chordName = label(13, 42, 65, "", colors.text, titleFont);
     v.degree = label(13, 67, 0, "", colors.muted, mono);
-    v.chordWord = label(17, 66, 52, "chord", colors.muted);
+    v.chordWord = label(17, 66, 61, "chord", colors.muted);
     v.selectHint = label(13, 66, 65, "Select chord", colors.muted);
 
     constexpr int gridX = 103, gridWidth = 28, gridStep = 30, gridY = 45, gridRowStep = 16;
@@ -696,7 +835,9 @@ void UI::drawPerformance() {
     }
     hintLine(141, {{"K/L", s.frontAction[s.frontMode] ? "Octave -/+" : "Strum"},
                    {"9/0", "Preset"}, {"1", "Hold to sharpen"}});
-    hintLine(155, {{"Tab", "Setup"}, {"Space", "Stop"}, {"Esc", "Hold to exit"}});
+    hintLine(155, {{"Tab", "Setup"}, {"Enter", enterAction(i.looper)}, {"Space", "Stop"},
+                   {"Esc", "Hold to exit", "Exit"}},
+             body, true, 6);
     performance_ = view;
     updatePerformance();
 }
@@ -711,7 +852,7 @@ void UI::updatePerformance() {
         setInk(v.midi, i.midiLit() ? colors.bg : colors.muted);
     }
     if (v.allFront) {
-        setText(v.title, s.allFrontMode == 0 && transpose ? "All front  +1" : "All front");
+        updateLoopLight(v, "All front", s.allFrontMode == 0 && transpose);
         const auto notes = i.playingAllFrontNotes();
         for (int n = 0; n < allFrontKeyCount; n++) {
             if (!v.keyBoxes[size_t(n)]) continue;
@@ -726,41 +867,48 @@ void UI::updatePerformance() {
         }
         return;
     }
-    setText(v.title, transpose ? "ZeroChord  +1" : "ZeroChord");
+    updateLoopLight(v, "ZeroChord", transpose);
 
-    setFace(v.chordBox, i.active ? colors.activeChord : colors.panel);
-    const std::string currentChord = i.active ? chordName(i.chord) : "Ready";
+    // A live chord shows as before; with none, the loop's chord shows in the loop's colour.
+    const bool looped = !i.active && i.looper && i.looper->chordActive();
+    const bool shown = i.active || looped;
+    const Chord &chord = i.frontChord();
+    const uint32_t ink = looped ? colors.signal : colors.accent;
+    setFace(v.chordBox, i.active ? colors.activeChord : looped ? colors.loopChord : colors.panel);
+    const std::string currentChord = shown ? chordName(chord) : "Ready";
     setText(v.chordName, currentChord);
-    setInk(v.chordName, i.active ? colors.accent : colors.text);
+    setInk(v.chordName, shown ? ink : colors.text);
     setFont(v.chordName, textWidth(currentChord, titleFont) <= 65 ? titleFont : body);
-    if (i.active) {
-        const std::string degree = degreeName(i.chord.column);
+    setText(v.chordWord, looped ? "loop" : "chord");
+    setInk(v.chordWord, looped ? colors.signal : colors.muted);
+    if (shown) {
+        const std::string degree = degreeName(chord.column);
         const int width = textWidth(degree, mono);
         setText(v.degree, degree);
         if (width != v.degreeWidth) {
             v.degreeWidth = width;
             lv_obj_set_width(v.degree, width);
             lv_obj_set_x(v.chordWord, 17 + width);
-            lv_obj_set_width(v.chordWord, 52 - width);
+            lv_obj_set_width(v.chordWord, 61 - width); // "III chord" fits the box.
         }
     }
-    setShown(v.degree, i.active);
-    setShown(v.chordWord, i.active);
-    setShown(v.selectHint, !i.active);
+    setShown(v.degree, shown);
+    setShown(v.chordWord, shown);
+    setShown(v.selectHint, !shown);
 
     for (int col = 0; col < 7; col++) {
-        const bool selected = i.active && col == i.chord.column;
-        setInk(v.degrees[col], selected ? colors.accent : colors.muted);
+        const bool selected = shown && col == chord.column;
+        setInk(v.degrees[col], selected ? ink : colors.muted);
         setText(v.roots[col], noteName(s.chordRoot(col) + transpose));
-        setInk(v.roots[col], selected ? colors.accent : colors.text);
+        setInk(v.roots[col], selected ? ink : colors.text);
         for (auto *keycap : v.chordKeys[col]) {
-            setFace(keycap, selected ? colors.activeChord : colors.panel);
-            setInk(keycap, selected ? colors.accent : colors.keyText);
+            setFace(keycap, selected ? (looped ? colors.loopChord : colors.activeChord) : colors.panel);
+            setInk(keycap, selected ? ink : colors.keyText);
         }
     }
 
     const auto pitches = i.playingFrontNotes();
-    const bool frontReady = i.active || s.frontMode == 1;
+    const bool frontReady = i.frontChordActive() || s.frontMode == 1;
     for (int n = 0; n < 7; n++) {
         const bool flash = i.harpFlash == n || i.frontHeld(n);
         setFace(v.frontBoxes[n], flash ? colors.signal : colors.frontPanel);
@@ -787,6 +935,18 @@ void UI::draw() {
             << i.frontOctaveShift[1];
     for (int n = 0; n < 7; n++) playing << ',' << i.frontHeld(n);
     playing << ',' << i.midiLit();
+    if (const auto *loop = i.looper) { // The light, its bar and the loop's chord.
+        playing << ',' << int(loop->state()) << ',' << int(loop->position()) << ','
+                << (loop->state() == LoopState::Armed && loop->blink()) << ',' << loop->chordActive();
+        if (loop->chordActive())
+            playing << ',' << chordName(loop->chord()) << ',' << loop->chord().column;
+        signature << ',' << int(loop->state()) << ',' << loop->recordedBars();
+        if (settingsOpen && (page_ == Page::Loop || page_ == Page::LoopMix))
+            for (int n = 0; n < loopLayerRows; n++)
+                signature << ',' << loop->layerOn(n) << ',' << loop->layerLevel(n);
+    }
+    signature << ',' << loopQuestion_ << ',' << loopRow_ << ',' << s.loopStyle << ',' << s.loopBars
+              << ',' << s.loopShort << ',' << s.loopSnap;
     for (int n = 0; n < allFrontKeyCount; n++) playing << ',' << i.allFrontHeld(n);
     // All front redraws when it opens or its range moves (status line and silent keys).
     signature << ',' << i.allFront << ',' << i.allFrontShift << ',' << s.allFrontMode << ','
@@ -844,6 +1004,10 @@ void UI::draw() {
     lv_obj_remove_flag(lv_screen_active(), LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(colors.bg), 0);
     lv_obj_set_style_bg_opa(lv_screen_active(), LV_OPA_COVER, 0);
+    if (loopQuestion_) {
+        drawLoopQuestion();
+        return;
+    }
     if (tempo_) {
         drawTempo();
         return;
@@ -870,6 +1034,14 @@ void UI::draw() {
     }
     if (settingsOpen && page_ == Page::AllFront) {
         drawAllFrontPage();
+        return;
+    }
+    if (settingsOpen && page_ == Page::Loop) {
+        drawLoopPage();
+        return;
+    }
+    if (settingsOpen && page_ == Page::LoopMix) {
+        drawLoopMix();
         return;
     }
     if (settingsOpen && page_ == Page::Envelope) {

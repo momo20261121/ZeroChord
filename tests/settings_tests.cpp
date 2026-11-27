@@ -104,6 +104,7 @@ int main() {
     CHECK(editor.tab() == SettingsEditor::Tab::App && editor.selected() == 18);
     CHECK((editor.rows() == std::vector<int>{18, SettingsEditor::volumeEffectsField, 3, 22,
                                              SettingsEditor::allFrontField,
+                                             SettingsEditor::loopField,
                                              SettingsEditor::midiInputField}));
     row(editor, SettingsEditor::volumeEffectsField);
     press(editor, '\n');
@@ -688,6 +689,37 @@ int main() {
                               menu.selected() == SettingsEditor::allFrontField);
                     }
                     walker.settings.allFrontMode = 0;
+                } else if (menu.selected() == SettingsEditor::loopField) {
+                    // With no loop recorded, Loop mix and Delete do nothing; the rest behave as
+                    // their kind says.
+                    press(menu, '\n');
+                    CHECK(menu.page() == SettingsEditor::Page::Loop &&
+                          menu.selected() == SettingsEditor::loopStyleField);
+                    press(menu, up);
+                    for (int field : menu.visibleRows()) {
+                        CHECK(menu.selected() == field);
+                        const auto before = state();
+                        if (field == SettingsEditor::loopStyleField) checkPicker();
+                        else if (field == SettingsEditor::loopBarsField ||
+                                 field == SettingsEditor::loopCountField ||
+                                 field == SettingsEditor::loopShortField ||
+                                 field == SettingsEditor::loopSnapField) {
+                            press(menu, '\n');
+                            CHECK(!menu.pickerOpen() && state() == before);
+                            press(menu, left);
+                            CHECK(state() != before);
+                            press(menu, right);
+                            CHECK(state() == before);
+                        } else {
+                            for (char key : {char('\n'), left, right, char('\b')}) press(menu, key);
+                            CHECK(!menu.pickerOpen() && !menu.loopQuestion() &&
+                                  menu.page() == SettingsEditor::Page::Loop && state() == before);
+                        }
+                        press(menu, down);
+                    }
+                    press(menu, 27);
+                    CHECK(menu.page() == SettingsEditor::Page::Setup &&
+                          menu.selected() == SettingsEditor::loopField);
                 } else if (menu.selected() == SettingsEditor::midiInputField) {
                     press(menu, '\n');
                     CHECK(menu.page() == SettingsEditor::Page::MidiInput);

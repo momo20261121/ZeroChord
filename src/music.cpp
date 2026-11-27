@@ -330,6 +330,11 @@ void Settings::clamp() {
     allFrontMode = std::clamp(allFrontMode, 0, 1);
     allFrontOctave = std::clamp(allFrontOctave, 0, 5);
     allFrontLowest = std::clamp(allFrontLowest, 24, 84);
+    loopStyle = std::clamp(loopStyle, 0, 1);
+    loopBars = std::clamp(loopBars, 1, 64);
+    loopShort = std::clamp(loopShort, 0, 3);
+    loopSnap = std::clamp(loopSnap, 0, 3);
+    loopCount = std::clamp(loopCount, 0, 2);
     if (!whiteKey(allFrontLowest)) --allFrontLowest; // Free play starts on a white key.
     chordPattern = std::clamp(chordPattern, 0, chordPatternCount - 1);
     padMotion = std::clamp(padMotion, 0, 3);

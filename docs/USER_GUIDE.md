@@ -11,6 +11,7 @@ through Chord, Arp, Pad, Bass, and Drums.
 - [Set up backing layers](#set-up-backing-layers)
 - [Customize your front notes](#customize-your-front-notes)
 - [Play every key: All front](#play-every-key-all-front)
+- [Record a loop](#record-a-loop)
 - [Find and edit settings](#find-and-edit-settings)
 - [Shape your sound](#shape-your-sound)
 - [Import your own sounds](#import-your-own-sounds)
@@ -240,6 +241,56 @@ Choose the layout in **App → All front**. These settings apply to every preset
   above B and E have no sharp and are silent. **Lowest note** (C1–C6, white keys,
   default F3) is the note of `Z`; with F3 the range is F3–E5.
 
+## Record a loop
+
+`Enter` records what you play and plays it back, with every layer, in time.
+
+1. Press `Enter`. The light at the top left blinks red: **Waiting to record**.
+   Nothing is recorded until you play.
+2. Play. The first chord or note starts the take on beat 1; the light shows **REC**
+   with the bar and beat, and the bar fills toward the length limit.
+3. Press `Enter` to finish. The loop ends on the nearest whole bar: pressing up to
+   a 1/8 note late ends on the bar just played, and a little early completes the
+   bar. Reaching **Length limit** finishes the take too. Whatever was playing
+   stops with the take, and the light turns yellow.
+4. Press `Enter` to play the loop. A bar of side-stick clicks counts you in (the
+   light flashes green with the beat), then the loop starts on beat 1; press
+   `Enter` again to stop it, or to cancel the count-in.
+
+Hold `Enter` to delete the loop; Enter confirms and Esc keeps it. Holding `Enter`
+while waiting or recording drops the take at once. `Space` stops the loop and
+keeps it. The loop is saved, so it is still there next time.
+
+While the loop plays, the chord box shows its chord in green with **loop**, and
+`Z`–`M` play over that chord. A chord you play yourself takes the screen and the
+front keys, shown as usual, while the loop carries on. Both play together; mute
+layers (`O`, or **Loop mix**) where they double up. The loop always follows the
+current tempo.
+
+**App → Loop** sets how loops record and play. These settings apply to all
+presets.
+
+- **Style**: **Recorded** (default) plays the take's own sounds, patterns, mix and
+  effects, including changes made during the take, even if the preset changes
+  later. **Follow current** plays the take with the current style and key; chords
+  keep their degrees, so a new key moves the loop.
+- **Length limit**: 4, 8, 16, 32 or 64 (default) bars.
+- **Count-in** before playback: Off, 1 bar (default) or 2 bars. Recording needs
+  none: it waits for your first chord or note.
+- **Short chords** (default 1/8 note): a chord this short that leads into another
+  joins it, starting when the short one did, so a combination pressed one key at a
+  time counts as one chord. A gap this short between chords closes, and a chord
+  this short at the very end belongs to the next pass.
+- **Snap changes** (default 1/8 note): each chord change moves to the nearest
+  step from beat 1, each on its own, so small errors never add up. Notes keep
+  their timing. Clean-up never changes the recording itself: change either
+  setting at any time to hear the same take differently.
+- **Loop mix**: mutes (`Enter`) and levels (`←`/`→`) for the loop's Front, Chord,
+  Arp, Pad, Bass and Drums, starting from the take's (or the current style's)
+  values. `Backspace` restores a layer. Front covers `Z`–`M`, All front and MIDI
+  notes. A layer muted during the take can be turned on here.
+- **Delete loop** removes it.
+
 ## Find and edit settings
 
 Press `Tab` to open settings. Inside, the keys work the same on every page:
@@ -397,6 +448,8 @@ that are still ringing. Pitch bend and the mod wheel are not used yet.
 | `Tab` | Open settings |
 | Tap `Space` | Stop backing, bass, drums, front notes, and queued strums |
 | Hold `Space` | Switch to [All front](#play-every-key-all-front) and back |
+| `Enter` | [Loop](#record-a-loop): arm, finish the take, play, stop |
+| Hold `Enter` | Delete the loop (asks first), or drop a take in progress |
 | Hold `Esc` | Save changes and return to the launcher |
 
 ### In settings

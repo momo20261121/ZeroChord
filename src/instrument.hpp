@@ -7,6 +7,7 @@
 #include <vector>
 namespace zc {
 struct PatternStep;
+class Looper;
 enum class Part { Chord, Harp, Pad, Arp, Drums, Bass };
 // Tempo carries the BPM in `pitch` (for the echo time); Route sets `pitch` 1 when the
 // headphone jack is in use, 0 for the speaker.
@@ -17,6 +18,9 @@ struct Command {
     int pitch = 0, durationMs = 0;
     int delayUs = 0; // On: start this much later (strums and humanized timing).
     bool live = false; // On: a MIDI note; it ends on its own Off, not with the chord.
+    // 0 live playing, 1 the loop: Panic, StopChord, ChordGain and Configure affect one slot.
+    int slot = 0;
+    bool click = false; // On (Drums): a count-in click at a fixed level, whatever the mix.
     Part part = Part::Harp;
     float gain = 1.f;
     Settings settings;
@@ -39,6 +43,9 @@ class Instrument {
     uint64_t harpFlashUntil = 0;
     std::array<int, 2> frontOctaveShift{}; // Live playing register, not saved key mappings.
     int semitoneShift() const { return pressed_['1'] ? 1 : 0; }
+    // The chord Z-M follow: the live chord, or the loop's while no live chord sounds.
+    const Chord &frontChord() const;
+    bool frontChordActive() const;
     std::array<int, 7> playingFrontNotes() const;
     bool frontHeld(int key) const { return frontVoices_[key] != 0; } // Z-M sounding while held.
     void key(char key, bool down, uint64_t now);
@@ -141,5 +148,34 @@ class Instrument {
     bool sustain_ = false;
     uint64_t midiFlashUntil_ = 0;
     void endMidiNote(size_t index);
+
+  public:
+    // Loop (Enter): records what is played and plays it back through a second Instrument.
+    Looper *looper = nullptr; // None on the loop's own engine.
+    void stopEverything();    // Space: live sound and loop playback.
+    // The loop's engine is driven through these rather than keys.
+    void playChord(const Chord &c, uint64_t now); // A start from silence restarts the transport.
+    void releaseChord();
+    void restartTransport(uint64_t now);
+    void reseed(uint32_t seed) { random_ = seed ? seed : 0x2545f491u; }
+    void adopt(const Settings &s); // New settings, keeping the chord (layers start or stop).
+    unsigned selectedMask() const { return selectedMask_; }
+    bool selectedSharp() const { return selectedSharp_; }
+    int bassColumn() const { return bassColumn_; }
+
+  private:
+    int bassColumn_ = -1; // Degree of a slash bass, or -1.
+    // What the loop has heard: chord changes are reported once their combination settles,
+    // timed from the first key of the combination.
+    bool heardActive_ = false;
+    Chord heardChord_;
+    unsigned heardMask_ = 0;
+    int64_t chordAt_ = -1;
+    void reportChord(uint64_t now);
+    void reportNote(uint32_t id, int pitch, Part part, int durationMs, float gain, int source,
+                    int index, int shift);
+    void reportOff(uint32_t id);
+    void reportStyle();
+    void keyPress(char key, bool down, uint64_t now);
 };
 } // namespace zc

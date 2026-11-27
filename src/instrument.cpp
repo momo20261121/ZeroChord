@@ -1,4 +1,5 @@
 #include "instrument.hpp"
+#include "looper.hpp"
 #include "patterns.hpp"
 #include "sounds.hpp"
 #include <algorithm>
@@ -96,6 +97,10 @@ void Instrument::hit(unsigned mask, int duration, float accent, Part part, bool 
 void Instrument::resetTransport() {
     phase_ = 0;
     nextTick_ = 0;
+    if (looper && looper->playing()) { // Live patterns keep the loop's beat.
+        phase_ = looper->position();
+        nextTick_ = int64_t(std::ceil(phase_));
+    }
     patternStarts_.fill(0);
     lastTick_ = now_;
     playingPatterns_ = {settings.chordPattern, settings.pattern, settings.drumPattern,
@@ -134,12 +139,16 @@ void Instrument::select(int column, uint64_t now) {
         baseColumn_ = column;
     Chord next{settings.chordRoot(baseColumn_) + (pressed_['1'] ? 1 : 0), -1,
                baseColumn_, settings.quality(mask(baseColumn_), baseColumn_)};
-    if (column != baseColumn_)
+    bassColumn_ = -1;
+    if (column != baseColumn_) {
         next.bass = settings.chordRoot(column) + (pressed_['1'] ? 1 : 0);
-    else if (active && chord.bass >= 0)
+        bassColumn_ = column;
+    } else if (active && chord.bass >= 0)
         for (int n = 0; n < 7; n++)
-            if (n != baseColumn_ && mask(n))
+            if (n != baseColumn_ && mask(n)) {
                 next.bass = settings.chordRoot(n) + (pressed_['1'] ? 1 : 0);
+                bassColumn_ = n;
+            }
     bool starting = !active;
     selectedMask_ = mask(baseColumn_);
     selectedSharp_ = pressed_['1'];
@@ -157,6 +166,8 @@ void Instrument::commitChord(uint64_t now) {
     if (!chordPending_ || now < chordDue_)
         return;
     chordPending_ = false;
+    // The loop hears the chord from the first key of its combination.
+    chordAt_ = std::max<int64_t>(0, int64_t(chordDue_) - settings.combinationMs);
     if (chordStarting_) {
         now_ = now;
         resetTransport();
@@ -168,11 +179,17 @@ void Instrument::pluck(int pitch, int index, uint64_t now, bool held) {
     // A held key sounds until release; strummed notes keep a fixed length.
     int duration = held ? 0 : std::max(1600, std::max(0, envelope[0]) + std::max(0, envelope[1]) + 300);
     sink_.send(Command{CommandType::On, ++nextId_, pitch, duration, Part::Harp});
+    reportNote(nextId_, pitch, Part::Harp, duration, 1.f, settings.frontMode,
+               index, pitch - frontNotes(frontChord(), settings)[size_t(index)]);
     if (held) frontVoices_[index] = nextId_;
     harpFlash = index;
     harpFlashUntil = now + 140;
 }
 void Instrument::key(char key, bool down, uint64_t now) {
+    keyPress(key, down, now);
+    reportChord(now);
+}
+void Instrument::keyPress(char key, bool down, uint64_t now) {
     now_ = now;
     auto k = static_cast<unsigned char>(key);
     if (k >= 128 || pressed_[k] == down)
@@ -188,7 +205,10 @@ void Instrument::key(char key, bool down, uint64_t now) {
     int col = columnFor(key);
     auto harp = std::string("zxcvbnm").find(key);
     if (!down && harp != std::string::npos) {
-        if (frontVoices_[harp]) sink_.send(Command{CommandType::Off, frontVoices_[harp]});
+        if (frontVoices_[harp]) {
+            reportOff(frontVoices_[harp]);
+            sink_.send(Command{CommandType::Off, frontVoices_[harp]});
+        }
         frontVoices_[harp] = 0;
         return;
     }
@@ -211,7 +231,7 @@ void Instrument::key(char key, bool down, uint64_t now) {
         select(col, now);
         return;
     }
-    if (harp != std::string::npos && (active || settings.frontMode == 1))
+    if (harp != std::string::npos && (frontChordActive() || settings.frontMode == 1))
         pluck(playingFrontNotes()[harp], int(harp), now, true);
     if (key == 'k' || key == 'l') {
         pending_.clear();
@@ -221,7 +241,7 @@ void Instrument::key(char key, bool down, uint64_t now) {
             auto limits = std::minmax_element(notes.begin(), notes.end());
             if (*limits.first + step * 12 >= 0 && *limits.second + step * 12 <= 127)
                 frontOctaveShift[settings.frontMode] += step;
-        } else if (active || settings.frontMode == 1) {
+        } else if (frontChordActive() || settings.frontMode == 1) {
             int time = settings.frontMode ? settings.scaleStrumMs : settings.strumMs;
             for (int i = 0; i < 7; i++) {
                 int n = key == 'l' ? i : 6 - i;
@@ -264,7 +284,7 @@ void Instrument::key(char key, bool down, uint64_t now) {
         configure();
     }
     if (key == ' ')
-        panic();
+        stopEverything();
 }
 double Instrument::swingOffset(int64_t tick) const {
     // Ticks are 16ths. 100% swing puts the delayed note on the triplet: a swung 16th moves a
@@ -373,7 +393,9 @@ void Instrument::runTick(uint64_t now) {
 }
 void Instrument::tick(uint64_t now) {
     now_ = now;
+    if (looper) looper->tick(now);
     commitChord(now);
+    reportChord(now);
     if (previewUntil_) {
         if (now >= previewUntil_) {
             configure();
@@ -397,7 +419,7 @@ void Instrument::tick(uint64_t now) {
 void Instrument::releaseHeldNotes() {
     auto release = [&](auto &voices) {
         for (auto &voice : voices)
-            if (voice) sink_.send(Command{CommandType::Off, voice}), voice = 0;
+            if (voice) reportOff(voice), sink_.send(Command{CommandType::Off, voice}), voice = 0;
     };
     release(frontVoices_);
     release(allFrontVoices_);
@@ -407,13 +429,15 @@ void Instrument::allFrontKey(char key, bool down) {
     if (index >= 0) {
         auto &voice = allFrontVoices_[size_t(index)];
         if (!down) {
-            if (voice) sink_.send(Command{CommandType::Off, voice});
+            if (voice) reportOff(voice), sink_.send(Command{CommandType::Off, voice});
             voice = 0;
             return;
         }
         const int pitch = playingAllFrontNotes()[size_t(index)];
         if (pitch < 0) return; // A gap in the piano layout.
         sink_.send(Command{CommandType::On, ++nextId_, pitch, 0, Part::Harp});
+        reportNote(nextId_, pitch, Part::Harp, 0, 1.f, int(LoopNoteSource::AllFront), index,
+                   pitch - allFrontNotes(settings)[size_t(index)]);
         voice = nextId_;
         return;
     }
@@ -426,7 +450,7 @@ void Instrument::allFrontKey(char key, bool down) {
             if (current[n] >= 0 && notes[n] < 0) return;
         allFrontShift += step;
     }
-    if (key == ' ') panic();
+    if (key == ' ') stopEverything();
 }
 void Instrument::setAllFront(bool on) {
     if (on == allFront) return;
@@ -453,6 +477,7 @@ void Instrument::clearKeys() {
     baseColumn_ = -1;
 }
 void Instrument::endMidiNote(size_t index) {
+    reportOff(midiNotes_[index].id);
     sink_.send(Command{CommandType::Off, midiNotes_[index].id});
     midiNotes_.erase(midiNotes_.begin() + long(index));
 }
@@ -460,6 +485,7 @@ void Instrument::midiReleaseAll() {
     while (!midiNotes_.empty()) endMidiNote(0);
 }
 void Instrument::midi(const MidiEvent &e, uint64_t now) {
+    now_ = now;
     if (e.type == MidiEvent::Control) {
         if (e.data1 == 64) { // Sustain pedal: lifting it ends the notes it was holding.
             sustain_ = e.data2 >= 64;
@@ -493,6 +519,7 @@ void Instrument::midi(const MidiEvent &e, uint64_t now) {
     if (part == Part::Drums) { // Hits ring out like the drum layer's; releases do nothing.
         c.durationMs = 1500;
         sink_.send(c);
+        reportNote(c.id, pitch, part, c.durationMs, c.gain, int(LoopNoteSource::Midi), 0, 0);
         return;
     }
     for (size_t n = 0; n < midiNotes_.size(); ++n)
@@ -506,9 +533,11 @@ void Instrument::midi(const MidiEvent &e, uint64_t now) {
         endMidiNote(oldest < midiNotes_.size() ? oldest : 0);
     }
     sink_.send(c);
+    reportNote(c.id, pitch, part, 0, c.gain, int(LoopNoteSource::Midi), 0, 0);
     midiNotes_.push_back({pitch, c.id, true});
 }
 void Instrument::panic() {
+    if (looper) looper->allNotesOff(now_);
     chordPending_ = false;
     sink_.send(Command{});
     midiNotes_.clear(); // The pedal keeps its physical state.
@@ -527,6 +556,7 @@ void Instrument::setBackingMode(PlaybackMode mode) {
     settings.mode = mode;
     sendSettings(settings);
     sentBpm_ = settings.bpm;
+    reportStyle();
     resetTransport();
     soundChord();
 }
@@ -541,9 +571,11 @@ void Instrument::setBacking(unsigned layers, const std::array<int, 5> &mix) {
     }
     sendSettings(settings); // Ringing notes follow the new levels.
     sentBpm_ = settings.bpm;
+    reportStyle();
     lastGain_ = 1; // Configure resets Pad motion; send its next level promptly.
 }
 void Instrument::configure() {
+    if (looper) looper->allNotesOff(now_);
     chordPending_ = false;
     frontAudition_ = false;
     settings.clamp();
@@ -555,10 +587,17 @@ void Instrument::configure() {
     lastGain_ = 1;
     sendSettings(settings);
     sentBpm_ = settings.bpm;
+    reportStyle();
     soundChord();
 }
+const Chord &Instrument::frontChord() const {
+    return !active && looper && looper->chordActive() ? looper->chord() : chord;
+}
+bool Instrument::frontChordActive() const {
+    return active || (looper && looper->chordActive());
+}
 std::array<int, 7> Instrument::playingFrontNotes() const {
-    auto notes = frontNotes(chord, settings);
+    auto notes = frontNotes(frontChord(), settings);
     for (auto &note : notes)
         note = std::clamp(note + 12 * frontOctaveShift[settings.frontMode] + semitoneShift(), 0, 127);
     return notes;
@@ -599,5 +638,75 @@ void Instrument::audition(const Chord &c, const Settings &s, bool loop) {
     }
     settings = saved;
     chord = savedChord;
+}
+void Instrument::stopEverything() {
+    if (looper) looper->stop();
+    panic();
+}
+void Instrument::playChord(const Chord &c, uint64_t now) {
+    now_ = now;
+    const bool starting = !active;
+    chord = c;
+    active = true;
+    chordPending_ = false;
+    if (starting) resetTransport();
+    soundChord();
+}
+void Instrument::releaseChord() {
+    if (!active) return;
+    stopChord();
+    sink_.send(Command{CommandType::StopChord});
+    active = false;
+}
+void Instrument::restartTransport(uint64_t now) {
+    now_ = now;
+    resetTransport();
+}
+void Instrument::adopt(const Settings &s) {
+    const unsigned before = settings.audibleLayers();
+    settings = s;
+    settings.clamp();
+    sendSettings(settings);
+    sentBpm_ = settings.bpm;
+    lastGain_ = 1;
+    if (active && settings.audibleLayers() != before) { // Start or stop layers on the beat.
+        stopChord();
+        sink_.send(Command{CommandType::StopChord});
+        soundChord();
+    }
+}
+void Instrument::reportChord(uint64_t now) {
+    if (!looper || chordPending_) return;
+    const bool same = active == heardActive_ &&
+                      (!active || (chord == heardChord_ && chord.column == heardChord_.column &&
+                                   selectedMask_ == heardMask_));
+    const int64_t at = chordAt_;
+    chordAt_ = -1;
+    if (same) return;
+    heardActive_ = active;
+    heardChord_ = chord;
+    heardMask_ = selectedMask_;
+    looper->chordChanged(active, LoopChord{chord, selectedMask_, selectedSharp_, bassColumn_},
+                         active && at >= 0 ? uint64_t(at) : now);
+}
+void Instrument::reportNote(uint32_t id, int pitch, Part part, int durationMs, float gain,
+                            int source, int index, int shift) {
+    if (!looper) return;
+    LoopEvent e;
+    e.pitch = pitch;
+    e.part = part;
+    e.durationMs = durationMs;
+    e.gain = gain;
+    e.source = LoopNoteSource(source);
+    e.index = index;
+    e.shift = shift;
+    e.chord = LoopChord{chord, selectedMask_, selectedSharp_, bassColumn_};
+    looper->noteOn(id, e, now_);
+}
+void Instrument::reportOff(uint32_t id) {
+    if (looper) looper->noteOff(id, now_);
+}
+void Instrument::reportStyle() {
+    if (looper) looper->styleChanged(settings, now_);
 }
 } // namespace zc

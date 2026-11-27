@@ -1,4 +1,5 @@
 #include "audio.hpp"
+#include "looper.hpp"
 #include "midi_device.hpp"
 #include "platform.hpp"
 #include "settings_io.hpp"
@@ -127,6 +128,13 @@ int main(int argc, char **argv) {
         if (!instrument.library.warning.empty())
             std::cerr << instrument.library.warning;
         instrument.configure();
+        // The loop lives beside the settings; --no-save leaves it untouched.
+        zc::Looper looper(instrument, audio ? static_cast<zc::Sink &>(*audio)
+                                            : static_cast<zc::Sink &>(silent));
+        instrument.looper = &looper;
+        looper.path = (std::filesystem::path(configPath()).parent_path() / "loop.txt").string();
+        looper.load();
+        if (noSave) looper.path.clear();
         zc::UI ui(instrument, [&] { return platform.systemVolume(); },
                   [&](int percent) { return platform.setSystemVolume(percent); });
         const auto start = std::chrono::steady_clock::now();
@@ -136,6 +144,9 @@ int main(int argc, char **argv) {
         uint64_t spaceAt = 0;
         bool spaceDown = false, spaceHeld = false;
         constexpr uint64_t spaceHoldMs = 600;
+        // Enter works the loop: a tap acts on release, a hold drops a take or asks to delete.
+        uint64_t enterAt = 0;
+        bool enterDown = false, enterHeld = false;
         size_t eventIndex = 0;
         auto input = [&](char key, bool down, uint64_t now) {
             if (key == 27) {
@@ -166,8 +177,19 @@ int main(int argc, char **argv) {
                 }
                 return;
             }
+            if (key == '\n' && (enterDown || (down && !ui.settingsOpen && !ui.tempoOpen() &&
+                                               !ui.loopQuestion()))) {
+                if (down && !enterDown) {
+                    enterDown = true, enterHeld = false, enterAt = now;
+                } else if (!down && enterDown) {
+                    enterDown = false;
+                    if (!enterHeld) looper.tap(enterAt, now);
+                }
+                return;
+            }
             const bool shortcut = !instrument.allFront && (key == 'p' || key == 'o'); // Notes there.
-            if (ui.settingsOpen || ui.tempoOpen() || ui.backingOpen() || shortcut) {
+            if (ui.settingsOpen || ui.tempoOpen() || ui.backingOpen() || ui.loopQuestion() ||
+                shortcut) {
                 const bool quickBacking = ui.backingOpen();
                 ui.key(key, down);
                 // Releases still reach the instrument while O's quick Backing page is open.
@@ -209,6 +231,14 @@ int main(int argc, char **argv) {
             play(now);
             if (escDown && now - escAt >= 800)
                 quit = true;
+            if (enterDown && !enterHeld && now - enterAt >= spaceHoldMs) {
+                enterHeld = true;
+                const auto state = looper.state();
+                if (state == zc::LoopState::Armed || state == zc::LoopState::Recording)
+                    looper.discard();
+                else if (state != zc::LoopState::Empty)
+                    ui.askDeleteLoop();
+            }
             if (spaceDown && !spaceHeld && now - spaceAt >= spaceHoldMs && !ui.settingsOpen) {
                 spaceHeld = true;
                 instrument.setAllFront(!instrument.allFront);

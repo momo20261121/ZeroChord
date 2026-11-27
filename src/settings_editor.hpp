@@ -12,7 +12,7 @@ class SettingsEditor {
   public:
     enum class Page {
         Setup, Combinations, FrontNotes, Envelope, VolumeEffects, Backing, FrontSound, MidiInput,
-        AllFront
+        AllFront, Loop, LoopMix
     };
     enum class Tab { Style, App, About };
     // Number rows change with left/right; Opens rows (pages, lists, actions) open with Enter.
@@ -49,7 +49,18 @@ class SettingsEditor {
     static constexpr int allFrontScaleField = 55;
     static constexpr int allFrontOctaveField = 56; // Scale mode: octave of Z-M.
     static constexpr int allFrontLowestField = 57; // Free play: note of Z.
-    static constexpr int settingCount = allFrontLowestField + 1;
+    static constexpr int loopLayerRows = 6;
+    static constexpr int loopField = 58;       // App row that opens the Loop page.
+    static constexpr int loopStatusField = 59; // The recorded loop; information only.
+    static constexpr int loopStyleField = 60;  // Recorded or Follow current.
+    static constexpr int loopBarsField = 61;   // Length limit.
+    static constexpr int loopShortField = 62;  // Short chords.
+    static constexpr int loopSnapField = 63;   // Snap changes.
+    static constexpr int loopMixField = 64;    // Opens Loop mix.
+    static constexpr int loopDeleteField = 65;
+    static constexpr int loopLayerField = 66; // Loop mix rows 66-71: Front, then backingLayerOrder.
+    static constexpr int loopCountField = loopLayerField + loopLayerRows; // Count-in bars.
+    static constexpr int settingCount = loopCountField + 1;
     static constexpr int backingTabCount = 6; // Layers, Chord, Arp, Pad, Bass, Drums.
     explicit SettingsEditor(Instrument &instrument,
                             std::function<std::optional<int>()> readSystemVolume = {},
@@ -73,6 +84,9 @@ class SettingsEditor {
     bool backingOpen() const { return settingsOpen && page_ == Page::Backing && fromPlay_; }
     int backingTab() const { return backingTab_; }
     bool tempoOpen() const { return tempo_; }
+    // "Delete loop?" from a held Enter or the Loop page: Enter deletes, Esc keeps.
+    bool loopQuestion() const { return loopQuestion_; }
+    void askDeleteLoop();
     int tempoRow() const { return tempoRow_; } // 0 Tempo, 1 Swing, 2 Amount.
     const std::string &tempoText() const { return tempoInput_; }
     const std::string &tempoError() const { return tempoError_; }
@@ -97,7 +111,7 @@ class SettingsEditor {
     static constexpr int frontKeyField = 5;
     enum class SetupDestination {
         Picker, Tempo, Backing, Envelope, FrontNotes, Combinations, VolumeEffects, FrontSound, Mix,
-        MidiInput, AllFront
+        MidiInput, AllFront, Loop
     };
     enum class Confirmation { None, Create, Restore };
     RowKind rowKind(int field) const;
@@ -127,10 +141,18 @@ class SettingsEditor {
     std::vector<Choice> choices_;
     std::string status_;
     std::optional<int> systemVolume_;
+    bool loopQuestion_ = false;
+    int loopRow_ = 1;
     bool settingListPage() const {
         return page_ == Page::Setup || page_ == Page::VolumeEffects || page_ == Page::Backing ||
-               page_ == Page::FrontSound || page_ == Page::MidiInput || page_ == Page::AllFront;
+               page_ == Page::FrontSound || page_ == Page::MidiInput || page_ == Page::AllFront ||
+               page_ == Page::Loop || page_ == Page::LoopMix;
     }
+    static bool loopLayerRow(int index) {
+        return index >= loopLayerField && index < loopLayerField + loopLayerRows;
+    }
+    bool hasLoop() const;
+    std::string loopSummary() const;
     static bool mixField(int index) {
         return (index >= chordMixField && index < chordMixField + 3) || index == drumMixField ||
                index == bassMixField;
@@ -197,6 +219,7 @@ class SettingsEditor {
     void nextTab();
     void jumpTab(int tab);
     void adjustMix(int direction);
+    void adjustLoopLayer(int direction);
     void adjustSwing(int direction);
     void restoreSwing();
     void toggleLayer();

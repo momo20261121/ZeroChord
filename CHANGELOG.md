@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **Loop.** `Enter` arms a loop, the first chord or note starts it on beat 1,
+  `Enter` finishes it on the nearest bar (a press up to a 1/8 note late ends on the
+  bar just played) and stops what was playing, and `Enter` plays and stops it. Hold `Enter` to delete it (asks
+  first). A light at the top left shows waiting to record (blinking red), recording
+  (red, bar and beat), held (yellow), the count-in and playing (green), with a thin
+  bar above it for the position. Playback starts after a bar of clicks (Count-in:
+  Off, 1 bar or 2 bars). The
+  loop records chords and notes, not audio, so it follows the tempo. It replays the
+  take's own style by default, or the current style and key. It plays alongside
+  live playing; with no live chord, its chord shows in green and `Z`–`M` follow it.
+  Clean-up merges chords shorter than a 1/8 note into the next and snaps each change
+  to the nearest 1/8 on its own, so errors never add up; both settings can be changed
+  at any time without re-recording. New **App → Loop** page with Style, Length limit
+  (default 64 bars), Count-in, Short chords, Snap changes, a **Loop mix** page (mute and level
+  per layer, Front included) and Delete loop. The loop is saved between sessions.
 - **All front.** Hold `Space` to switch to a screen where `4`–`0`, `E`–`O`, `D`–`L`
   and `Z`–`M` all play the front sound; hold it again to return. A latched backing
   chord keeps playing. `Q`/`W` shift the octave, a `Space` tap stops everything,

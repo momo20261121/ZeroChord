@@ -600,6 +600,35 @@ int main(int argc, char **argv) {
                     throw std::runtime_error(styles.entries[n].id + " style is silent");
             }
         }
+        {
+            // The loop has its own slot: live Panic and StopChord leave its notes sounding,
+            // and stopping the loop leaves live playing alone.
+            Renderer loop(argv[1]);
+            std::vector<float> block(4800 * 2);
+            auto energy = [&] {
+                loop.render(block.data(), 4800);
+                double sum = 0;
+                for (float x : block) sum += double(x) * x;
+                return sum;
+            };
+            Command config{CommandType::Configure};
+            loop.send(config);
+            config.slot = 1;
+            loop.send(config);
+            Command looped{CommandType::On, 0x80000001u, 60, 0, Part::Pad};
+            looped.slot = 1;
+            loop.send(looped);
+            energy();
+            loop.send(Command{});                     // Live Panic.
+            loop.send(Command{CommandType::StopChord}); // Live chord released.
+            if (energy() < 1e-5) throw std::runtime_error("live panic stopped the loop");
+            loop.send({CommandType::On, 7, 72, 0, Part::Harp});
+            Command stop{};
+            stop.slot = 1; // The loop stops.
+            loop.send(stop);
+            for (int n = 0; n < 5; ++n) energy(); // The loop's release fades.
+            if (energy() < 1e-6) throw std::runtime_error("stopping the loop stopped live notes");
+        }
         if (peak >= 0.99f)
             throw std::runtime_error("preset clipping");
         std::cout << "PASS: four presets, finite nonzero audio, independent overlapping notes, "

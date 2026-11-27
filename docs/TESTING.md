@@ -1,5 +1,40 @@
 # Testing ZeroChord
 
+## Loop — 2026-11-27
+
+- **Local:** all eight desktop suites pass, including the new `loop_tests`. It covers
+  clean-up (short chords merged on the raw times before snapping, independent snapping
+  over 128 changes with no drift, stabs kept, short gaps closed, collisions, changes
+  and chords at the loop's end), recording (arming, the take starting at the first
+  key of a combination, ending on the nearest bar, a late Enter within the window,
+  the length limit, dropping a take), playback (slot 1 commands, the loop chord on the
+  screen and Z-M, a live chord on top, tempo following, Space), Recorded vs Follow
+  current, Loop mix overrides and restore, and save/load. `audio_tests` checks that a
+  live Panic or chord stop leaves loop notes sounding and stopping the loop leaves live
+  notes. `settings_tests` walks the Loop page. All 44 real-app flows pass.
+  The count-in is tested too: four clicks, beat 1 accented, then beat 1, and Enter
+  cancels it.
+- **UI:** the waiting, recording, holding, count-in and playing lights, the loop chord
+  with and without a live chord, All front with a loop, the Loop and Loop mix pages and
+  the delete question were checked at 320×170, in both themes for the playing screen.
+- **Device load** (`scripts/device_load_test.py`, with the project `.env` loaded): the
+  deployed app runs a scripted Dance session (all layers, 124 BPM) with isolated settings
+  and the installed sound packs, sampling `/proc` every 0.25 s. It fails if the busiest
+  thread passes 70% of one core or the audio queue overflows. `--local` dry-runs it on the
+  desktop build. Results on the Cardputer (4 cores), 2026-11-27:
+
+  | Phase | Process | Busiest thread | RSS |
+  | --- | --- | --- | --- |
+  | Idle | 19% | 11% | 65 MB |
+  | Live playing while recording | 45% | 31% | 65 MB |
+  | Count-in | 27% | 14% | 65 MB |
+  | Loop alone | 46% | 32% | 65 MB |
+  | Loop + live chords, strums and front notes | 50% | 38% | 65 MB |
+  | Loop + All front runs | 52% | 37% | 65 MB |
+
+  No audio queue overflows. Without the sound packs, RSS is 19 MB and each phase about
+  2 points lower.
+
 ## All front — 2026-11-27
 
 - **Layout:** the device keymap (`tca8418` `linux,keymap`) puts `4`–`0`, `E`–`O`, `D`–`L`

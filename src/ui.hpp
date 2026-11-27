@@ -27,6 +27,11 @@ class UI : public SettingsEditor {
     void drawVolumeEffects();
     void drawMidiInput();
     void drawAllFrontPage();
+    void drawLoopPage();
+    void drawLoopMix();
+    void drawLoopQuestion();
+    void drawLoopLight(PerformanceView &view);
+    void updateLoopLight(PerformanceView &view, const std::string &title, bool sharpened);
     void drawAllFront(); // The playing screen in All front.
     void drawPicker();
     void drawTempo();

@@ -153,6 +153,10 @@ struct Settings : PerformanceSettings {
     // front key and scale (shared with Front notes) from allFrontOctave; Free play is a piano-style
     // layout whose lowest white key is allFrontLowest.
     int allFrontMode = 0, allFrontOctave = 3, allFrontLowest = 53; // Scale, octave 3, F3.
+    // Loop (Enter): Style 0 plays the take's recorded style, 1 follows the current one. The
+    // length limit is in bars; Short chords and Snap are loopGridTicks steps (Off, 1/16, 1/8,
+    // 1/4). Count-in clicks this many bars before playback starts.
+    int loopStyle = 0, loopBars = 64, loopShort = 2, loopSnap = 2, loopCount = 1;
     std::array<int, 3> eqDb{}; // App-wide Low / Mid / High gain, in dB.
     int chordOctave = 3;
     std::array<int, 7> degreeChordRoot{-1, -1, -1, -1, -1, -1, -1}; // -1 follows Key; otherwise absolute pitch class.

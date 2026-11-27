@@ -63,6 +63,11 @@ template <class F> void fields(Settings &s, F field) {
     field("allFrontMode", s.allFrontMode);
     field("allFrontOctave", s.allFrontOctave);
     field("allFrontLowest", s.allFrontLowest);
+    field("loopStyle", s.loopStyle);
+    field("loopBars", s.loopBars);
+    field("loopShort", s.loopShort);
+    field("loopSnap", s.loopSnap);
+    field("loopCount", s.loopCount);
     field("drums", s.drums);
     field("drumKit", s.drumKit);
     field("drumPattern", s.drumPattern);
@@ -94,6 +99,9 @@ template <class F> void fields(Settings &s, F field) {
 } // namespace
 void loadSettings(Settings &s, const std::string &path) {
     std::ifstream in(path);
+    readSettings(s, in);
+}
+void readSettings(Settings &s, std::istream &in) {
     std::string line;
     int version = 0, legacyRegister = 0, legacyLow = 0, legacyHigh = 127;
     std::array<int, 7> legacyOctave{};
@@ -196,6 +204,13 @@ void saveSettings(const Settings &settings, const std::string &path) {
     if (!parent.empty())
         std::filesystem::create_directories(parent);
     std::ofstream out(path + ".tmp");
+    writeSettings(settings, out);
+    out.close();
+    if (!out)
+        throw std::runtime_error("Cannot save settings");
+    std::filesystem::rename(path + ".tmp", path);
+}
+void writeSettings(const Settings &settings, std::ostream &out) {
     out << "frontMappingVersion 2\n";
     Settings copy = settings;
     fields(copy, [&](const std::string &name, int &value) { out << name << ' ' << value << '\n'; });
@@ -207,9 +222,5 @@ void saveSettings(const Settings &settings, const std::string &path) {
                       {"bassSound", settings.bassSound}})
         if (!pair.second.empty())
             out << pair.first << ' ' << pair.second << '\n';
-    out.close();
-    if (!out)
-        throw std::runtime_error("Cannot save settings");
-    std::filesystem::rename(path + ".tmp", path);
 }
 } // namespace zc
