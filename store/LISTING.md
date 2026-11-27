@@ -28,10 +28,10 @@ User guide (https://github.com/momo20261121/ZeroChord/blob/main/docs/USER_GUIDE.
 Export the [original icon](../assets/zerochord-source.png) as a 256 × 256 PNG.
 Use these 320 × 170 screenshots in order.
 
-1. [Performance](screenshots/performance.png)
-2. [Style](screenshots/style.png)
-3. [Volume & effects](screenshots/volume-effects.png)
-4. [Sounds](screenshots/sounds.png)
-5. [Chord configuration](screenshots/chord-config.png)
+1. [Playing over a loop](screenshots/1-loop.png)
+2. [All front over a loop](screenshots/2-all-front.png)
+3. [Backing layers](screenshots/3-backing-layers.png)
+4. [Sounds](screenshots/4-sounds.png)
+5. [Loop settings](screenshots/5-loop-settings.png)
 
 Use this copy when updating the listing in the [CardputerZero Developer Center](https://dev.cardputer.cc/#/upload).

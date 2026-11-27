@@ -2,7 +2,7 @@
 
 <img src="assets/share/images/zerochord.png" alt="ZeroChord icon" width="96" height="96">
 
-**A pocket chord instrument, backing band and looper for CardputerZero. Version 1.4.0.**
+**A pocket chord instrument, backing band and looper for CardputerZero. Version 2.0.0.**
 
 ZeroChord turns your CardputerZero into a pocket jam partner. Pick a chord with one hand,
 play its notes with the other, and a backing band of Chord, Arp, Pad, Bass and Drums
@@ -19,16 +19,16 @@ Inspired by [**minichord**](https://minichord.com/) and the
 Seven editable presets, from Dream to Waltz to Dance, give you a starting point; sounds,
 envelopes, tempo and swing are adjustable.
 
-![ZeroChord performance screen](docs/images/release-performance.png)
+![ZeroChord playing over a loop: the green light counts the loop's bars and its chord shows in green](docs/images/release-loop.png)
 
-[Download ZeroChord 1.4.0](https://github.com/momo20261121/ZeroChord/releases/download/v1.4.0/zerochord_1.4.0_arm64.deb) · [Make your first sound](#make-your-first-sound) · [User guide](docs/USER_GUIDE.md)
+[Download ZeroChord 2.0.0](https://github.com/momo20261121/ZeroChord/releases/download/v2.0.0/zerochord_2.0.0_arm64.deb) · [Make your first sound](#make-your-first-sound) · [User guide](docs/USER_GUIDE.md)
 
 ## Install
 
-Copy `zerochord_1.4.0_arm64.deb` to the CardputerZero, then run there:
+Copy `zerochord_2.0.0_arm64.deb` to the CardputerZero, then run there:
 
 ```sh
-sudo apt install ./zerochord_1.4.0_arm64.deb
+sudo apt install ./zerochord_2.0.0_arm64.deb
 systemctl --user restart APPLaunch.service
 ```
 

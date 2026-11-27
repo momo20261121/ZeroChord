@@ -1,5 +1,24 @@
 # Testing ZeroChord
 
+## 2.0.0 release — 2026-11-27
+
+- **Local:** all eight desktop suites, the same eight built with ASan/UBSan (Debug,
+  LeakSanitizer on) and all 47 real-app flows passed. Store and guide screenshots
+  were regenerated twice and matched byte for byte.
+- **Package:** `dist/zerochord_2.0.0_arm64.deb`, 828,696 bytes, SHA-256
+  `162076e9…ab37b0`; executable SHA-256 `769af327…f0313b`. Privacy scan: 0 FAIL for
+  the tree and the archive. The final package was rebuilt after the installed test
+  only to bundle this record; outside `usr/share/doc/zerochord/` its files and modes
+  match the tested archive, and its executable is the one tested, so the installed
+  test was not repeated.
+- **Device:** installed over 1.4.0; `scripts/test_installed.py 2.0.0` passed: version
+  and `dpkg --verify`, launcher entry and icon, evdev input with the printed arrows,
+  framebuffer readback matching the app capture, isolated settings persistence, a
+  one-bar loop recorded through injected keys and saved as 4/4, 520,800 stereo
+  frames of audio (peak 29,164), zero queue overflows and a clean long-Esc exit.
+- **Not validated:** a real MIDI keyboard, hands-on playing of the looper and All
+  front, and listening on the speaker or headphones.
+
 ## Everything in ~/ZeroChord — 2026-11-27
 
 - **Local:** all eight suites and 47 real-app flows pass. `settings_tests` covers the

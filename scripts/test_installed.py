@@ -113,6 +113,9 @@ try:
         tap(1); tap(1)
         tap(25) # P: numeric tempo
         for code in [2,4,8,28]: tap(code) # 137 Enter
+        # Loop: Enter arms, the first chord starts the take and Enter ends it on the nearest
+        # bar (1.75 s at 137 BPM); the take is saved beside the settings.
+        tap(28); tap(9); time.sleep(1.75); tap(28)
         tap(9); time.sleep(.3)
         kernel=framebuffer(out/'kernel.ppm')
         assert int(backlight.read_text())>0
@@ -122,6 +125,8 @@ try:
     expected = {'masterVolume':'95', 'eqLowDb':'3', 'mode':'1', 'chordPattern':'1', 'bpm':'137',
                 'bass':'1', 'drums':'1'}
     assert {key: settings[key] for key in expected} == expected, settings
+    take=(config/'zerochord/loop.txt').read_text().splitlines()
+    assert take[0]=='zerochord-loop 1' and take[1]=='bars 1' and take[2]=='beats 4', take[:3]
     internal=(out/'app.ppm').read_bytes().split(b'\n',3)[3]
     assert len(kernel)==len(internal) and max(abs(a-b) for a,b in zip(kernel,internal))<=8
     log=(out/'installed.log').read_text()
@@ -135,7 +140,7 @@ try:
     result={'version':version,'status':'passed','installed_wrapper':str(wrapper),
             'audio_frames':len(values)//2,'audio_peak':max(abs(v) for v in values),
             'input':'temporary evdev keyboard; printed Z/C/F/X navigation',
-            'settings':'isolated; Chord-only layer, chord pattern, App Vol, EQ and tempo saved/reloaded',
+            'settings':'isolated; Chord-only layer, chord pattern, App Vol, EQ, tempo and a 1-bar loop saved/reloaded',
             'framebuffer':'320x170 kernel readback matches app capture within RGB565 quantization',
             'exit':'long Esc exits cleanly; launcher restored in finally',
             'limits':'Digital audio and injected keys; physical feel and listening remain manual.'}

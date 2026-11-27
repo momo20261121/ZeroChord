@@ -235,6 +235,8 @@ Hold, switch, and play over the groove. With Hold off, switching stops the chord
 - Tap `Space` to stop everything; you stay in All front.
 - `Tab` opens settings. `O`, `P`, `9`, and `0` are notes here, not shortcuts.
 
+![All front over a loop: four rows of keys, each showing its note, with two keys held](images/release-all-front.png)
+
 Choose the layout in **App → All front**. These settings apply to every preset.
 
 - **Scale** (default): each row is one octave of the front scale, `Z`–`M` lowest
@@ -266,6 +268,8 @@ Choose the layout in **App → All front**. These settings apply to every preset
 4. Press `Enter` to play the loop. A bar of side-stick clicks counts you in (the
    light flashes green with the beat), then the loop starts on beat 1; press
    `Enter` again to stop it, or to cancel the count-in.
+
+![A loop playing in its second bar: the green light reads Loop 2/4, the chord box shows G in green marked loop, and the front keys follow G](images/release-loop.png)
 
 Hold `Enter` to delete the loop; Enter confirms and Esc keeps it. Holding `Enter`
 while waiting or recording drops the take at once. `Space` stops the loop and
