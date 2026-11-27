@@ -267,16 +267,20 @@ all layers and queued front strums while preserving settings.
 
 ## Editable TOML files
 
-The app uses `$XDG_CONFIG_HOME/zerochord/`, falling back to
-`~/.config/zerochord/`. On the first normal launch it exports readable defaults:
+The app keeps everything in `~/ZeroChord/` (or `$ZEROCHORD_HOME`). Before 2.0 it used
+`$XDG_CONFIG_HOME/zerochord/` or `~/.config/zerochord/`; the first launch of 2.0 moves
+that folder's contents into `~/ZeroChord/` and deletes it. A file both folders already
+had is left in the old one. On the first normal launch it exports readable defaults:
 
 ```
-zerochord/
+ZeroChord/
   presets/factory/dream.toml    # dream, pop, rnb, rock, waltz, bossa, dance
   presets/user/user-001.toml    # Your saved/copied presets
   working/dream.toml           # Remembered edits; defaults remain separate
   session.toml                # Selected stable preset ID
   settings.conf               # App controls and legacy-compatible state
+  loop.txt                    # The Enter loop
+  sounds/                     # Your SoundFonts and sound packs
 ```
 
 Close ZeroChord before editing files. It reloads them on next launch. Editing a

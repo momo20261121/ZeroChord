@@ -326,7 +326,7 @@ The line below the rows says what the highlighted option does. In a list,
 | --- | --- |
 | **Style** | **Settings for this preset** covers tempo and swing, backing layers and mix, patterns, sounds, and envelopes |
 | **App** | **Applies to all presets** covers theme, volume and effects, chord config, and front notes |
-| **Shortcuts** | Every key in one list: playing, loop and modes, All front, the Tempo page, and settings pages. `F` / `X` (↑ / ↓) scroll it; the line below explains the highlighted key. |
+| **Shortcuts** | A short manual of every key, in six pages: Chords, Notes and keys, Loop and modes, All front, Tempo page, and Settings pages. Any arrow (`Z` / `C` or `F` / `X`) turns the page. |
 | **About** | The installed version and a QR code to the repository and documentation |
 
 The About QR code works in either theme. Open it on a phone with internet access.
@@ -403,8 +403,8 @@ and how to save custom values.
 
 ## Import your own sounds
 
-1. Put a **SoundFont (.sf2)** file or a sound pack in `ZeroChord/sounds/` on the
-   TF card, or in `~/ZeroChord/sounds/`.
+1. Put a **SoundFont (.sf2)** file or a sound pack in `~/ZeroChord/sounds/`, or in
+   `ZeroChord/sounds/` on a separately mounted card.
 2. Restart ZeroChord.
 3. Open **Sound** in **Style → Front sound** or on a **Backing layers** tab.
    Sounds are grouped as Keys, Plucked (shown as **Pluck**), Strings, Winds,
@@ -495,6 +495,7 @@ Dedicated arrow keys also work in settings. Hold `Esc` to exit from any page.
 | **A chord combination attacks twice** | In **App → Chord config → All**, increase **Chord combo timing** slightly. |
 | **An imported sound is missing** | Restart and check the [sound pack formats and limits](../sounds/README.md). |
 | **MIDI keyboard does nothing** | Check **App → MIDI input → Keyboard**. If it reads **None**, try another cable or a powered USB hub; the keyboard must be class-compliant. If notes arrive but are silent, raise the mix of the part shown in **Plays**. |
+| **Where are my files?** | Everything ZeroChord keeps is in `~/ZeroChord/`: `settings.conf`, `presets/`, `loop.txt` and `sounds/`. Back up or copy this folder to keep your setup. 2.0 moved it there from `~/.config/zerochord/` on its first launch. |
 | **Recent edits disappeared** | Hold `Esc` to exit and save settings before turning off the device. |
 
 For development and verification, see the [build guide](DEVELOPMENT.md) and

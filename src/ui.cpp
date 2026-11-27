@@ -272,29 +272,21 @@ void UI::drawAbout() {
 void UI::drawShortcuts() {
     label(8, 5, 304, "ZeroChord / Setup", colors.accent, titleFont);
     tabs(setupTabNames, int(tab_));
-    const auto list = shortcuts(instrument_.settings);
-    const int count = int(list.size()), row = std::clamp(shortcut_, 0, count - 1);
-    label(10, 46, 200, list[size_t(row)].group, colors.muted);
-    label(214, 46, 98, std::to_string(row + 1) + "/" + std::to_string(count), colors.muted, small,
+    const auto pages = shortcuts(instrument_.settings);
+    const int count = int(pages.size()), page = std::clamp(shortcut_, 0, count - 1);
+    label(10, 46, 200, pages[size_t(page)].title, colors.accent);
+    label(214, 46, 98, std::to_string(page + 1) + " / " + std::to_string(count), colors.muted, small,
           LV_TEXT_ALIGN_RIGHT);
-    constexpr int top = 59, spacing = 15;
-    const int first = firstVisibleRow(row, count, visibleRows);
-    for (int n = first; n < count && n < first + visibleRows; n++) {
-        const auto &shortcut = list[size_t(n)];
-        const int y = top + (n - first) * spacing;
-        const bool selected = n == row;
-        if (selected) rowFocus(y, spacing);
-        // A new group starts on this row: a thin rule above it.
-        if (n > first && list[size_t(n - 1)].group != shortcut.group)
-            box(16, y - 1, 290, 1, colors.panel);
-        auto *keys = label(16, y, 108, shortcut.keys, colors.signal, body);
+    int y = 61;
+    for (const auto &line : pages[size_t(page)].lines) {
+        auto *keys = label(16, y, 108, line.keys, colors.signal, body);
         lv_label_set_long_mode(keys, LV_LABEL_LONG_CLIP);
-        auto *action = label(128, y, 178, shortcut.action, selected ? colors.accent : colors.text, body);
+        auto *action = label(128, y, 182, line.action, colors.text, body);
         lv_obj_set_height(action, body->line_height);
         lv_label_set_long_mode(action, LV_LABEL_LONG_DOT);
+        y += 15;
     }
-    scrollIndicator(top - 1, first, count, visibleRows, spacing);
-    footer(list[size_t(row)].detail, "", {});
+    footer("", "", {{LV_SYMBOL_LEFT LV_SYMBOL_RIGHT, "Turn the page", "Page"}});
 }
 bool UI::drawSettingRows(int top, int limit, int spacing) {
     const auto &fields = rows();

@@ -61,7 +61,7 @@ for key in ['ZEROCHORD_SSH_HOST', 'ZEROCHORD_SSH_CONFIG', 'GIT_AUTHOR_EMAIL', 'G
     value = env.get(key) or ''
     # A GitHub noreply address is the public identity, not a private one.
     add(public if value.endswith('@users.noreply.github.com') else private, key, value)
-if env.get('ZEROCHORD_REMOTE_DIR', 'ZeroChord') != 'ZeroChord':
+if env.get('ZEROCHORD_REMOTE_DIR', 'zerochord-dev') != 'zerochord-dev':
     add(private, 'ZEROCHORD_REMOTE_DIR', env.get('ZEROCHORD_REMOTE_DIR'))
 # The Mac account's own identity, read straight from the system so it is still known
 # when HOME and Git's settings point somewhere else.

@@ -4,6 +4,7 @@
 #include "platform.hpp"
 #include "settings_io.hpp"
 #include "sounds.hpp"
+#include "storage.hpp"
 #include "ui.hpp"
 #include <algorithm>
 #include <atomic>
@@ -22,13 +23,8 @@ void signalHandler(int) { stopping = 1; }
 struct Silent : zc::Sink {
     void send(const zc::Command &) override {}
 };
-std::string configPath() {
-    if (const char *xdg = std::getenv("XDG_CONFIG_HOME"))
-        return std::string(xdg) + "/zerochord/settings.conf";
-    if (const char *home = std::getenv("HOME"))
-        return std::string(home) + "/.config/zerochord/settings.conf";
-    return "/tmp/zerochord-settings.conf";
-}
+std::string dataDir; // ~/ZeroChord, or ZEROCHORD_HOME; chosen once at startup.
+std::string configPath() { return (std::filesystem::path(dataDir) / "settings.conf").string(); }
 } // namespace
 int main(int argc, char **argv) {
     try {
@@ -113,7 +109,22 @@ int main(int argc, char **argv) {
         std::signal(SIGTERM, signalHandler);
         lv_init();
         zc::Platform platform(headless);
-        zc::soundLibrary().load(std::filesystem::path(configPath()).parent_path().string(), bank);
+        // Everything lives in ~/ZeroChord/; the first launch moves the old ~/.config/zerochord/
+        // there. --no-save writes nothing, so it reads whichever folder holds the settings.
+        dataDir = zc::dataDirectory();
+        const std::string legacy = zc::legacyDirectory();
+        if (!noSave) {
+            std::string moved;
+            dataDir = zc::migrateData(legacy, dataDir, moved);
+            if (!moved.empty()) std::cerr << "ZeroChord: " << moved << "\n";
+        } else if (!legacy.empty() && !std::filesystem::exists(configPath()) &&
+                   std::filesystem::exists(std::filesystem::path(legacy) / "settings.conf"))
+            dataDir = legacy;
+        // Packs someone still copies to the old folder keep working.
+        std::vector<std::string> oldSounds;
+        if (!legacy.empty() && legacy != dataDir)
+            oldSounds.push_back((std::filesystem::path(legacy) / "sounds").string());
+        zc::soundLibrary().load(dataDir, bank, oldSounds);
         if (!zc::soundLibrary().warning.empty())
             std::cerr << zc::soundLibrary().warning;
         Silent silent;
@@ -123,8 +134,7 @@ int main(int argc, char **argv) {
         zc::Instrument instrument(audio ? static_cast<zc::Sink &>(*audio)
                                         : static_cast<zc::Sink &>(silent));
         zc::loadSettings(instrument.settings, configPath());
-        instrument.library.load(std::filesystem::path(configPath()).parent_path().string(),
-                                instrument.settings, !noSave);
+        instrument.library.load(dataDir, instrument.settings, !noSave);
         if (!instrument.library.warning.empty())
             std::cerr << instrument.library.warning;
         instrument.configure();
@@ -132,7 +142,7 @@ int main(int argc, char **argv) {
         zc::Looper looper(instrument, audio ? static_cast<zc::Sink &>(*audio)
                                             : static_cast<zc::Sink &>(silent));
         instrument.looper = &looper;
-        looper.path = (std::filesystem::path(configPath()).parent_path() / "loop.txt").string();
+        looper.path = (std::filesystem::path(dataDir) / "loop.txt").string();
         looper.load();
         if (noSave) looper.path.clear();
         zc::UI ui(instrument, [&] { return platform.systemVolume(); },

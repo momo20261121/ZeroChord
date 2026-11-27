@@ -104,13 +104,18 @@ class SettingsEditor {
     static const char *settingName(int index);
     static const char *combinationName(int index);
     static int envelopeField(int part);
-    // The Shortcuts tab: a read-only list of every key, in groups.
+    // The Shortcuts tab: a read-only manual of every key, one page per group. Any arrow
+    // (F/X/Z/C) turns the page.
     struct Shortcut {
-        const char *group;
-        std::string keys, action, detail;
+        std::string keys, action;
     };
-    static std::vector<Shortcut> shortcuts(const Settings &settings);
-    int shortcutRow() const { return shortcut_; }
+    struct ShortcutPage {
+        const char *title;
+        std::vector<Shortcut> lines; // At most shortcutLines.
+    };
+    static constexpr int shortcutLines = 6;
+    static std::vector<ShortcutPage> shortcuts(const Settings &settings);
+    int shortcutPage() const { return shortcut_; }
 
   protected:
     static constexpr int chordHoldField = 9;
@@ -130,7 +135,7 @@ class SettingsEditor {
     Page envelopeParent_ = Page::Backing;
     Tab tab_ = Tab::Style;
     int tabRows_[4] = {0, 0, 0, 0};
-    int shortcut_ = 0; // Highlighted row of the Shortcuts tab.
+    int shortcut_ = 0; // Page of the Shortcuts tab.
     int volumeEffectsRow_ = 0, midiRow_ = 1;
     std::array<int, backingTabCount> backingRows_{};
     int frontSoundRow_ = 0;

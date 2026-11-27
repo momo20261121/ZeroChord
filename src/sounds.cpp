@@ -185,9 +185,7 @@ void SoundLibrary::load(const std::string &config, const std::string &builtin,
         else
             throw std::runtime_error("Cannot load sound bank: " + builtin);
     }
-    std::vector<fs::path> directories{fs::path(config) / "sounds"};
-    if (const char *home = std::getenv("HOME"))
-        directories.emplace_back(fs::path(home) / "ZeroChord/sounds");
+    std::vector<fs::path> directories{fs::path(config) / "sounds"}; // ~/ZeroChord/sounds
     if (const char *env = std::getenv("ZEROCHORD_SOUNDS_DIR"))
         directories.emplace_back(env);
     for (auto &dir : extra)

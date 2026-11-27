@@ -76,7 +76,7 @@ try:
         time.sleep(.1)
     assert device and os.access(device,os.R_OK)
     config=out/('config-'+str(os.getpid()))
-    environment=dict(os.environ,ZEROCHORD_INPUT_DEVICE=device,XDG_CONFIG_HOME=str(config))
+    environment=dict(os.environ,ZEROCHORD_INPUT_DEVICE=device,ZEROCHORD_HOME=str(config/'zerochord'))
     subprocess.run(['systemctl','--user','stop','zerochord-preview.service'],check=False)
     subprocess.run(['systemctl','--user','stop','APPLaunch.service'],check=True)
     launcher_stopped=True

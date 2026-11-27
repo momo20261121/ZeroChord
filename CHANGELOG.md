@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **One folder: `~/ZeroChord/`.** Settings, presets, the loop and sound packs now live
+  together in `~/ZeroChord/`, easy to find, back up and copy. The first launch moves
+  everything from `~/.config/zerochord/` there and deletes the old folder; packs
+  already in `~/ZeroChord/sounds/` stay, and a file both folders had stays in the old
+  one. If the move fails, it is undone and the old folder is used. Packs copied to the
+  old `sounds/` folder still load.
+
 - **3/4 loops.** A style is in 3/4 when any layer uses a 3/4 pattern (Chords on 2 and
   3, Broken 3/4, or a Waltz 3/4 pattern), muted or not. Loops recorded in it have
   three-beat bars: the light counts REC 2.3, the take ends on a whole 3/4 bar, the
@@ -10,9 +17,9 @@
 - **Tap tempo.** Press `P` on the Tempo page in time with the beat. From the second tap
   the tempo follows the average of the last four gaps and applies at once; a 2-second
   pause starts a new count.
-- **Shortcuts tab.** Settings gains a Shortcuts tab before About, listing every key by
-  group (Playing, Loop & modes, All front, Tempo page, Settings pages), with a line
-  explaining the highlighted one. About is now tab 4.
+- **Shortcuts tab.** Settings gains a Shortcuts tab before About: a six-page manual of
+  every key (Chords, Notes and keys, Loop and modes, All front, Tempo page, Settings
+  pages). Any arrow turns the page. About is now tab 4.
 - **MIDI pitch bend and mod wheel.** Pitch bend moves MIDI notes up to two semitones
   either way, and the mod wheel adds a vibrato of up to ±50 cents. Only MIDI notes
   move; drums ignore both. Reset all controllers and unplugging centre them. Loops

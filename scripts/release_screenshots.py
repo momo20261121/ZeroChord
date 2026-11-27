@@ -28,7 +28,7 @@ with tempfile.TemporaryDirectory(prefix='zerochord-release-') as temporary:
             events.extend([f'{20+n*25} {key} down', f'{30+n*25} {key} up'])
         script.write_text('\n'.join(events)+'\n')
         ppm = work/(name+'.ppm')
-        environment = dict(os.environ, XDG_CONFIG_HOME=str(work/name))
+        environment = dict(os.environ, ZEROCHORD_HOME=str(work/name/'zerochord'))
         subprocess.run([str(root/'build/desktop/M5CardputerZero-ZeroChord'),
                         '--headless', '--no-audio', '--no-save', '--script', str(script),
                         '--capture', str(ppm), '--quit-after-ms', str(100+len(keys)*25)],

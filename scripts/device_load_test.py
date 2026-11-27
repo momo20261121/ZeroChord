@@ -155,7 +155,7 @@ def main():
 def run_local(folder, end):
     config = folder/'config'
     (config/'zerochord').mkdir(parents=True)
-    env = dict(os.environ, XDG_CONFIG_HOME=str(config))
+    env = dict(os.environ, ZEROCHORD_HOME=str(config/'zerochord'))
     binary = ROOT/'build/desktop/M5CardputerZero-ZeroChord'
     import time
     start = time.time()
@@ -174,7 +174,7 @@ def run_device(folder, end, sounds):
     ssh = ['-o', 'LogLevel=ERROR']
     if os.environ.get('ZEROCHORD_SSH_CONFIG'):
         ssh += ['-F', os.environ['ZEROCHORD_SSH_CONFIG']]
-    remote = os.environ.get('ZEROCHORD_REMOTE_DIR', 'ZeroChord')
+    remote = os.environ.get('ZEROCHORD_REMOTE_DIR', 'zerochord-dev')
     target = 'build/load-test'
     subprocess.run(['ssh', *ssh, host, 'mkdir', '-p', f'{remote}/{target}'], check=True)
     subprocess.run(['scp', '-q', *ssh, str(folder/'load.events'), str(folder/'sampler.py'),
@@ -186,11 +186,13 @@ root=$(pwd)
 test=$root/{target}
 rm -rf "$test/config"; mkdir -p "$test/config/zerochord"
 # Installed sound packs load as they do for the player (each bank renders on every part).
-if {'true' if sounds else 'false'} && test -d "$HOME/.config/zerochord/sounds"; then
-    ln -s "$HOME/.config/zerochord/sounds" "$test/config/zerochord/sounds"
+packs="$HOME/ZeroChord/sounds"
+test -d "$packs" || packs="$HOME/.config/zerochord/sounds" # Before the move to ~/ZeroChord.
+if {'true' if sounds else 'false'} && test -d "$packs"; then
+    ln -s "$packs" "$test/config/zerochord/sounds"
 fi
 systemctl --user stop zerochord-preview.service 2>/dev/null || true
-XDG_CONFIG_HOME="$test/config" sh scripts/run_device_preview.sh --script "$test/load.events" \\
+ZEROCHORD_HOME="$test/config/zerochord" sh scripts/run_device_preview.sh --script "$test/load.events" \\
     --quit-after-ms {end} 2> "$test/app.log" &
 start=$(date +%s.%N)
 for n in $(seq 50); do

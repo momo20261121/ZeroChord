@@ -98,8 +98,8 @@ try:
             break
         time.sleep(.1)
     assert device and os.access(device, os.R_OK), 'test keyboard unavailable'
-    environment = dict(os.environ, ZEROCHORD_INPUT_DEVICE=device, XDG_CONFIG_HOME=str(output/('config-'+str(os.getpid()))))
-    test_config = Path(environment['XDG_CONFIG_HOME'])/'zerochord/settings.conf'
+    environment = dict(os.environ, ZEROCHORD_INPUT_DEVICE=device, ZEROCHORD_HOME=str(output/('config-'+str(os.getpid()))/'zerochord'))
+    test_config = Path(environment['ZEROCHORD_HOME'])/'settings.conf'
     test_config.parent.mkdir(parents=True, exist_ok=True)
     # Keep the legacy Pad/Manual setup across restarts by using an edited tempo.
     test_config.write_text('preset 1\necho 0\nbpm 101\n')
@@ -213,7 +213,7 @@ try:
     with (output/'persistence.log').open('w') as log:
         process = subprocess.Popen([str(binary), '--script', 'tests/customization.events', '--quit-after-ms', '1800'], cwd=root, env=environment, stdout=log, stderr=log)
         assert process.wait(timeout=8) == 0, 'customization persistence run failed'
-    saved = Path(environment['XDG_CONFIG_HOME'])/'zerochord/settings.conf'
+    saved = Path(environment['ZEROCHORD_HOME'])/'settings.conf'
     settings = dict(line.split() for line in saved.read_text().splitlines())
     assert settings['combo3'] == '7' and settings['degree3combo3'] == '9', 'custom mappings not saved'
     with (output/'reload.log').open('w') as log:

@@ -34,7 +34,7 @@ def run(name, keys, expected, seed='', hold_escape=False):
     script = folder/'keys.events'
     script.write_text('\n'.join(events)+'\n')
     capture = folder/'screen.ppm'
-    env = dict(os.environ, XDG_CONFIG_HOME=str(config.parent.resolve()))
+    env = dict(os.environ, ZEROCHORD_HOME=str(config.resolve()))
     result = subprocess.run([str(args.binary.resolve()), '--headless', '--no-audio',
                              '--script', str(script.resolve()), '--capture', str(capture.resolve()),
                              '--quit-after-ms', str(duration)], cwd=ROOT, env=env,
@@ -127,6 +127,33 @@ run('about-wrap', ['TAB','4','TAB','x','ENTER','1','3','7','ENTER'], {'bpm':137}
 run('tap-tempo', ['p','p','p','p','ENTER'], {'bpm':240})
 
 
+def moved_to_zerochord():
+    """First launch of 2.0: the old ~/.config/zerochord/ moves into ~/ZeroChord/, once."""
+    import shutil
+    home = ROOT/'build/test-flows/migration-home'
+    shutil.rmtree(home, ignore_errors=True)
+    old = home/'.config/zerochord'
+    (old/'presets/user').mkdir(parents=True)
+    (old/'settings.conf').write_text('frontMappingVersion 2\nbpm 99\n')
+    (old/'loop.txt').write_text('zerochord-loop 1\n')
+    (home/'ZeroChord/sounds/my-pack').mkdir(parents=True)
+    env = {k: v for k, v in os.environ.items() if k not in ('ZEROCHORD_HOME', 'XDG_CONFIG_HOME')}
+    env['HOME'] = str(home.resolve())
+    result = subprocess.run([str(args.binary.resolve()), '--headless', '--no-audio',
+                             '--quit-after-ms', '25'], cwd=ROOT, env=env,
+                            capture_output=True, text=True, timeout=8)
+    assert result.returncode == 0, result.stderr
+    new = home/'ZeroChord'
+    settings = dict(line.split(maxsplit=1) for line in (new/'settings.conf').read_text().splitlines())
+    assert settings['bpm'] == '99', settings['bpm']
+    assert (new/'loop.txt').exists() and (new/'presets/user').is_dir()
+    assert (new/'sounds/my-pack').is_dir() and not old.exists()
+    print('PASS: moved-to-zerochord')
+
+
+moved_to_zerochord()
+
+
 def playing_screen(name, events, end, seed=''):
     """Capture the playing screen after timed key events, from fresh isolated settings."""
     import shutil
@@ -142,7 +169,7 @@ def playing_screen(name, events, end, seed=''):
     result = subprocess.run([str(args.binary.resolve()), '--headless', '--no-audio', '--no-save',
                              '--script', str(script.resolve()), '--capture', str(capture.resolve()),
                              '--quit-after-ms', str(end)], cwd=ROOT,
-                            env=dict(os.environ, XDG_CONFIG_HOME=str(config.parent.resolve())),
+                            env=dict(os.environ, ZEROCHORD_HOME=str(config.resolve())),
                             capture_output=True, text=True, timeout=8)
     assert result.returncode == 0, (name, result.stderr)
     return capture.read_bytes()
@@ -171,4 +198,4 @@ for mode in ('', 'allFrontMode 1\n'):
     chords = playing_screen('all-front-back', enter + [(800,'SPACE','down'), (1500,'SPACE','up')], 1600, mode)
     assert chords == playing_screen('chord-screen', [], 1600, mode), ('Space hold did not return', mode)
 print('PASS: All front matches a fresh drawing in both modes; holding Space returns to chords')
-print('PASS: 46 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')
+print('PASS: 47 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')

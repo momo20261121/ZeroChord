@@ -8,7 +8,7 @@ option(ZEROCHORD_GUI "Build the LVGL application" ON)
 set(ZEROCHORD_DEPS "${CMAKE_SOURCE_DIR}/.tools/deps" CACHE PATH "Local dependency sources")
 find_package(Threads REQUIRED)
 
-add_library(zerochord_core src/music.cpp src/instrument.cpp src/settings_editor.cpp src/settings_io.cpp src/presets.cpp src/patterns.cpp src/sounds.cpp src/soundfont.cpp src/midi.cpp src/looper.cpp)
+add_library(zerochord_core src/music.cpp src/instrument.cpp src/settings_editor.cpp src/settings_io.cpp src/presets.cpp src/patterns.cpp src/sounds.cpp src/soundfont.cpp src/midi.cpp src/looper.cpp src/storage.cpp)
 target_include_directories(zerochord_core PUBLIC src)
 target_include_directories(zerochord_core SYSTEM PRIVATE "${ZEROCHORD_DEPS}/tomlplusplus" "${ZEROCHORD_DEPS}/TinySoundFont")
 target_compile_options(zerochord_core PRIVATE -Wall -Wextra -Wpedantic)

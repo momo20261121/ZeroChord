@@ -1,8 +1,8 @@
 # Custom sounds
 
-On CardputerZero, put SoundFonts in `~/ZeroChord/sounds/` on the TF card and
-restart ZeroChord. Alternatively use `~/.config/zerochord/sounds/`, or set
-`ZEROCHORD_SOUNDS_DIR` to another directory. Separately mounted cards are scanned
+On CardputerZero, put SoundFonts in `~/ZeroChord/sounds/` and restart ZeroChord.
+Alternatively set `ZEROCHORD_SOUNDS_DIR` to another directory. Packs left in the
+pre-2.0 `~/.config/zerochord/sounds/` still load. Separately mounted cards are scanned
 for `ZeroChord/sounds/` beneath `/media`, `/mnt`, or `/run/media`.
 
 A plain `my-sounds.sf2` works directly: its embedded names appear in **Custom**.

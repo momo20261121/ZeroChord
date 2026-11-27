@@ -14,7 +14,7 @@ version=$(cat VERSION.txt)
 deb=zerochord_${version}_arm64.deb
 test -f "dist/$deb" || { echo "dist/$deb not found; run scripts/package.py first" >&2; exit 1; }
 (cd dist && shasum -a 256 -c "$deb.sha256" >/dev/null)
-remote=${ZEROCHORD_REMOTE_DIR:-ZeroChord}
+remote=${ZEROCHORD_REMOTE_DIR:-zerochord-dev}
 case "$remote" in /*|~*) ;; *) remote=\$HOME/$remote ;; esac
 set -- -o LogLevel=ERROR
 if test -n "${ZEROCHORD_SSH_CONFIG:-}"; then set -- "$@" -F "$ZEROCHORD_SSH_CONFIG"; fi

@@ -1,6 +1,7 @@
 #include "settings_editor.hpp"
 #include "menu_navigation.hpp"
 #include "settings_io.hpp"
+#include "storage.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -812,19 +813,29 @@ int main() {
             press(menu, down);
             press(menu, '\t');
         }
-        // Shortcuts is a read-only list: up/down scroll it and change nothing else.
+        // Shortcuts is a read-only manual: any arrow turns the page and changes nothing else.
         CHECK(menu.tab() == SettingsEditor::Tab::Shortcuts && menu.rows().empty());
         const auto beforeShortcuts = state();
-        const int shortcutCount = int(SettingsEditor::shortcuts(walker.settings).size());
-        CHECK(menu.shortcutRow() == 0 && shortcutCount > 20);
+        const auto pages = SettingsEditor::shortcuts(walker.settings);
+        const int pageCount = int(pages.size());
+        size_t lines = 0;
+        for (const auto &page : pages) {
+            CHECK(!page.lines.empty() && int(page.lines.size()) <= SettingsEditor::shortcutLines);
+            lines += page.lines.size();
+        }
+        CHECK(menu.shortcutPage() == 0 && pageCount >= 5 && lines > 25);
+        press(menu, right);
+        CHECK(menu.shortcutPage() == 1);
         press(menu, down);
-        CHECK(menu.shortcutRow() == 1);
+        CHECK(menu.shortcutPage() == 2);
         press(menu, up);
-        press(menu, up); // Wraps to the last shortcut.
-        CHECK(menu.shortcutRow() == shortcutCount - 1);
-        for (char key : {left, right, char('\n'), char('\b'), 'r', 'o', 'p'}) {
+        press(menu, left);
+        press(menu, left); // Wraps to the last page.
+        CHECK(menu.shortcutPage() == pageCount - 1);
+        for (char key : {char('\n'), char('\b'), 'r', 'o', 'p'}) {
             press(menu, key);
             CHECK(menu.tab() == SettingsEditor::Tab::Shortcuts && menu.selected() == -1);
+            CHECK(menu.shortcutPage() == pageCount - 1);
             CHECK(!menu.pickerOpen() && !menu.tempoOpen() && !menu.backingOpen());
             CHECK(state() == beforeShortcuts);
         }
@@ -1172,6 +1183,68 @@ int main() {
         CHECK(player.settings.bpm == 240); // Clamped to the range.
         press(menu, 27); // Already applied: Esc keeps it.
         CHECK(!menu.tempoOpen() && player.settings.bpm == 240);
+    }
+    {
+        // 2.0 keeps everything in ~/ZeroChord/ and moves the old ~/.config/zerochord/ there once.
+        namespace fs = std::filesystem;
+        const auto root = fs::temp_directory_path() /
+                          ("zerochord-storage-" +
+                           std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        auto write = [](const fs::path &path, const std::string &text) {
+            fs::create_directories(path.parent_path());
+            std::ofstream(path) << text;
+        };
+        auto read = [](const fs::path &path) {
+            std::ifstream in(path);
+            return std::string(std::istreambuf_iterator<char>(in), {});
+        };
+        const auto old = root / "config/zerochord", home = root / "ZeroChord";
+        write(old / "settings.conf", "bpm 99\n");
+        write(old / "presets/user/mine.toml", "mine");
+        write(old / "loop.txt", "old loop");
+        write(old / "sounds/fluid-grand/bank.sf2", "grand");
+        write(home / "sounds/my-pack/bank.sf2", "mine"); // Packs already put in ~/ZeroChord.
+        std::string message;
+        CHECK(migrateData(old.string(), home.string(), message) == home.string() && message.empty());
+        CHECK(read(home / "settings.conf") == "bpm 99\n" && read(home / "loop.txt") == "old loop");
+        CHECK(read(home / "presets/user/mine.toml") == "mine");
+        CHECK(read(home / "sounds/fluid-grand/bank.sf2") == "grand" &&
+              read(home / "sounds/my-pack/bank.sf2") == "mine");
+        CHECK(!fs::exists(old)); // The emptied old folder is deleted.
+        // Once moved, nothing moves again, even if an old version recreates its folder.
+        write(old / "settings.conf", "bpm 50\n");
+        CHECK(migrateData(old.string(), home.string(), message) == home.string());
+        CHECK(read(home / "settings.conf") == "bpm 99\n" && fs::exists(old / "settings.conf"));
+        fs::remove_all(root);
+        // A file both folders have stays in each; the old folder then stays too.
+        write(old / "settings.conf", "bpm 99\n");
+        write(old / "loop.txt", "old loop");
+        write(home / "loop.txt", "new loop");
+        CHECK(migrateData(old.string(), home.string(), message) == home.string() && !message.empty());
+        CHECK(read(home / "loop.txt") == "new loop" && read(old / "loop.txt") == "old loop");
+        CHECK(read(home / "settings.conf") == "bpm 99\n" && !fs::exists(old / "settings.conf"));
+        fs::remove_all(root);
+        // A move that fails puts back what it moved, and the old folder stays in use.
+        write(old / "settings.conf", "bpm 99\n");
+        write(old / "presets/user/mine.toml", "mine");
+        fs::create_directories(home);
+        fs::permissions(home, fs::perms::owner_read | fs::perms::owner_exec);
+        const bool writable = std::ofstream(home / "probe").good(); // Root ignores permissions.
+        if (!writable) {
+            CHECK(migrateData(old.string(), home.string(), message) == old.string() && !message.empty());
+            CHECK(read(old / "settings.conf") == "bpm 99\n" && read(old / "presets/user/mine.toml") == "mine");
+        }
+        fs::permissions(home, fs::perms::owner_all);
+        fs::remove_all(root);
+        // No old folder: nothing to do.
+        CHECK(migrateData((root / "none").string(), home.string(), message) == home.string());
+        // ZEROCHORD_HOME isolates a run completely: its own folder, and no old one to move.
+        setenv("ZEROCHORD_HOME", (root / "isolated").c_str(), 1);
+        CHECK(dataDirectory() == (root / "isolated").string() && legacyDirectory().empty());
+        unsetenv("ZEROCHORD_HOME");
+        setenv("XDG_CONFIG_HOME", (root / "xdg").c_str(), 1);
+        CHECK(legacyDirectory() == (root / "xdg/zerochord").string());
+        if (const char *h = std::getenv("HOME")) CHECK(dataDirectory() == (fs::path(h) / "ZeroChord").string());
     }
     std::cout << "PASS: defaults, no3/sus voicings, shared/degree resolution, scope shortcuts, "
                  "preview/save/cancel, resets, performance and persistence\n";

@@ -1,5 +1,21 @@
 # Testing ZeroChord
 
+## Everything in ~/ZeroChord — 2026-11-27
+
+- **Local:** all eight suites and 47 real-app flows pass. `settings_tests` covers the
+  move from the old folder (settings, presets, loop and packs arrive; packs already in
+  `~/ZeroChord/sounds/` stay; the emptied old folder is deleted; nothing moves twice;
+  a clashing file stays in the old folder; a failed move is undone and the old folder
+  used) and `ZEROCHORD_HOME` isolation. The new `moved-to-zerochord` flow runs the real
+  app with a scratch home and checks the result. Every script now isolates its runs
+  with `ZEROCHORD_HOME`.
+- **Device:** the development folder moved to `~/zerochord-dev`. The deployed build's
+  first launch moved the device's settings, presets, loop and its three FluidR3 packs
+  into `~/ZeroChord/` and removed `~/.config/zerochord/`. With a scratch
+  `ZEROCHORD_HOME`, a plain `.sf2` (the system TimGM6mb bank, linked as
+  `my-sounds.sf2`) loaded with no warnings beyond the 64-sound note and appeared under
+  **Front sound → Custom**, checked at 320×170. Playing it was not listened to.
+
 ## 3/4 loops, tap tempo, Shortcuts, MIDI bend — 2026-11-27
 
 - **Local:** all eight desktop suites and 46 real-app flows pass. `loop_tests` checks the
@@ -12,8 +28,9 @@
   in tune; the mod wheel wobbles the pitch and stops when returned to 0. Each of these
   checks was confirmed to fail with the feature disabled. `midi_tests` covers parsing
   14-bit bends and controller handling; `settings_tests` covers tap timing, the pause
-  reset and the 240 BPM limit, and walks the Shortcuts tab as read-only.
-- **UI:** the Shortcuts tab (both themes), the Tempo page with taps and with Waltz's
+  reset and the 240 BPM limit, and walks the Shortcuts tab as read-only: every page
+  fits six lines, any arrow turns the page and wraps, other keys change nothing.
+- **UI:** all six Shortcuts pages and the light theme, the Tempo page with taps and with Waltz's
   3/4 time, the 3/4 recording light and count-in were checked at 320×170.
 - **Not yet:** a real MIDI keyboard's bend and wheel, and listening on the device.
 

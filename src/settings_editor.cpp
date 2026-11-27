@@ -1334,40 +1334,46 @@ void SettingsEditor::selectBackingTab(int tab) {
     backingTab_ = std::clamp(tab, 0, backingTabCount - 1);
     selection_ = rows()[std::min<int>(backingRows_[backingTab_], int(rows().size()) - 1)];
 }
-std::vector<SettingsEditor::Shortcut> SettingsEditor::shortcuts(const Settings &s) {
+std::vector<SettingsEditor::ShortcutPage> SettingsEditor::shortcuts(const Settings &s) {
     const bool octave = s.frontAction[size_t(std::clamp(s.frontMode, 0, 1))] != 0;
-    constexpr const char *play = "Playing", *loop = "Loop & modes", *all = "All front",
-                         *tempo = "Tempo page", *menus = "Settings pages";
     return {
-        {play, "2-8 Q-U A-J", "Major / minor / 7th chord", "Columns are the key's degrees"},
-        {play, "Same column", "Richer chord", "Together: dim, maj7, m7 or aug (Chord config)"},
-        {play, "Chord + column", "Chord over another bass", "Hold 8 and press 5: C over G in C"},
-        {play, "1 + chord", "Raise a semitone", "The chord stays raised after you let go"},
-        {play, "Z-M", "Front notes", "Each note sounds while you hold its key"},
-        {play, "K / L", octave ? "Octave down / up" : "Strum down / up",
-         "Choose in App > Front notes > K/L action"},
-        {play, "I", "Hold on / off", "Hold keeps the chord after you let go"},
-        {play, "O", "Backing layers", "Mute and mix Chord, Arp, Pad, Bass, Drums"},
-        {play, "P", "Tempo and swing", "Type a tempo, or press P again to tap it"},
-        {play, "9 / 0", "Previous / next preset", "Each preset keeps its own edits"},
-        {play, "Space", "Stop sound", "Stops backing, notes and the loop"},
-        {loop, "Enter", "Record, finish, play, stop", "Your first chord or note starts the take"},
-        {loop, "Hold Enter", "Delete the loop", "Asks first; drops a take in progress"},
-        {loop, "Hold Space", "All front on / off", "Every letter and number key plays notes"},
-        {loop, "Tab", "Setup", "Settings, these shortcuts and About"},
-        {loop, "Hold Esc", "Save and exit", "Back to the launcher"},
-        {all, "4-0 E-O D-L Z-M", "Play notes", "Choose the layout in App > All front"},
-        {all, "Q / W", "Octave down / up", "For this session"},
-        {all, "1", "Sharpen", "Scale layout: new notes a semitone up"},
-        {tempo, "0-9 Enter", "Type and apply a tempo", "40 to 240 BPM"},
-        {tempo, "P", "Tap the tempo", "Tap the beat; a 2-second pause starts over"},
-        {tempo, "R", "Preset tempo and swing", "Loads the preset's own values"},
-        {menus, "F / X", "Move up / down", "The arrow keys work too"},
-        {menus, "Z / C", "Change a number", "Hold to repeat, faster after a moment"},
-        {menus, "Enter", "Open or confirm", "Rows marked > open a page or a list"},
-        {menus, "Backspace", "Restore default", "For the highlighted option"},
-        {menus, "Tab / 1-8", "Next tab / jump to a tab", "The bottom line shows the range"},
-        {menus, "Esc", "Back", "Closes settings from the top"},
+        {"Chords",
+         {{"2-8 Q-U A-J", "Major / minor / 7th chord"},
+          {"Same column", "Together: dim, maj7, m7, aug"},
+          {"Chord + column", "Bass note: 8 + 5 is C/G"},
+          {"1 + chord", "Raise the chord a semitone"},
+          {"I", "Hold the chord on / off"},
+          {"9 / 0", "Previous / next preset"}}},
+        {"Notes and keys",
+         {{"Z-M", "Front notes, while held"},
+          {"K / L", octave ? "Octave down / up" : "Strum down / up"},
+          {"O", "Mute and mix the backing"},
+          {"P", "Tempo and swing"},
+          {"Space", "Stop all sound"},
+          {"Tab", "Setup and this manual"}}},
+        {"Loop and modes",
+         {{"Enter", "Record, finish, play, stop"},
+          {"Hold Enter", "Delete the loop (asks first)"},
+          {"Hold Space", "All front on / off"},
+          {"Hold Esc", "Save and exit"}}},
+        {"All front",
+         {{"4-0 E-O D-L Z-M", "Every key plays a note"},
+          {"Q / W", "Octave down / up"},
+          {"1", "Sharpen (Scale layout)"},
+          {"Enter / Space", "Loop and stop, as usual"},
+          {"Layout", "App > All front"}}},
+        {"Tempo page",
+         {{"0-9  Enter", "Type and apply a tempo"},
+          {"P", "Tap the tempo on the beat"},
+          {"R", "Preset tempo and swing"},
+          {"F / X", "Tempo, Swing, Swing amount"}}},
+        {"Settings pages",
+         {{"F / X", "Move up / down"},
+          {"Z / C", "Change a number"},
+          {"Enter", "Open or confirm"},
+          {"Backspace", "Restore the default"},
+          {"Tab  1-8", "Next tab / jump to a tab"},
+          {"Esc", "Back; hold Esc to exit"}}},
     };
 }
 void SettingsEditor::openTempo() {
@@ -2064,8 +2070,9 @@ void SettingsEditor::handleKey(char key, bool down) {
         return;
     }
     // Shortcuts and About are informational: no hidden row, picker or restore action.
-    if (page_ == Page::Setup && tab_ == Tab::Shortcuts && direction) {
-        shortcut_ = step(shortcut_, direction, int(shortcuts(instrument_.settings).size()));
+    if (page_ == Page::Setup && tab_ == Tab::Shortcuts && (direction || adjustment)) {
+        shortcut_ = step(shortcut_, direction ? direction : adjustment,
+                         int(shortcuts(instrument_.settings).size()));
         return;
     }
     if (page_ == Page::Setup && tab_ > Tab::App) return;
