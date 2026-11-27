@@ -68,6 +68,7 @@ std::array<int, 4> chordNotes(const Chord &chord);
 std::array<int, 4> voicedChord(const Chord &chord, int voicing, const std::array<int, 4> &previous);
 std::array<int, 7> harpNotes(const Chord &chord);
 std::string noteName(int pitch);
+bool whiteKey(int pitch); // C D E F G A B.
 std::string chordName(const Chord &chord);
 const char *degreeName(int column);
 struct Preset {
@@ -146,6 +147,16 @@ struct Settings : PerformanceSettings {
     int chordVolume = 80, harpVolume = 100, echo = 15, strumMs = 210;
     int masterVolume = 100, theme = 0;
     int output = OutputAuto;
+    // MIDI keyboard: the layer whose sound it plays (MidiTarget) and its velocity curve.
+    int midiTarget = 0, midiVelocity = 1;
+    // All front (hold Space): every letter and number key plays the front. Scale mode uses the
+    // front key and scale (shared with Front notes) from allFrontOctave; Free play is a piano-style
+    // layout whose lowest white key is allFrontLowest.
+    int allFrontMode = 0, allFrontOctave = 3, allFrontLowest = 53; // Scale, octave 3, F3.
+    // Loop (Enter): Style 0 plays the take's recorded style, 1 follows the current one. The
+    // length limit is in bars; Short chords and Snap are loopGridTicks steps (Off, 1/16, 1/8,
+    // 1/4). Count-in clicks this many bars before playback starts.
+    int loopStyle = 0, loopBars = 64, loopShort = 2, loopSnap = 2, loopCount = 1;
     std::array<int, 3> eqDb{}; // App-wide Low / Mid / High gain, in dB.
     int chordOctave = 3;
     std::array<int, 7> degreeChordRoot{-1, -1, -1, -1, -1, -1, -1}; // -1 follows Key; otherwise absolute pitch class.
@@ -175,4 +186,13 @@ struct Settings : PerformanceSettings {
     void clamp();
 };
 std::array<int, 7> frontNotes(const Chord &chord, const Settings &settings);
+// All front: 28 keys in four aligned rows, top to bottom 4-0, E-O, D-L and Z-M.
+constexpr int allFrontKeyCount = 28;
+constexpr const char *allFrontKeys = "4567890ertyuiodfghjklzxcvbnm";
+int allFrontIndex(char key); // -1 for other keys.
+// Pitch of each key, or -1 for a silent one. Scale mode: one octave of the front scale per row,
+// Z-M lowest; short scales continue up, as on Z-M. Free play: E-O and Z-M are white keys
+// (Z-M lower), and the keys above them are their sharps, silent above B and E.
+std::array<int, allFrontKeyCount> allFrontNotes(const Settings &settings, int octaveShift = 0,
+                                                int semitone = 0);
 } // namespace zc

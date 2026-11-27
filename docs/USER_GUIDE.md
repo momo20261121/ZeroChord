@@ -10,9 +10,12 @@ through Chord, Arp, Pad, Bass, and Drums.
 - [Choose and combine chords](#choose-and-combine-chords)
 - [Set up backing layers](#set-up-backing-layers)
 - [Customize your front notes](#customize-your-front-notes)
+- [Play every key: All front](#play-every-key-all-front)
+- [Record a loop](#record-a-loop)
 - [Find and edit settings](#find-and-edit-settings)
 - [Shape your sound](#shape-your-sound)
 - [Import your own sounds](#import-your-own-sounds)
+- [Play a MIDI keyboard](#play-a-midi-keyboard)
 - [Keyboard reference](#keyboard-reference)
 - [Troubleshooting](#troubleshooting)
 
@@ -25,7 +28,7 @@ of **C**. The app starts silently until you play.
 2. Play `Z` `X` `C` `V` `B` `N` `M` to pick its notes. `L` strums up. `K` strums down.
 3. Try `8` → `5` → `T` → `4` for C → G → Am → F in the default key of C.
 4. Press `O` to choose backing layers. `I` toggles **Hold**.
-5. Press `Space` to stop sound. Hold `Esc` for about a second to save your
+5. Tap `Space` to stop sound. Hold `Esc` for about a second to save your
    settings and return to the launcher.
 
 ![Playing screen with the Key and Preset at the top, chord buttons in the center, and front notes below](images/release-performance.png)
@@ -162,9 +165,17 @@ rows. Use `F` / `X` (↑ / ↓) to move between them.
 
 | Row | What it does |
 | --- | --- |
-| **Tempo** | Type 40 to 240 BPM and press `Enter` to apply it. Typing digits always returns to this row. |
+| **Tempo** | Type 40 to 240 BPM and press `Enter` to apply it, or tap `P` in time with the beat. Typing digits always returns to this row. |
 | **Swing** | **Off**, **8ths**, or **16ths**. `Enter` or `Z` / `C` (← / →) step through them. |
 | **Swing amount** | `Z` / `C` (← / →) set 0–100% in 5% steps; 50% by default. Dimmed while Swing is Off. |
+
+**Tap tempo.** On this page, press `P` on each beat. From the second tap, the tempo
+follows the average of your last four taps and applies at once, so you can tap along
+while the music plays. Pause for two seconds to start a new count.
+
+The line under the title shows the style's time: **3/4 time** when any of its layers
+uses a 3/4 pattern (**Chords on 2 and 3**, **Broken 3/4**, or a **Waltz 3/4**
+pattern), even a muted one, and **4/4 time** otherwise. Loops count bars in this time.
 
 Swing and Swing amount apply at once. At 0% the notes are straight; at 100% they have
 a full triplet feel. **8ths** delays the "and" of each beat, and **16ths** delays
@@ -212,6 +223,88 @@ root is already sharp. The displayed front notes show the pitches you will play
 next. Ringing notes and queued strums keep their starting pitches. See the
 [front-note reference](FRONT_NOTES.md#each-key) for the mapping and octave options.
 
+## Play every key: All front
+
+Hold `Space` for about half a second to switch to **All front**, and hold it again
+to return to the chord screen. In All front, the four rows `4`–`0`, `E`–`O`,
+`D`–`L`, and `Z`–`M` all play the front sound, and the screen shows each key's
+note. A backing chord that is playing keeps going, so you can latch a chord with
+Hold, switch, and play over the groove. With Hold off, switching stops the chord.
+
+- `Q` / `W` shift every key down or up an octave.
+- Tap `Space` to stop everything; you stay in All front.
+- `Tab` opens settings. `O`, `P`, `9`, and `0` are notes here, not shortcuts.
+
+![All front over a loop: four rows of keys, each showing its note, with two keys held](images/release-all-front.png)
+
+Choose the layout in **App → All front**. These settings apply to every preset.
+
+- **Scale** (default): each row is one octave of the front scale, `Z`–`M` lowest
+  and `4`–`0` highest. **Key** and **Scale** are the same settings as **App → Front
+  notes**, so changing them in either place changes both. By default they follow
+  the chord's key and scale; `Backspace` follows the chord again. Scales with
+  fewer than seven notes continue up an octave along each row, as on `Z`–`M`.
+  **Lowest octave** (0–5, default 3) is the octave of `Z`–`M`. Holding `1` raises
+  new notes one semitone.
+- **Free play**: a piano layout. `Z`–`M` and `E`–`O` are white keys, `E`–`O` an
+  octave above, and the key directly above each white key plays its sharp. Keys
+  above B and E have no sharp and are silent. **Lowest note** (C1–C6, white keys,
+  default F3) is the note of `Z`; with F3 the range is F3–E5.
+
+## Record a loop
+
+`Enter` records what you play and plays it back, with every layer, in time.
+
+1. Press `Enter`. The light at the top left blinks red: **Waiting to record**.
+   Nothing is recorded until you play.
+2. Play. The first chord or note starts the take on beat 1; the light shows **REC**
+   with the bar and beat, and the bar fills toward the length limit.
+3. Press `Enter` to finish. The loop ends on the nearest whole bar: pressing up to
+   a 1/8 note late ends on the bar just played, and a little early completes the
+   bar. Reaching **Length limit** finishes the take too. Whatever was playing
+   stops with the take, and the light turns yellow. Bars follow the style's time
+   when the take began: in a 3/4 style such as **Waltz**, a bar has three beats, the
+   light counts **REC 2.3**, and the count-in clicks three times a bar.
+4. Press `Enter` to play the loop. A bar of side-stick clicks counts you in (the
+   light flashes green with the beat), then the loop starts on beat 1; press
+   `Enter` again to stop it, or to cancel the count-in.
+
+![A loop playing in its second bar: the green light reads Loop 2/4, the chord box shows G in green marked loop, and the front keys follow G](images/release-loop.png)
+
+Hold `Enter` to delete the loop; Enter confirms and Esc keeps it. Holding `Enter`
+while waiting or recording drops the take at once. `Space` stops the loop and
+keeps it. The loop is saved, so it is still there next time.
+
+While the loop plays, the chord box shows its chord in green with **loop**, and
+`Z`–`M` play over that chord. A chord you play yourself takes the screen and the
+front keys, shown as usual, while the loop carries on. Both play together; mute
+layers (`O`, or **Loop mix**) where they double up. The loop always follows the
+current tempo.
+
+**App → Loop** sets how loops record and play. These settings apply to all
+presets.
+
+- **Style**: **Recorded** (default) plays the take's own sounds, patterns, mix and
+  effects, including changes made during the take, even if the preset changes
+  later. **Follow current** plays the take with the current style and key; chords
+  keep their degrees, so a new key moves the loop.
+- **Length limit**: 4, 8, 16, 32 or 64 (default) bars.
+- **Count-in** before playback: Off, 1 bar (default) or 2 bars. Recording needs
+  none: it waits for your first chord or note.
+- **Short chords** (default 1/8 note): a chord this short that leads into another
+  joins it, starting when the short one did, so a combination pressed one key at a
+  time counts as one chord. A gap this short between chords closes, and a chord
+  this short at the very end belongs to the next pass.
+- **Snap changes** (default 1/8 note): each chord change moves to the nearest
+  step from beat 1, each on its own, so small errors never add up. Notes keep
+  their timing. Clean-up never changes the recording itself: change either
+  setting at any time to hear the same take differently.
+- **Loop mix**: mutes (`Enter`) and levels (`←`/`→`) for the loop's Front, Chord,
+  Arp, Pad, Bass and Drums, starting from the take's (or the current style's)
+  values. `Backspace` restores a layer. Front covers `Z`–`M`, All front and MIDI
+  notes. A layer muted during the take can be turned on here.
+- **Delete loop** removes it.
+
 ## Find and edit settings
 
 Press `Tab` to open settings. Inside, the keys work the same on every page:
@@ -237,6 +330,7 @@ The line below the rows says what the highlighted option does. In a list,
 | --- | --- |
 | **Style** | **Settings for this preset** covers tempo and swing, backing layers and mix, patterns, sounds, and envelopes |
 | **App** | **Applies to all presets** covers theme, volume and effects, chord config, and front notes |
+| **Shortcuts** | A short manual of every key, in six pages: Chords, Notes and keys, Loop and modes, All front, Tempo page, and Settings pages. Any arrow (`Z` / `C` or `F` / `X`) turns the page. |
 | **About** | The installed version and a QR code to the repository and documentation |
 
 The About QR code works in either theme. Open it on a phone with internet access.
@@ -313,8 +407,8 @@ and how to save custom values.
 
 ## Import your own sounds
 
-1. Put a **SoundFont (.sf2)** file or a sound pack in `ZeroChord/sounds/` on the
-   TF card, or in `~/ZeroChord/sounds/`.
+1. Put a **SoundFont (.sf2)** file or a sound pack in `~/ZeroChord/sounds/`, or in
+   `ZeroChord/sounds/` on a separately mounted card.
 2. Restart ZeroChord.
 3. Open **Sound** in **Style → Front sound** or on a **Backing layers** tab.
    Sounds are grouped as Keys, Plucked (shown as **Pluck**), Strings, Winds,
@@ -327,6 +421,35 @@ and how to save custom values.
 The [sound pack guide](../sounds/README.md) covers supported locations, manifests,
 size limits, and the optional Grand Piano, Synths, and Drums downloads. Use sounds with licenses
 that allow your intended use.
+
+## Play a MIDI keyboard
+
+Plug a class-compliant USB MIDI keyboard into the USB port; no setup is needed and
+it can be plugged in or out while ZeroChord runs. Open **App → MIDI input**:
+
+- **Keyboard** names the connected keyboard. With it highlighted, the bottom line
+  shows the last note and velocity, which is a quick connection check.
+- **Plays** chooses the sound the keyboard uses: **Front** (the default, alongside
+  `Z`–`M`), **Chord**, **Arp**, **Pad**, **Bass**, or **Drums**. Notes use that
+  part's sound, envelope, level, pan, and effects in the current style, at the
+  pitch you play; Key, Scale, and the octave shift do not change them. **Drums**
+  plays the style's kit with General MIDI drum notes.
+- **Velocity**: **Normal** follows how hard you play, **Soft** makes light playing
+  louder, **Hard** needs a firmer touch, and **Fixed** plays every note at full level.
+
+These settings apply to every preset. Muting a layer with `O` stops only its
+pattern, so you can, for example, mute **Bass** and play the bass line yourself
+over the chords and drums. A layer at 0% is silent from the keyboard too.
+
+The sustain pedal works, and `Space` stops MIDI notes along with everything else.
+While a keyboard is connected, the playing screen shows a **MIDI Front** (or other
+part) badge that lights while notes sound. Changing a setting or preset ends notes
+that are still ringing.
+
+**Pitch bend** moves the notes you are playing up or down by up to two semitones, and
+the **mod wheel** adds vibrato, deeper as you push it. Both apply to MIDI notes only:
+`Z`–`M`, chords and the backing stay in tune. **Drums** ignore them. A loop records
+the bend and the wheel along with the notes.
 
 ## Keyboard reference
 
@@ -341,9 +464,12 @@ that allow your intended use.
 | `1` + chord | Raise the chord root and bass by one semitone |
 | `I` | Toggle **Hold** |
 | `O` | Open **Backing layers** to mute and mix Chord, Arp, Pad, Bass, and Drums |
-| `P` | Type a tempo and set swing |
+| `P` | Type a tempo and set swing; press `P` again on the Tempo page to tap the tempo |
 | `Tab` | Open settings |
-| `Space` | Stop backing, bass, drums, front notes, and queued strums |
+| Tap `Space` | Stop backing, bass, drums, front notes, and queued strums |
+| Hold `Space` | Switch to [All front](#play-every-key-all-front) and back |
+| `Enter` | [Loop](#record-a-loop): arm, finish the take, play, stop |
+| Hold `Enter` | Delete the loop (asks first), or drop a take in progress |
 | Hold `Esc` | Save changes and return to the launcher |
 
 ### In settings
@@ -372,6 +498,8 @@ Dedicated arrow keys also work in settings. Hold `Esc` to exit from any page.
 | **Sound distorts** | Reduce EQ boosts or turn down **App Vol**. |
 | **A chord combination attacks twice** | In **App → Chord config → All**, increase **Chord combo timing** slightly. |
 | **An imported sound is missing** | Restart and check the [sound pack formats and limits](../sounds/README.md). |
+| **MIDI keyboard does nothing** | Check **App → MIDI input → Keyboard**. If it reads **None**, try another cable or a powered USB hub; the keyboard must be class-compliant. If notes arrive but are silent, raise the mix of the part shown in **Plays**. |
+| **Where are my files?** | Everything ZeroChord keeps is in `~/ZeroChord/`: `settings.conf`, `presets/`, `loop.txt` and `sounds/`. Back up or copy this folder to keep your setup. 2.0 moved it there from `~/.config/zerochord/` on its first launch. |
 | **Recent edits disappeared** | Hold `Esc` to exit and save settings before turning off the device. |
 
 For development and verification, see the [build guide](DEVELOPMENT.md) and

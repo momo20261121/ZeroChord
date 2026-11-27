@@ -731,6 +731,109 @@ int main() {
         CHECK(shaker.size() >= 4);
         for (int n = 0; n < 4; n++) CHECK(std::abs(shaker[n] - (n + late[n]) * 125) <= 2);
     }
+    { // All front layouts: rows top to bottom 4-0, E-O, D-L, Z-M.
+        CHECK(allFrontIndex('4') == 0 && allFrontIndex('e') == 7 && allFrontIndex('d') == 14 &&
+              allFrontIndex('z') == 21 && allFrontIndex('m') == 27 && allFrontIndex('q') < 0 &&
+              allFrontIndex('1') < 0 && allFrontIndex(' ') < 0);
+        Settings s; // Scale mode, C major from octave 3: one octave per row, Z-M lowest.
+        auto notes = allFrontNotes(s);
+        CHECK(notes[21] == 48 && notes[27] == 59 && notes[14] == 60 && notes[7] == 72 &&
+              notes[0] == 84 && notes[6] == 95);
+        CHECK(allFrontNotes(s, 1, 1)[21] == 61); // Octave shift and the sharpen key.
+        s.frontFollow = 0, s.frontTonic = 2, s.scale = 8; // Own key: D major pentatonic.
+        notes = allFrontNotes(s);
+        CHECK(notes[21] == 50 && notes[25] == 59 && notes[26] == 62 && notes[27] == 64);
+        CHECK(notes[14] == 62); // Each row starts on the tonic, an octave up.
+        s = Settings{};
+        s.allFrontMode = 1; // Free play from F3: whites on E-O and Z-M, sharps above.
+        notes = allFrontNotes(s);
+        const std::array<int, 7> lowWhite{53, 55, 57, 59, 60, 62, 64}, lowSharp{54, 56, 58, -1, 61, 63, -1};
+        for (int n = 0; n < 7; n++) {
+            CHECK(notes[size_t(21 + n)] == lowWhite[size_t(n)]);
+            CHECK(notes[size_t(14 + n)] == lowSharp[size_t(n)]);
+            CHECK(notes[size_t(7 + n)] == lowWhite[size_t(n)] + 12);
+            CHECK(notes[size_t(n)] == (lowSharp[size_t(n)] < 0 ? -1 : lowSharp[size_t(n)] + 12));
+        }
+        s.allFrontLowest = 48; // From C3 the gaps move to E and B.
+        notes = allFrontNotes(s);
+        CHECK(notes[14] == 49 && notes[15] == 51 && notes[16] == -1 && notes[17] == 54 &&
+              notes[20] == -1 && notes[7] == 60 && notes[13] == 71);
+        s.allFrontLowest = 54; // F#3 is not a white key: it starts from F3.
+        s.clamp();
+        CHECK(s.allFrontLowest == 53);
+        s.allFrontMode = 0, s.allFrontOctave = 9;
+        s.clamp();
+        CHECK(s.allFrontOctave == 5 && allFrontNotes(s)[6] == 119);
+    }
+    { // Playing All front: every key plays the front; the backing keeps its chord.
+        Capture captured;
+        Instrument p(captured);
+        p.settings.combinationMs = 0;
+        p.settings.mode = PlaybackMode::Pad;
+        p.configure();
+        p.key('8', true, 10); // Hold is on: C stays after release.
+        p.key('8', false, 20);
+        CHECK(p.active);
+        captured.events.clear();
+        const auto latched = p.chord;
+        p.setAllFront(true);
+        CHECK(p.allFront && p.active && captured.events.empty());
+        p.key('e', true, 30); // E plays C5 instead of selecting a chord.
+        CHECK(p.chord == latched && captured.events.size() == 1 &&
+              captured.events[0].part == Part::Harp && captured.events[0].pitch == 72 &&
+              captured.events[0].durationMs == 0 && p.allFrontHeld(7));
+        p.key('o', true, 31); // O and P are notes or ignored, not shortcuts.
+        p.key('1', true, 32);
+        p.key('z', true, 33); // 1 raises new notes in Scale mode.
+        CHECK(captured.events.size() == 3 && captured.events[1].pitch == 83 &&
+              captured.events[2].pitch == 49);
+        p.key('1', false, 34);
+        p.key('e', false, 35);
+        CHECK(captured.events.back().type == CommandType::Off &&
+              captured.events.back().id == captured.events[0].id && !p.allFrontHeld(7));
+        p.key('w', true, 40); // Q/W shift the octave.
+        p.key('w', false, 41);
+        CHECK(p.playingAllFrontNotes()[21] == 60);
+        p.settings.allFrontOctave = 5; // Top row already B8: one more octave would leave MIDI.
+        p.allFrontShift = 0;
+        p.key('w', true, 42);
+        p.key('w', false, 43);
+        CHECK(p.allFrontShift == 0);
+        p.key('q', true, 44);
+        CHECK(p.allFrontShift == -1);
+        p.settings.allFrontOctave = 3, p.allFrontShift = 0;
+        // Leaving releases held keys; the chord keeps sounding.
+        const size_t offs = std::count_if(captured.events.begin(), captured.events.end(),
+                                          [](const Command &c) { return c.type == CommandType::Off; });
+        p.setAllFront(false);
+        CHECK(!p.allFront && p.active &&
+              size_t(std::count_if(captured.events.begin(), captured.events.end(), [](const Command &c) {
+                  return c.type == CommandType::Off;
+              })) == offs + 2); // O and Z were still held.
+        p.settings.allFrontMode = 1; // Free play: 1 does not sharpen, gaps are silent.
+        p.setAllFront(true);
+        captured.events.clear();
+        p.key('1', true, 50);
+        p.key('z', true, 51);
+        p.key('h', true, 52);
+        CHECK(captured.events.size() == 1 && captured.events[0].pitch == 53);
+        p.key(' ', true, 60); // Space stops everything, staying in All front.
+        CHECK(captured.events.back().type == CommandType::Panic && !p.active && p.allFront &&
+              !p.allFrontHeld(21));
+    }
+    { // With Hold off, chord keys held while switching count as released.
+        Capture captured;
+        Instrument p(captured);
+        p.settings.combinationMs = 0;
+        p.settings.hold = 0;
+        p.configure();
+        p.key('8', true, 10);
+        CHECK(p.active);
+        p.setAllFront(true);
+        CHECK(!p.active && captured.events.back().type == CommandType::StopChord);
+        p.key('8', false, 20); // Its release later is a note key's release: nothing sounds.
+        CHECK(captured.events.back().type == CommandType::StopChord);
+    }
     std::cout << "PASS: harmony, combinations, harp direction, hold, simultaneous chords, "
-                 "patterns, phase and bounded scheduling\n";
+                 "patterns, phase, bounded scheduling and All front\n";
 }

@@ -1,7 +1,10 @@
 #include "audio.hpp"
+#include "looper.hpp"
+#include "midi_device.hpp"
 #include "platform.hpp"
 #include "settings_io.hpp"
 #include "sounds.hpp"
+#include "storage.hpp"
 #include "ui.hpp"
 #include <algorithm>
 #include <atomic>
@@ -20,13 +23,8 @@ void signalHandler(int) { stopping = 1; }
 struct Silent : zc::Sink {
     void send(const zc::Command &) override {}
 };
-std::string configPath() {
-    if (const char *xdg = std::getenv("XDG_CONFIG_HOME"))
-        return std::string(xdg) + "/zerochord/settings.conf";
-    if (const char *home = std::getenv("HOME"))
-        return std::string(home) + "/.config/zerochord/settings.conf";
-    return "/tmp/zerochord-settings.conf";
-}
+std::string dataDir; // ~/ZeroChord, or ZEROCHORD_HOME; chosen once at startup.
+std::string configPath() { return (std::filesystem::path(dataDir) / "settings.conf").string(); }
 } // namespace
 int main(int argc, char **argv) {
     try {
@@ -111,7 +109,22 @@ int main(int argc, char **argv) {
         std::signal(SIGTERM, signalHandler);
         lv_init();
         zc::Platform platform(headless);
-        zc::soundLibrary().load(std::filesystem::path(configPath()).parent_path().string(), bank);
+        // Everything lives in ~/ZeroChord/; the first launch moves the old ~/.config/zerochord/
+        // there. --no-save writes nothing, so it reads whichever folder holds the settings.
+        dataDir = zc::dataDirectory();
+        const std::string legacy = zc::legacyDirectory();
+        if (!noSave) {
+            std::string moved;
+            dataDir = zc::migrateData(legacy, dataDir, moved);
+            if (!moved.empty()) std::cerr << "ZeroChord: " << moved << "\n";
+        } else if (!legacy.empty() && !std::filesystem::exists(configPath()) &&
+                   std::filesystem::exists(std::filesystem::path(legacy) / "settings.conf"))
+            dataDir = legacy;
+        // Packs someone still copies to the old folder keep working.
+        std::vector<std::string> oldSounds;
+        if (!legacy.empty() && legacy != dataDir)
+            oldSounds.push_back((std::filesystem::path(legacy) / "sounds").string());
+        zc::soundLibrary().load(dataDir, bank, oldSounds);
         if (!zc::soundLibrary().warning.empty())
             std::cerr << zc::soundLibrary().warning;
         Silent silent;
@@ -121,16 +134,29 @@ int main(int argc, char **argv) {
         zc::Instrument instrument(audio ? static_cast<zc::Sink &>(*audio)
                                         : static_cast<zc::Sink &>(silent));
         zc::loadSettings(instrument.settings, configPath());
-        instrument.library.load(std::filesystem::path(configPath()).parent_path().string(),
-                                instrument.settings, !noSave);
+        instrument.library.load(dataDir, instrument.settings, !noSave);
         if (!instrument.library.warning.empty())
             std::cerr << instrument.library.warning;
         instrument.configure();
+        // The loop lives beside the settings; --no-save leaves it untouched.
+        zc::Looper looper(instrument, audio ? static_cast<zc::Sink &>(*audio)
+                                            : static_cast<zc::Sink &>(silent));
+        instrument.looper = &looper;
+        looper.path = (std::filesystem::path(dataDir) / "loop.txt").string();
+        looper.load();
+        if (noSave) looper.path.clear();
         zc::UI ui(instrument, [&] { return platform.systemVolume(); },
                   [&](int percent) { return platform.setSystemVolume(percent); });
         const auto start = std::chrono::steady_clock::now();
         uint64_t previous = 0, escAt = 0;
         bool escDown = false, quit = false;
+        // While playing, a Space tap stops (on release) and a hold switches All front.
+        uint64_t spaceAt = 0;
+        bool spaceDown = false, spaceHeld = false;
+        constexpr uint64_t spaceHoldMs = 600;
+        // Enter works the loop: a tap acts on release, a hold drops a take or asks to delete.
+        uint64_t enterAt = 0;
+        bool enterDown = false, enterHeld = false;
         size_t eventIndex = 0;
         auto input = [&](char key, bool down, uint64_t now) {
             if (key == 27) {
@@ -149,7 +175,31 @@ int main(int argc, char **argv) {
                 ui.key(key, down);
                 return;
             }
-            if (ui.settingsOpen || ui.tempoOpen() || ui.backingOpen() || key == 'p' || key == 'o') {
+            if (key == ' ' && (spaceDown || (down && !ui.settingsOpen && !ui.tempoOpen()))) {
+                if (down && !spaceDown) {
+                    spaceDown = true, spaceHeld = false, spaceAt = now;
+                } else if (!down && spaceDown) {
+                    spaceDown = false;
+                    if (!spaceHeld) {
+                        instrument.key(' ', true, now);
+                        instrument.key(' ', false, now);
+                    }
+                }
+                return;
+            }
+            if (key == '\n' && (enterDown || (down && !ui.settingsOpen && !ui.tempoOpen() &&
+                                               !ui.loopQuestion()))) {
+                if (down && !enterDown) {
+                    enterDown = true, enterHeld = false, enterAt = now;
+                } else if (!down && enterDown) {
+                    enterDown = false;
+                    if (!enterHeld) looper.tap(enterAt, now);
+                }
+                return;
+            }
+            const bool shortcut = !instrument.allFront && (key == 'p' || key == 'o'); // Notes there.
+            if (ui.settingsOpen || ui.tempoOpen() || ui.backingOpen() || ui.loopQuestion() ||
+                shortcut) {
                 const bool quickBacking = ui.backingOpen();
                 ui.key(key, down);
                 // Releases still reach the instrument while O's quick Backing page is open.
@@ -160,6 +210,7 @@ int main(int argc, char **argv) {
                 instrument.key(key, down, now);
         };
         uint64_t nextJackCheck = 0;
+        zc::MidiInput midi;
         auto elapsed = [&] {
             return uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
                                 std::chrono::steady_clock::now() - start)
@@ -173,6 +224,11 @@ int main(int argc, char **argv) {
                                    escDown = false;
                                }))
                 quit = true;
+            if (!midi.poll([&](const zc::MidiEvent &e) { instrument.midi(e, now); })) {
+                instrument.midiReleaseAll(); // Unplugged: nothing may hang or stay bent.
+                instrument.midiResetControllers();
+                instrument.midiDevice = midi.name();
+            }
             while (eventIndex < events.size() && events[eventIndex].at <= now) {
                 auto e = events[eventIndex++];
                 input(e.key, e.down, now);
@@ -186,8 +242,22 @@ int main(int argc, char **argv) {
             play(now);
             if (escDown && now - escAt >= 800)
                 quit = true;
+            if (enterDown && !enterHeld && now - enterAt >= spaceHoldMs) {
+                enterHeld = true;
+                const auto state = looper.state();
+                if (state == zc::LoopState::Armed || state == zc::LoopState::Recording)
+                    looper.discard();
+                else if (state != zc::LoopState::Empty)
+                    ui.askDeleteLoop();
+            }
+            if (spaceDown && !spaceHeld && now - spaceAt >= spaceHoldMs && !ui.settingsOpen) {
+                spaceHeld = true;
+                instrument.setAllFront(!instrument.allFront);
+            }
             if (now >= nextJackCheck) { // Auto output follows the headphone jack.
                 instrument.setJack(platform.headphones());
+                midi.scan(); // Keyboards may be plugged in at any time.
+                instrument.midiDevice = midi.name();
                 nextJackCheck = now + 1000;
             }
             ui.tick(now);

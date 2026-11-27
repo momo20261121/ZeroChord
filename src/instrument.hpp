@@ -1,19 +1,27 @@
 #pragma once
+#include "midi.hpp"
 #include "music.hpp"
 #include "presets.hpp"
 #include <cstdint>
+#include <string>
 #include <vector>
 namespace zc {
 struct PatternStep;
+class Looper;
 enum class Part { Chord, Harp, Pad, Arp, Drums, Bass };
 // Tempo carries the BPM in `pitch` (for the echo time); Route sets `pitch` 1 when the
-// headphone jack is in use, 0 for the speaker.
-enum class CommandType { On, Off, Panic, Configure, StopChord, ChordGain, Tempo, Route };
+// headphone jack is in use, 0 for the speaker. Bend (-8192 to 8191, ±2 semitones) and
+// Modulation (0-127, vibrato depth) in `pitch` move the slot's MIDI notes, but not drums.
+enum class CommandType { On, Off, Panic, Configure, StopChord, ChordGain, Tempo, Route, Bend, Modulation };
 struct Command {
     CommandType type = CommandType::Panic;
     uint32_t id = 0;
     int pitch = 0, durationMs = 0;
     int delayUs = 0; // On: start this much later (strums and humanized timing).
+    bool live = false; // On: a MIDI note; it ends on its own Off, not with the chord.
+    // 0 live playing, 1 the loop: Panic, StopChord, ChordGain and Configure affect one slot.
+    int slot = 0;
+    bool click = false; // On (Drums): a count-in click at a fixed level, whatever the mix.
     Part part = Part::Harp;
     float gain = 1.f;
     Settings settings;
@@ -36,9 +44,22 @@ class Instrument {
     uint64_t harpFlashUntil = 0;
     std::array<int, 2> frontOctaveShift{}; // Live playing register, not saved key mappings.
     int semitoneShift() const { return pressed_['1'] ? 1 : 0; }
+    // The chord Z-M follow: the live chord, or the loop's while no live chord sounds.
+    const Chord &frontChord() const;
+    bool frontChordActive() const;
     std::array<int, 7> playingFrontNotes() const;
     bool frontHeld(int key) const { return frontVoices_[key] != 0; } // Z-M sounding while held.
     void key(char key, bool down, uint64_t now);
+    // All front (hold Space): every letter and number key plays the front; the backing keeps
+    // its chord. Not saved; Q/W shift the octave for this session.
+    bool allFront = false;
+    int allFrontShift = 0;
+    void setAllFront(bool on);
+    std::array<int, allFrontKeyCount> playingAllFrontNotes() const {
+        return allFrontNotes(settings, allFrontShift,
+                             settings.allFrontMode == 0 ? semitoneShift() : 0);
+    }
+    bool allFrontHeld(int index) const { return allFrontVoices_[size_t(index)] != 0; }
     void tick(uint64_t now);
     void panic();
     void configure();
@@ -56,6 +77,17 @@ class Instrument {
     // Notes a backing part plays for the current chord: [0] root or slash bass, [1]-[3] upper
     // voices (Chord and Pad voicings), or the chord tones an octave up for Arp. -1 is silent.
     std::array<int, 4> partNotes(Part part);
+    // MIDI keyboard: notes play Settings::midiTarget's sound, envelope and level at their own
+    // pitch. Muting that layer stops only its pattern.
+    std::string midiDevice; // Connected keyboard's name; empty when none.
+    int midiLastNote = -1, midiLastVelocity = 0;
+    void midi(const MidiEvent &event, uint64_t now);
+    void midiReleaseAll(); // Release every MIDI note, as when the keyboard is unplugged.
+    void midiResetControllers(); // Centre the pitch bend and turn off the mod wheel.
+    int midiBend() const { return midiBend_; }             // -8192 to 8191.
+    int midiModulation() const { return midiModulation_; } // 0-127.
+    bool midiLit() const { return !midiNotes_.empty() || now_ < midiFlashUntil_; }
+    static constexpr size_t maxMidiNotes = 16; // The oldest note makes way beyond this.
 
   private:
     Sink &sink_;
@@ -79,6 +111,9 @@ class Instrument {
     bool previewLoop_ = false, frontAudition_ = false;
     std::vector<uint32_t> chordVoices_;
     std::array<uint32_t, 7> frontVoices_{}; // Held Z-M notes, released on key up.
+    std::array<uint32_t, allFrontKeyCount> allFrontVoices_{};
+    void allFrontKey(char key, bool down);
+    void releaseHeldNotes(); // Ends held front and All front notes.
     struct Pending {
         uint64_t at;
         int pitch, index;
@@ -108,5 +143,45 @@ class Instrument {
     void bassHit(const PatternStep &step, int duration);
     unsigned mask(int column) const;
     bool anyChordKey() const;
+    struct MidiNote {
+        int pitch;
+        uint32_t id;
+        bool down; // Key still held; released notes ring on while the pedal is down.
+    };
+    std::vector<MidiNote> midiNotes_; // Sounding MIDI notes, oldest first.
+    bool sustain_ = false;
+    int midiBend_ = 0, midiModulation_ = 0;
+    void midiController(CommandType type, int value);
+    uint64_t midiFlashUntil_ = 0;
+    void endMidiNote(size_t index);
+
+  public:
+    // Loop (Enter): records what is played and plays it back through a second Instrument.
+    Looper *looper = nullptr; // None on the loop's own engine.
+    void stopEverything();    // Space: live sound and loop playback.
+    // The loop's engine is driven through these rather than keys.
+    void playChord(const Chord &c, uint64_t now); // A start from silence restarts the transport.
+    void releaseChord();
+    void restartTransport(uint64_t now);
+    void reseed(uint32_t seed) { random_ = seed ? seed : 0x2545f491u; }
+    void adopt(const Settings &s); // New settings, keeping the chord (layers start or stop).
+    unsigned selectedMask() const { return selectedMask_; }
+    bool selectedSharp() const { return selectedSharp_; }
+    int bassColumn() const { return bassColumn_; }
+
+  private:
+    int bassColumn_ = -1; // Degree of a slash bass, or -1.
+    // What the loop has heard: chord changes are reported once their combination settles,
+    // timed from the first key of the combination.
+    bool heardActive_ = false;
+    Chord heardChord_;
+    unsigned heardMask_ = 0;
+    int64_t chordAt_ = -1;
+    void reportChord(uint64_t now);
+    void reportNote(uint32_t id, int pitch, Part part, int durationMs, float gain, int source,
+                    int index, int shift);
+    void reportOff(uint32_t id);
+    void reportStyle();
+    void keyPress(char key, bool down, uint64_t now);
 };
 } // namespace zc

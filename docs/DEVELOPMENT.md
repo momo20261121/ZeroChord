@@ -5,7 +5,7 @@ Run commands from the project root. User controls are in the [user guide](USER_G
 ## Branches and releases
 
 `main` contains tested releases, identified by `v<version>` tags (starting with
-`v1.0.0`). Use `dev` for the next release (currently 1.4.0) and merge into `main`
+`v1.0.0`). Use `dev` for the next release (currently 2.0.0) and merge into `main`
 when the release is tested and ready. Preserve existing
 history. `dev` stays local and is never pushed (`scripts/install_git_guard.sh`
 installs a pre-push hook enforcing this); pushing `main` or a release tag requires
@@ -78,7 +78,9 @@ No VM, device sysroot, or system-wide install is required. The target uses glibc
 [official Zig downloads](https://ziglang.org/download/) for the compiler source.
 
 Deployment uses `ZEROCHORD_SSH_HOST`, optional `ZEROCHORD_SSH_CONFIG`, and
-`ZEROCHORD_REMOTE_DIR` (default `ZeroChord`, relative to the remote user's home).
+`ZEROCHORD_REMOTE_DIR` (default `zerochord-dev`, relative to the remote user's home).
+Keep it out of `~/ZeroChord/`, which holds the app's own settings, loop and sounds.
+Isolated runs set `ZEROCHORD_HOME` to a scratch folder instead of the player's.
 The existing device directory must contain the development wrapper and previous
 binary. Deployment verifies the transferred binary's checksum, stops
 the old preview cleanly so settings save, retains a `.previous` binary, and

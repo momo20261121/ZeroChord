@@ -1,5 +1,122 @@
 # Testing ZeroChord
 
+## 2.0.0 release — 2026-11-27
+
+- **Local:** all eight desktop suites, the same eight built with ASan/UBSan (Debug,
+  LeakSanitizer on) and all 47 real-app flows passed. Store and guide screenshots
+  were regenerated twice and matched byte for byte.
+- **Package:** `dist/zerochord_2.0.0_arm64.deb`, 828,696 bytes, SHA-256
+  `162076e9…ab37b0`; executable SHA-256 `769af327…f0313b`. Privacy scan: 0 FAIL for
+  the tree and the archive. The final package was rebuilt after the installed test
+  only to bundle this record; outside `usr/share/doc/zerochord/` its files and modes
+  match the tested archive, and its executable is the one tested, so the installed
+  test was not repeated.
+- **Device:** installed over 1.4.0; `scripts/test_installed.py 2.0.0` passed: version
+  and `dpkg --verify`, launcher entry and icon, evdev input with the printed arrows,
+  framebuffer readback matching the app capture, isolated settings persistence, a
+  one-bar loop recorded through injected keys and saved as 4/4, 520,800 stereo
+  frames of audio (peak 29,164), zero queue overflows and a clean long-Esc exit.
+- **Not validated:** a real MIDI keyboard, hands-on playing of the looper and All
+  front, and listening on the speaker or headphones.
+
+## Everything in ~/ZeroChord — 2026-11-27
+
+- **Local:** all eight suites and 47 real-app flows pass. `settings_tests` covers the
+  move from the old folder (settings, presets, loop and packs arrive; packs already in
+  `~/ZeroChord/sounds/` stay; the emptied old folder is deleted; nothing moves twice;
+  a clashing file stays in the old folder; a failed move is undone and the old folder
+  used) and `ZEROCHORD_HOME` isolation. The new `moved-to-zerochord` flow runs the real
+  app with a scratch home and checks the result. Every script now isolates its runs
+  with `ZEROCHORD_HOME`.
+- **Device:** the development folder moved to `~/zerochord-dev`. The deployed build's
+  first launch moved the device's settings, presets, loop and its three FluidR3 packs
+  into `~/ZeroChord/` and removed `~/.config/zerochord/`. With a scratch
+  `ZEROCHORD_HOME`, a plain `.sf2` (the system TimGM6mb bank, linked as
+  `my-sounds.sf2`) loaded with no warnings beyond the 64-sound note and appeared under
+  **Front sound → Custom**, checked at 320×170. Playing it was not listened to.
+
+## 3/4 loops, tap tempo, Shortcuts, MIDI bend — 2026-11-27
+
+- **Local:** all eight desktop suites and 46 real-app flows pass. `loop_tests` checks the
+  meter rule (each of the four 3/4 patterns makes a style 3/4, muted or not), a Waltz
+  take ending on its second 3/4 bar, three count-in clicks a bar, wrapping after 24
+  16ths, the meter surviving save and load (older files read as 4/4), and a held bend
+  and a mod wheel move recorded and replayed on the loop's slot. `audio_tests` measures
+  rendered pitch: a full bend raises a MIDI note two semitones, before or during the
+  note, while backing notes, the other slot's notes and a reused voice channel stay
+  in tune; the mod wheel wobbles the pitch and stops when returned to 0. Each of these
+  checks was confirmed to fail with the feature disabled. `midi_tests` covers parsing
+  14-bit bends and controller handling; `settings_tests` covers tap timing, the pause
+  reset and the 240 BPM limit, and walks the Shortcuts tab as read-only: every page
+  fits six lines, any arrow turns the page and wraps, other keys change nothing.
+- **UI:** all six Shortcuts pages and the light theme, the Tempo page with taps and with Waltz's
+  3/4 time, the 3/4 recording light and count-in were checked at 320×170.
+- **Not yet:** a real MIDI keyboard's bend and wheel, and listening on the device.
+
+## Loop — 2026-11-27
+
+- **Local:** all eight desktop suites pass, including the new `loop_tests`. It covers
+  clean-up (short chords merged on the raw times before snapping, independent snapping
+  over 128 changes with no drift, stabs kept, short gaps closed, collisions, changes
+  and chords at the loop's end), recording (arming, the take starting at the first
+  key of a combination, ending on the nearest bar, a late Enter within the window,
+  the length limit, dropping a take), playback (slot 1 commands, the loop chord on the
+  screen and Z-M, a live chord on top, tempo following, Space), Recorded vs Follow
+  current, Loop mix overrides and restore, and save/load. `audio_tests` checks that a
+  live Panic or chord stop leaves loop notes sounding and stopping the loop leaves live
+  notes. `settings_tests` walks the Loop page. All 44 real-app flows pass.
+  The count-in is tested too: four clicks, beat 1 accented, then beat 1, and Enter
+  cancels it.
+- **UI:** the waiting, recording, holding, count-in and playing lights, the loop chord
+  with and without a live chord, All front with a loop, the Loop and Loop mix pages and
+  the delete question were checked at 320×170, in both themes for the playing screen.
+- **Device load** (`scripts/device_load_test.py`, with the project `.env` loaded): the
+  deployed app runs a scripted Dance session (all layers, 124 BPM) with isolated settings
+  and the installed sound packs, sampling `/proc` every 0.25 s. It fails if the busiest
+  thread passes 70% of one core or the audio queue overflows. `--local` dry-runs it on the
+  desktop build. Results on the Cardputer (4 cores), 2026-11-27:
+
+  | Phase | Process | Busiest thread | RSS |
+  | --- | --- | --- | --- |
+  | Idle | 19% | 11% | 65 MB |
+  | Live playing while recording | 45% | 31% | 65 MB |
+  | Count-in | 27% | 14% | 65 MB |
+  | Loop alone | 46% | 32% | 65 MB |
+  | Loop + live chords, strums and front notes | 50% | 38% | 65 MB |
+  | Loop + All front runs | 52% | 37% | 65 MB |
+
+  No audio queue overflows. Without the sound packs, RSS is 19 MB and each phase about
+  2 points lower.
+
+## All front — 2026-11-27
+
+- **Layout:** the device keymap (`tca8418` `linux,keymap`) puts `4`–`0`, `E`–`O`, `D`–`L`
+  and `Z`–`M` in matrix columns 2–8, an aligned 7×4 block. The screen draws it aligned.
+- **Local:** all seven desktop suites pass. `music_tests` covers both layouts (gaps, short
+  scales, own key, Lowest note clamping to white keys, the octave range), playing, `1`,
+  `Q`/`W` limits, the chord kept with Hold and stopped without it, Space and
+  leaving. `settings_tests` covers the page, the shared Key/Scale, white-key
+  stepping, restore and persistence. All 44 real-app flows pass, including a new All
+  front flow. The in-place All front screen matches a fresh drawing in both modes, and
+  holding Space returns to the chord screen.
+- **UI:** both modes and the settings page were checked at 320×170.
+
+## MIDI input — 2026-11-27
+
+- **Local:** all seven desktop suites pass, including the new `midi_tests`. It covers
+  parsing (running status, note on at velocity 0, split reads, SysEx, system common
+  and real-time bytes), each Plays target, velocity curves, the sustain pedal,
+  restarting the same key, the 16-note limit, `Space`, All notes off and unplugging.
+  `audio_tests` checks that a chord stop leaves a MIDI note sounding.
+  `settings_tests` covers the page, restore, the app-wide setting across presets,
+  and persistence. All 43 real-app flows pass.
+- **UI:** the App row, MIDI input page, Plays list and lit playing-screen badge
+  were checked at 320×170 in the headless preview. A FIFO named `midiC9D0` in
+  `ZEROCHORD_MIDI_DIR` stood in for a raw MIDI port and fed a note.
+- **Device:** cross-built and launched; the device supports USB host mode and has
+  `snd-usb-audio`. Not yet tested with a real keyboard: detection, unplugging
+  (ENODEV), bus power, and note latency.
+
 ## 1.4.0 release — 2026-11-26
 
 - **Local:** all six desktop suites, 43 real-app flows and the playing-screen check passed. The

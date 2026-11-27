@@ -1,13 +1,34 @@
 #include "settings_editor.hpp"
+#include "looper.hpp"
 #include "patterns.hpp"
 #include "sounds.hpp"
 #include <algorithm>
+#include <cmath>
 #include <iterator>
 #include <tuple>
 namespace zc {
 namespace {
 const std::vector<int> volumeEffectsRows{SettingsEditor::systemVolumeField, 17, 4, 5, 6, 26, 27, 28,
                                         SettingsEditor::outputField};
+const std::vector<int> allFrontScaleRows{
+    SettingsEditor::allFrontModeField, SettingsEditor::allFrontKeyField,
+    SettingsEditor::allFrontScaleField, SettingsEditor::allFrontOctaveField};
+const std::vector<int> allFrontFreeRows{SettingsEditor::allFrontModeField,
+                                        SettingsEditor::allFrontLowestField};
+const std::vector<int> loopRows{SettingsEditor::loopStatusField, SettingsEditor::loopStyleField,
+                                SettingsEditor::loopBarsField,   SettingsEditor::loopCountField,
+                                SettingsEditor::loopShortField,
+                                SettingsEditor::loopSnapField,   SettingsEditor::loopMixField,
+                                SettingsEditor::loopDeleteField};
+const std::vector<int> loopMixRows = [] {
+    std::vector<int> rows;
+    for (int n = 0; n < SettingsEditor::loopLayerRows; n++) rows.push_back(SettingsEditor::loopLayerField + n);
+    return rows;
+}();
+const char *loopShortNames[]{"Off", "Merge under 1/16", "Merge under 1/8", "Merge under 1/4"};
+const char *loopSnapNames[]{"Off", "1/16", "1/8", "Beat"};
+const std::vector<int> midiRows{SettingsEditor::midiDeviceField, SettingsEditor::midiTargetField,
+                                SettingsEditor::midiVelocityField};
 const char *scaleName(int scale) { return scaleInfo(scale).name; }
 // Built-in General MIDI kits (drum bank 128).
 const std::vector<std::pair<int, const char *>> drumKits{
@@ -21,6 +42,31 @@ std::string drumKitName(const Settings &s) {
     return "Kit " + std::to_string(s.drumKit + 1);
 }
 std::string milliseconds(int value) { return std::to_string(value) + " ms"; }
+// The front's Key and Scale, shared by Front notes and All front. -1 follows the chord; choosing
+// either sets the front's own key and scale together.
+void assignFrontKeyScale(Settings &s, bool key, int value) {
+    const int tonic = s.frontKeyTonic(), scale = s.frontKeyScale();
+    s.frontFollow = value < 0;
+    s.frontTonic = key && value >= 0 ? value : tonic;
+    s.scale = !key && value >= 0 ? value : scale;
+}
+std::vector<SettingsEditor::Choice> frontKeyChoices(const Settings &s) {
+    std::vector<SettingsEditor::Choice> choices{
+        {-1, "Follow chord (" + noteName(s.tonic) + ")", "Use the Chord config key and scale"}};
+    for (int n = 0; n < 12; n++) choices.push_back({n, noteName(n), "Scale notes start here; chords stay"});
+    return choices;
+}
+std::vector<SettingsEditor::Choice> frontScaleChoices(const Settings &s) {
+    std::vector<SettingsEditor::Choice> choices{
+        {-1, std::string("Follow chord (") + scaleName(s.chordScale) + ")",
+         "Use the Chord config key and scale"}};
+    for (int scale : scaleMenu(false))
+        choices.push_back({scale, scaleName(scale),
+                           scaleInfo(scale).size == 7 ? "Scale notes only; chord roots stay independent"
+                                                      : "Fewer notes than keys; continues an octave up"});
+    return choices;
+}
+std::string octaveNote(int pitch) { return noteName(pitch) + std::to_string(pitch / 12 - 1); }
 constexpr uint64_t repeatDelayMs = 400, repeatMs = 80, fastRepeatAfterMs = 1500, fastRepeatMs = 40;
 } // namespace
 const char *SettingsEditor::envelopePartName(int part) {
@@ -101,15 +147,18 @@ int SettingsEditor::envelopeValue(const Settings &s) const {
 bool SettingsEditor::appField(int index) {
     return index == 0 || index == 1 || (index >= 3 && index <= 7) || index == 17 ||
            index == 18 || index == 22 || (index >= 26 && index <= systemVolumeField) ||
-           index == outputField;
+           index == outputField || (index >= midiInputField && index <= allFrontLowestField) ||
+           (index >= loopField && index < settingCount);
 }
 bool SettingsEditor::appPage() const {
     return page_ == Page::Combinations || page_ == Page::FrontNotes ||
-           page_ == Page::VolumeEffects || (page_ == Page::Setup && tab_ == Tab::App);
+           page_ == Page::VolumeEffects || page_ == Page::MidiInput || page_ == Page::AllFront ||
+           page_ == Page::Loop || page_ == Page::LoopMix || (page_ == Page::Setup && tab_ == Tab::App);
 }
 const std::vector<int> &SettingsEditor::rows() const {
     static const std::vector<int> style{2, 8, backingField, frontSoundField, 19, 20};
-    static const std::vector<int> app{18, volumeEffectsField, 3, 22};
+    static const std::vector<int> app{18, volumeEffectsField, 3, 22, allFrontField, loopField,
+                                      midiInputField};
     static const std::vector<int> about;
     static const std::vector<int> backing[backingTabCount]{
         {chordMixField, chordMixField + 1, chordMixField + 2, bassMixField, drumMixField},
@@ -120,9 +169,14 @@ const std::vector<int> &SettingsEditor::rows() const {
         {drumKitField, drumPatternField}};
     static const std::vector<int> frontSound{14, 23, frontMixField};
     if (page_ == Page::VolumeEffects) return volumeEffectsRows;
+    if (page_ == Page::MidiInput) return midiRows;
+    if (page_ == Page::Loop) return loopRows;
+    if (page_ == Page::LoopMix) return loopMixRows;
+    if (page_ == Page::AllFront)
+        return instrument_.settings.allFrontMode ? allFrontFreeRows : allFrontScaleRows;
     if (page_ == Page::Backing) return backing[backingTab_];
     if (page_ == Page::FrontSound) return frontSound;
-    return tab_ == Tab::About ? about : tab_ == Tab::Style ? style : app;
+    return tab_ == Tab::Style ? style : tab_ == Tab::App ? app : about; // Shortcuts, About: none.
 }
 int SettingsEditor::rowIndex() const {
     const auto &list = rows();
@@ -156,10 +210,16 @@ const char *SettingsEditor::settingName(int index) {
                                   "Arp sound", "Arp envelope", "Chord mix", "Arp mix", "Pad mix",
                                   "Front sound", "Drum mix", "Drum kit", "Drum pattern",
                                   "Bass mix", "Bass sound", "Bass pattern", "Bass envelope",
-                                  "Output", "Chord voicing", "Pad voicing", "Front level"};
+                                  "Output", "Chord voicing", "Pad voicing", "Front level",
+                                  "MIDI input", "Keyboard", "Plays", "Velocity",
+                                  "All front", "Mode", "Key", "Scale", "Lowest octave",
+                                  "Lowest note", "Loop", "Status", "Style", "Length limit",
+                                  "Short chords", "Snap changes", "Loop mix", "Delete loop",
+                                  "Front", "Chord", "Arp", "Pad", "Bass", "Drums", "Count-in"};
     return names[index];
 }
 std::string SettingsEditor::rowName(int index) const {
+    if (loopLayerRow(index)) return loopLayerName(index - loopLayerField);
     if (page_ == Page::Backing || page_ == Page::FrontSound) {
         if (mixField(index)) return modeName(mixLayer(index));
         if (soundField(index)) return "Sound";
@@ -223,6 +283,41 @@ std::string SettingsEditor::rowDescription() const {
     case 5: return "Z-M notes and strums";
     case 6: return "Repeats in time with the tempo";
     case outputField: return "Speaker adds bass harmonics; Auto follows the jack";
+    case midiInputField: return "Play a USB MIDI keyboard";
+    case midiDeviceField:
+        if (instrument_.midiDevice.empty()) return "Plug in a class-compliant USB MIDI keyboard";
+        if (instrument_.midiLastNote < 0) return "Play a key to check the connection";
+        return "Last note " + noteName(instrument_.midiLastNote) +
+               std::to_string(instrument_.midiLastNote / 12 - 1) + ", velocity " +
+               std::to_string(instrument_.midiLastVelocity);
+    case midiTargetField:
+        if (instrument_.settings.midiTarget == MidiFront)
+            return "Front sound and level, alongside Z-M";
+        return std::string("This style's ") + midiTargetName(instrument_.settings.midiTarget) +
+               " sound and level. Mute it (O) to stop its pattern only.";
+    case midiVelocityField: return "How hard you play sets each note's level";
+    case allFrontField: return "Every key plays the front; hold Space to switch";
+    case loopField: return "Enter on the playing screen records and plays a loop";
+    case loopStatusField:
+        if (instrument_.looper && instrument_.looper->missingSounds())
+            return "A sound of the take is not installed; built-in plays";
+        return "Enter: record, stop, play. Hold Enter to delete.";
+    case loopStyleField: return "Recorded: the take's own sounds. Follow: this style and key.";
+    case loopBarsField: return "Recording stops here, as if Enter was pressed";
+    case loopCountField: return "Clicks before the loop plays, to come in on beat 1";
+    case loopShortField: return "A chord this short joins the next; a take ending this late ends a bar early";
+    case loopSnapField: return "Each chord change moves to the nearest step on its own";
+    case loopMixField: return hasLoop() ? "Mute or level the loop's layers" : "Record a loop first";
+    case loopDeleteField: return hasLoop() ? "Remove the recorded loop" : "No loop recorded";
+    case loopLayerField: return "Z-M, All front and MIDI notes of the take. Enter mutes.";
+    case loopLayerField + 1: case loopLayerField + 2: case loopLayerField + 3:
+    case loopLayerField + 4: case loopLayerField + 5:
+        return "Enter mutes or unmutes this layer of the loop";
+    case allFrontModeField: return "Scale: four octaves of the scale. Free play: piano layout.";
+    case allFrontKeyField: case allFrontScaleField:
+        return "Shared with Front notes; follows the chord by default";
+    case allFrontOctaveField: return "Octave of Z-M; each row above is one higher";
+    case allFrontLowestField: return "Z plays this note; E-O continue an octave up";
     case chordVoicingField: case padVoicingField: return "How the chord notes are spread";
     case frontMixField: return "Level of Z-M and strums in this style";
     case 26: return "Bass of the whole mix";
@@ -336,13 +431,7 @@ void SettingsEditor::assignFront(Settings &s, int field, int value) {
             s.frontAction[s.frontMode] = value;
         if (field == 2)
             (s.frontMode ? s.scaleStrumMs : s.strumMs) = value;
-        if (field == 4 || field == frontKeyField) {
-            // Key and Scale follow the chord together; choosing either keeps the other.
-            const int tonic = s.frontKeyTonic(), scale = s.frontKeyScale();
-            s.frontFollow = value < 0;
-            s.frontTonic = field == frontKeyField && value >= 0 ? value : tonic;
-            s.scale = field == 4 && value >= 0 ? value : scale;
-        }
+        if (field == 4 || field == frontKeyField) assignFrontKeyScale(s, field == frontKeyField, value);
     } else if (field == 0) {
         if (s.frontMode)
             s.frontDegree[frontKey_] = value;
@@ -402,6 +491,20 @@ int SettingsEditor::valueFor(const Settings &s, int index) const {
     if (index == drumPatternField) return s.drumPattern;
     if (index == bassPatternField) return s.bassPattern;
     if (index == outputField) return s.output;
+    if (index == midiTargetField) return s.midiTarget;
+    if (index == midiVelocityField) return s.midiVelocity;
+    if (index == midiInputField || index == midiDeviceField || index == allFrontField) return 0;
+    if (index == loopStyleField) return s.loopStyle;
+    if (index == loopBarsField) return s.loopBars;
+    if (index == loopShortField) return s.loopShort;
+    if (index == loopSnapField) return s.loopSnap;
+    if (index == loopCountField) return s.loopCount;
+    if (index >= loopField && index < settingCount) return 0;
+    if (index == allFrontModeField) return s.allFrontMode;
+    if (index == allFrontKeyField) return s.frontFollow ? -1 : s.frontTonic;
+    if (index == allFrontScaleField) return s.frontFollow ? -1 : s.scale;
+    if (index == allFrontOctaveField) return s.allFrontOctave;
+    if (index == allFrontLowestField) return s.allFrontLowest;
     if (index == frontMixField) return s.frontMix;
     if (index == chordVoicingField) return s.chordVoicing;
     if (index == padVoicingField) return s.padVoicing;
@@ -440,7 +543,11 @@ int SettingsEditor::fieldValue() const {
     case Page::Setup:
     case Page::Backing:
     case Page::FrontSound:
-    case Page::VolumeEffects: return settingValueNumber();
+    case Page::VolumeEffects:
+    case Page::MidiInput:
+    case Page::AllFront:
+    case Page::Loop:
+    case Page::LoopMix: return settingValueNumber();
     case Page::Envelope: return envelopeValue(s);
     case Page::FrontNotes: return frontValue(s, frontField_);
     case Page::Combinations: return chordConfigValue(s);
@@ -469,6 +576,21 @@ bool SettingsEditor::fieldModified(int index) const {
     if (index == volumeEffectsField)
         return std::any_of(volumeEffectsRows.begin(), volumeEffectsRows.end(),
                            [&](int field) { return fieldModified(field); });
+    if (index == midiInputField)
+        return fieldModified(midiTargetField) || fieldModified(midiVelocityField);
+    if (index == loopField)
+        return fieldModified(loopStyleField) || fieldModified(loopBarsField) ||
+               fieldModified(loopShortField) || fieldModified(loopSnapField) ||
+               fieldModified(loopCountField);
+    if (index == loopMixField)
+        for (int n = 0; n < loopLayerRows; n++)
+            if (fieldModified(loopLayerField + n)) return true;
+    if (loopLayerRow(index))
+        return hasLoop() && instrument_.looper->layerEdited(index - loopLayerField);
+    if (index == loopStatusField || index == loopMixField || index == loopDeleteField) return false;
+    if (index == allFrontField)
+        return fieldModified(allFrontModeField) || fieldModified(allFrontKeyField) ||
+               fieldModified(allFrontOctaveField) || fieldModified(allFrontLowestField);
     if (envelopeRow(index))
         return s.envelopes[envelopePartFor(index)] != preset.envelopes[envelopePartFor(index)];
     if (mixField(index)) {
@@ -560,6 +682,62 @@ std::string SettingsEditor::settingValue(int index) const {
     case outputField:
         if (s.output != OutputAuto) return s.output == OutputSpeaker ? "Speaker" : "Headphones";
         return instrument_.jack < 0 ? "Auto" : instrument_.jack ? "Auto (headphones)" : "Auto (speaker)";
+    case midiInputField:
+        return instrument_.midiDevice.empty() ? "No keyboard"
+                                              : std::string("Plays ") + midiTargetName(s.midiTarget);
+    case midiDeviceField:
+        return instrument_.midiDevice.empty() ? "None" : instrument_.midiDevice;
+    case midiTargetField:
+        return midiTargetName(s.midiTarget);
+    case allFrontField:
+    case allFrontModeField:
+        return s.allFrontMode ? "Free play" : "Scale";
+    case loopField: return loopSummary();
+    case loopStatusField: {
+        if (!instrument_.looper) return "None";
+        const auto &loop = *instrument_.looper;
+        if (!hasLoop()) return loop.state() == LoopState::Empty ? "None yet" : loopSummary();
+        std::string text = std::to_string(loop.recordedBars()) + (loop.recordedBars() == 1 ? " bar" : " bars");
+        const auto &take = loop.take();
+        if (!take.styles.empty()) text += " / " + instrument_.library.current(take.styles[0]).name;
+        return loop.playing() ? "\xEF\x81\x8B " + text : text; // LVGL's play symbol.
+    }
+    case loopStyleField: return s.loopStyle ? "Follow current" : "Recorded";
+    case loopBarsField: return std::to_string(s.loopBars) + " bars";
+    case loopCountField:
+        return s.loopCount ? std::to_string(s.loopCount) + (s.loopCount == 1 ? " bar" : " bars") : "Off";
+    case loopShortField: return loopShortNames[std::clamp(s.loopShort, 0, 3)];
+    case loopSnapField: return loopSnapNames[std::clamp(s.loopSnap, 0, 3)];
+    case loopMixField: {
+        if (!hasLoop()) return "-";
+        std::vector<int> muted;
+        for (int n = 0; n < loopLayerRows; n++)
+            if (!instrument_.looper->layerOn(n)) muted.push_back(n);
+        if (muted.empty()) return "All layers";
+        if (muted.size() == 1) return std::string("All but ") + loopLayerName(muted[0]);
+        return std::to_string(loopLayerRows - int(muted.size())) + " of 6 layers";
+    }
+    case loopDeleteField: return "";
+    case loopLayerField: case loopLayerField + 1: case loopLayerField + 2:
+    case loopLayerField + 3: case loopLayerField + 4: case loopLayerField + 5:
+        if (!hasLoop()) return "-";
+        return std::to_string(instrument_.looper->layerLevel(index - loopLayerField)) + "%";
+    case allFrontKeyField:
+        return s.frontFollow ? "Chord (" + noteName(s.tonic) + ")" : noteName(s.frontTonic);
+    case allFrontScaleField:
+        return s.frontFollow ? std::string("Chord (") + scaleName(s.chordScale) + ")"
+                             : scaleName(s.scale);
+    case allFrontOctaveField: {
+        const int tonic = 12 * (s.allFrontOctave + 1) + s.frontKeyTonic();
+        return std::to_string(s.allFrontOctave) + "  (Z-M " + octaveNote(tonic) + ", 4-0 " +
+               octaveNote(tonic + 36) + ")";
+    }
+    case allFrontLowestField: {
+        const auto notes = allFrontNotes(s);
+        return octaveNote(s.allFrontLowest) + "-" + octaveNote(notes[13]);
+    }
+    case midiVelocityField:
+        return midiVelocityName(s.midiVelocity);
     case chordVoicingField:
         return voicingName(s.chordVoicing);
     case padVoicingField:
@@ -670,6 +848,40 @@ void SettingsEditor::assign(Settings &s, int index, int value) {
     case outputField:
         s.output = value;
         break;
+    case midiTargetField:
+        s.midiTarget = value;
+        break;
+    case midiVelocityField:
+        s.midiVelocity = value;
+        break;
+    case allFrontModeField:
+        s.allFrontMode = value;
+        break;
+    case loopStyleField:
+        s.loopStyle = value;
+        break;
+    case loopBarsField:
+        s.loopBars = value;
+        break;
+    case loopShortField:
+        s.loopShort = value;
+        break;
+    case loopSnapField:
+        s.loopSnap = value;
+        break;
+    case loopCountField:
+        s.loopCount = value;
+        break;
+    case allFrontKeyField:
+    case allFrontScaleField:
+        assignFrontKeyScale(s, index == allFrontKeyField, value);
+        break;
+    case allFrontOctaveField:
+        s.allFrontOctave = value;
+        break;
+    case allFrontLowestField:
+        s.allFrontLowest = value;
+        break;
     case chordVoicingField:
         s.chordVoicing = value;
         break;
@@ -712,6 +924,9 @@ void SettingsEditor::setSettingValue(int value) {
     } else
         assign(s, selection_, value);
     instrument_.configure();
+    if (instrument_.looper && (selection_ == loopStyleField || selection_ == loopShortField ||
+                               selection_ == loopSnapField))
+        instrument_.looper->refresh(); // Heard at once, from the same place in the loop.
 }
 void SettingsEditor::buildChoices() {
     choices_.clear();
@@ -720,6 +935,50 @@ void SettingsEditor::buildChoices() {
         choices_ = {{OutputAuto, "Auto", "Speaker sound unless headphones are plugged in"},
                     {OutputSpeaker, "Speaker", "Bass harmonics and a little click for small speakers"},
                     {OutputHeadphones, "Headphones", "Full range with no extra processing"}};
+        return;
+    }
+    if (page_ == Page::MidiInput && selection_ == midiTargetField) {
+        static const char *about[]{"Z-M's sound, alongside the front keys",
+                                   "Chord sound and envelope", "Arp sound and envelope",
+                                   "Pad sound and envelope", "Bass sound and envelope",
+                                   "This style's kit; General MIDI drum notes"};
+        for (int target = 0; target < midiTargetCount; target++)
+            choices_.push_back({target, midiTargetName(target), about[target]});
+        return;
+    }
+    if (page_ == Page::Loop) {
+        if (selection_ == loopStyleField)
+            choices_ = {{0, "Recorded", "The take's own sounds, mix and patterns"},
+                        {1, "Follow current", "This style and key; chords keep their degrees"}};
+        else if (selection_ == loopBarsField)
+            for (int bars : loopBarChoices) choices_.push_back({bars, std::to_string(bars) + " bars", ""});
+        else if (selection_ == loopShortField)
+            for (int n = 0; n < 4; n++) choices_.push_back({n, loopShortNames[n], ""});
+        else if (selection_ == loopSnapField)
+            for (int n = 0; n < 4; n++) choices_.push_back({n, loopSnapNames[n], ""});
+        else if (selection_ == loopCountField)
+            choices_ = {{0, "Off", ""}, {1, "1 bar", ""}, {2, "2 bars", ""}};
+        return;
+    }
+    if (page_ == Page::AllFront) {
+        if (selection_ == allFrontModeField)
+            choices_ = {{0, "Scale", "Four octaves of the front scale, Z-M lowest"},
+                        {1, "Free play", "Piano layout: E-O, Z-M white keys; the row above sharps"}};
+        else if (selection_ == allFrontKeyField) choices_ = frontKeyChoices(s);
+        else if (selection_ == allFrontScaleField) choices_ = frontScaleChoices(s);
+        else if (selection_ == allFrontOctaveField)
+            for (int octave = 0; octave <= 5; octave++)
+                choices_.push_back({octave, std::to_string(octave), ""});
+        else
+            for (int pitch = 24; pitch <= 84; pitch++)
+                if (whiteKey(pitch)) choices_.push_back({pitch, octaveNote(pitch), ""});
+        return;
+    }
+    if (page_ == Page::MidiInput && selection_ == midiVelocityField) {
+        choices_ = {{VelocitySoft, "Soft", "Light playing sounds louder"},
+                    {VelocityNormal, "Normal", "Level follows how hard you play"},
+                    {VelocityHard, "Hard", "Play firmly for full level"},
+                    {VelocityFixed, "Fixed", "Every note at full level"}};
         return;
     }
     if (page_ == Page::VolumeEffects) {
@@ -791,21 +1050,10 @@ void SettingsEditor::buildChoices() {
                 choices_ = {{0, "Chord notes", "Follow the selected chord and its quality"},
                             {1, "Scale notes", "I-VII of the front key; independent of chords"}};
             else if (frontField_ == 4)
-            {
-                choices_ = {{-1, std::string("Follow chord (") + scaleName(s.chordScale) + ")",
-                             "Use the Chord config key and scale"}};
-                for (int scale : scaleMenu(false))
-                    choices_.push_back({scale, scaleName(scale),
-                                        scaleInfo(scale).size == 7
-                                            ? "Scale notes only; chord roots stay independent"
-                                            : "Fewer notes than keys; continues an octave up"});
-            }
-            else if (frontField_ == frontKeyField) {
-                choices_.push_back({-1, "Follow chord (" + noteName(s.tonic) + ")",
-                                    "Use the Chord config key and scale"});
-                for (int n = 0; n < 12; n++)
-                    choices_.push_back({n, noteName(n), "Scale notes start here; chords stay"});
-            } else if (frontField_ == 1)
+                choices_ = frontScaleChoices(s);
+            else if (frontField_ == frontKeyField)
+                choices_ = frontKeyChoices(s);
+            else if (frontField_ == 1)
                 choices_ = {{0, "Strum", "K: M to Z / L: Z to M"},
                             {1, "Octave shift", "K: down / L: up; front notes only"}};
             else {
@@ -999,6 +1247,9 @@ void SettingsEditor::preview() {
     }
     // A chord playing from O already sounds each change; do not interrupt it.
     if (!picker_ && backingOpen() && instrument_.active) return;
+    if (page_ == Page::MidiInput || page_ == Page::AllFront || page_ == Page::Loop ||
+        page_ == Page::LoopMix)
+        return; // Play to hear a choice.
     ++previews_;
     if (page_ == Page::VolumeEffects) {
         // Audition with the saved mix so returning to playing needs no audio reconfiguration.
@@ -1083,12 +1334,68 @@ void SettingsEditor::selectBackingTab(int tab) {
     backingTab_ = std::clamp(tab, 0, backingTabCount - 1);
     selection_ = rows()[std::min<int>(backingRows_[backingTab_], int(rows().size()) - 1)];
 }
+std::vector<SettingsEditor::ShortcutPage> SettingsEditor::shortcuts(const Settings &s) {
+    const bool octave = s.frontAction[size_t(std::clamp(s.frontMode, 0, 1))] != 0;
+    return {
+        {"Chords",
+         {{"2-8 Q-U A-J", "Major / minor / 7th chord"},
+          {"Same column", "Together: dim, maj7, m7, aug"},
+          {"Chord + column", "Bass note: 8 + 5 is C/G"},
+          {"1 + chord", "Raise the chord a semitone"},
+          {"I", "Hold the chord on / off"},
+          {"9 / 0", "Previous / next preset"}}},
+        {"Notes and keys",
+         {{"Z-M", "Front notes, while held"},
+          {"K / L", octave ? "Octave down / up" : "Strum down / up"},
+          {"O", "Mute and mix the backing"},
+          {"P", "Tempo and swing"},
+          {"Space", "Stop all sound"},
+          {"Tab", "Setup and this manual"}}},
+        {"Loop and modes",
+         {{"Enter", "Record, finish, play, stop"},
+          {"Hold Enter", "Delete the loop (asks first)"},
+          {"Hold Space", "All front on / off"},
+          {"Hold Esc", "Save and exit"}}},
+        {"All front",
+         {{"4-0 E-O D-L Z-M", "Every key plays a note"},
+          {"Q / W", "Octave down / up"},
+          {"1", "Sharpen (Scale layout)"},
+          {"Enter / Space", "Loop and stop, as usual"},
+          {"Layout", "App > All front"}}},
+        {"Tempo page",
+         {{"0-9  Enter", "Type and apply a tempo"},
+          {"P", "Tap the tempo on the beat"},
+          {"R", "Preset tempo and swing"},
+          {"F / X", "Tempo, Swing, Swing amount"}}},
+        {"Settings pages",
+         {{"F / X", "Move up / down"},
+          {"Z / C", "Change a number"},
+          {"Enter", "Open or confirm"},
+          {"Backspace", "Restore the default"},
+          {"Tab  1-8", "Next tab / jump to a tab"},
+          {"Esc", "Back; hold Esc to exit"}}},
+    };
+}
 void SettingsEditor::openTempo() {
     tempo_ = true;
     tempoRow_ = 0;
     tempoReplace_ = true;
     tempoInput_ = std::to_string(instrument_.settings.bpm);
     tempoError_.clear();
+    taps_.clear();
+}
+void SettingsEditor::tapTempo() {
+    // From the second tap the tempo follows the average of up to the last four gaps, at once.
+    if (!taps_.empty() && now_ - taps_.back() > 2000) taps_.clear();
+    taps_.push_back(now_);
+    if (taps_.size() > 5) taps_.erase(taps_.begin());
+    tempoRow_ = 0;
+    if (taps_.size() < 2 || taps_.back() == taps_.front()) return;
+    const double gap = double(taps_.back() - taps_.front()) / double(taps_.size() - 1);
+    const int bpm = std::clamp(int(std::lround(60000. / gap)), 40, 240);
+    instrument_.settings.bpm = bpm; // Keep the accompaniment clock running.
+    tempoInput_ = std::to_string(bpm);
+    tempoReplace_ = true;
 }
 SettingsEditor::SetupDestination SettingsEditor::setupDestination() const {
     if (mixField(selection_)) return SetupDestination::Mix;
@@ -1100,6 +1407,9 @@ SettingsEditor::SetupDestination SettingsEditor::setupDestination() const {
     case 22: return SetupDestination::FrontNotes;
     case 3: return SetupDestination::Combinations;
     case volumeEffectsField: return SetupDestination::VolumeEffects;
+    case midiInputField: return SetupDestination::MidiInput;
+    case allFrontField: return SetupDestination::AllFront;
+    case loopField: return SetupDestination::Loop;
     default: return SetupDestination::Picker;
     }
 }
@@ -1153,12 +1463,27 @@ void SettingsEditor::openSetting() {
         selection_ = volumeEffectsRows[volumeEffectsRow_];
         refreshSystemVolume();
         break;
+    case SetupDestination::MidiInput:
+        page_ = Page::MidiInput;
+        selection_ = midiRows[size_t(midiRow_)];
+        break;
+    case SetupDestination::AllFront:
+        page_ = Page::AllFront;
+        selection_ = allFrontModeField;
+        break;
+    case SetupDestination::Loop:
+        page_ = Page::Loop;
+        selection_ = loopRows[size_t(loopRow_)];
+        break;
     }
     instrument_.panic();
 }
 void SettingsEditor::returnToSetup() {
     if (page_ == Page::Envelope) page_ = envelopeParent_;
     if (page_ == Page::VolumeEffects) selection_ = volumeEffectsField;
+    if (page_ == Page::MidiInput) selection_ = midiInputField;
+    if (page_ == Page::AllFront) selection_ = allFrontField;
+    if (page_ == Page::Loop || page_ == Page::LoopMix) selection_ = loopField;
     if (page_ == Page::Backing) {
         backingRows_[backingTab_] = std::max(0, rowIndex());
         selection_ = backingField;
@@ -1181,6 +1506,9 @@ void SettingsEditor::back() {
         cancelPending();
     } else if (page_ == Page::Envelope) {
         page_ = envelopeParent_;
+    } else if (page_ == Page::LoopMix) {
+        page_ = Page::Loop;
+        selection_ = loopMixField;
     } else if (page_ == Page::Backing && fromPlay_) {
         // O was a quick visit from playing: return there with the chord still sounding,
         // leaving the settings pages as the player last left them.
@@ -1213,6 +1541,19 @@ SettingsEditor::RowKind SettingsEditor::rowKind(int field) const {
     case Page::VolumeEffects:
         if (field == outputField) return RowKind::Opens;
         return field == systemVolumeField && !systemVolume_ ? RowKind::Plain : RowKind::Number;
+    case Page::MidiInput: return field == midiDeviceField ? RowKind::Plain : RowKind::Opens;
+    case Page::AllFront:
+        return field == allFrontOctaveField || field == allFrontLowestField ? RowKind::Number
+                                                                           : RowKind::Opens;
+    case Page::Loop:
+        if (field == loopStatusField) return RowKind::Plain;
+        if (field == loopBarsField || field == loopCountField || field == loopShortField ||
+            field == loopSnapField)
+            return RowKind::Number;
+        if (field == loopMixField || field == loopDeleteField)
+            return hasLoop() ? RowKind::Opens : RowKind::Plain;
+        return RowKind::Opens;
+    case Page::LoopMix: return hasLoop() ? RowKind::Number : RowKind::Plain;
     default: break;
     }
     if (mixField(field) || field == 8 || field == frontMixField) return RowKind::Number;
@@ -1222,10 +1563,14 @@ SettingsEditor::RowKind SettingsEditor::rowKind(int field) const {
     return RowKind::Opens; // Choices open their list with Enter.
 }
 SettingsEditor::RowKind SettingsEditor::selectedKind() const {
-    if (page_ == Page::Setup && tab_ == Tab::About) return RowKind::Plain;
+    if (page_ == Page::Setup && tab_ > Tab::App) return RowKind::Plain;
     return rowKind(selected());
 }
 void SettingsEditor::adjust(int direction) {
+    if (page_ == Page::LoopMix) {
+        adjustLoopLayer(direction);
+        return;
+    }
     if (page_ == Page::Backing && mixField(selection_)) {
         adjustMix(direction);
         return;
@@ -1273,7 +1618,7 @@ void SettingsEditor::adjust(int direction) {
 }
 void SettingsEditor::nextTab() {
     switch (page_) {
-    case Page::Setup: jumpTab((int(tab_) + 1) % 3); break;
+    case Page::Setup: jumpTab((int(tab_) + 1) % 4); break;
     case Page::Backing: jumpTab((backingTab_ + 1) % backingTabCount); break;
     case Page::Combinations: jumpTab((scope_ + 2) % 8); break;
     case Page::FrontNotes: jumpTab((frontKey_ + 2) % 8); break;
@@ -1283,8 +1628,8 @@ void SettingsEditor::nextTab() {
 void SettingsEditor::jumpTab(int tab) {
     switch (page_) {
     case Page::Setup:
-        if (tab >= 3) return;
-        if (tab_ != Tab::About) tabRows_[int(tab_)] = rowIndex();
+        if (tab >= 4) return;
+        if (tab_ <= Tab::App) tabRows_[int(tab_)] = rowIndex();
         tab_ = Tab(tab);
         selection_ = rows().empty() ? -1 : rows()[tabRows_[int(tab_)]];
         break;
@@ -1450,14 +1795,25 @@ void SettingsEditor::applyChoice(int value) {
 bool SettingsEditor::canRestoreField() const {
     if (confirmation() != Confirmation::None) return false;
     if (page_ == Page::VolumeEffects) return selection_ != systemVolumeField;
+    if (page_ == Page::MidiInput) return selection_ != midiDeviceField;
+    if (page_ == Page::Loop)
+        return selection_ == loopStyleField || selection_ == loopBarsField ||
+               selection_ == loopCountField || selection_ == loopShortField ||
+               selection_ == loopSnapField;
+    if (page_ == Page::LoopMix) return hasLoop();
     if (page_ != Page::Setup) return true;
     const auto destination = setupDestination();
-    return tab_ != Tab::About && selection_ != 2 &&
+    return tab_ <= Tab::App && selection_ != 2 &&
            (destination == SetupDestination::Picker || destination == SetupDestination::Tempo);
 }
 void SettingsEditor::restoreField() {
     if (!canRestoreField())
         return;
+    if (!picker_ && page_ == Page::LoopMix) {
+        instrument_.looper->restoreLayer(selection_ - loopLayerField);
+        status_ = "Restored to the take";
+        return;
+    }
     if (!picker_ && mixField(selection_)) {
         restoreLayer();
         status_ = "Restored to default";
@@ -1577,6 +1933,16 @@ void SettingsEditor::handleKey(char key, bool down) {
         }
         return;
     }
+    if (loopQuestion_) { // One question: Enter deletes, Esc keeps.
+        if (key == '\n') {
+            if (instrument_.looper) instrument_.looper->clear();
+            status_ = "Loop deleted";
+            if (page_ == Page::LoopMix) page_ = Page::Loop;
+            if (page_ == Page::Loop) selection_ = loopDeleteField;
+        }
+        if (key == '\n' || key == 27) loopQuestion_ = false;
+        return;
+    }
     if (!repeating_) {
         heldKey_ = repeatable(key) ? key : 0;
         heldSince_ = now_;
@@ -1635,7 +2001,10 @@ void SettingsEditor::handleKey(char key, bool down) {
                 instrument_.settings.bpm = bpm; // Keep the accompaniment clock running.
                 tempo_ = false;
             }
-        } else if (key == ' ') instrument_.panic();
+        } else if (key == 'p') {
+            tapTempo();
+        } else if (key == ' ') instrument_.stopEverything();
+        if (key != 'p') taps_.clear();
         return;
     }
     if (!settingsOpen) {
@@ -1644,8 +2013,8 @@ void SettingsEditor::handleKey(char key, bool down) {
         return;
     }
     status_.clear();
-    if (key == ' ') {
-        instrument_.panic();
+    if (key == ' ') { // Space stops everything, the loop too.
+        instrument_.stopEverything();
         return;
     }
     if (key == 27) {
@@ -1700,8 +2069,13 @@ void SettingsEditor::handleKey(char key, bool down) {
         jumpTab(key - '1');
         return;
     }
-    // About is informational: no hidden row, picker or restore action.
-    if (page_ == Page::Setup && tab_ == Tab::About) return;
+    // Shortcuts and About are informational: no hidden row, picker or restore action.
+    if (page_ == Page::Setup && tab_ == Tab::Shortcuts && (direction || adjustment)) {
+        shortcut_ = step(shortcut_, direction ? direction : adjustment,
+                         int(shortcuts(instrument_.settings).size()));
+        return;
+    }
+    if (page_ == Page::Setup && tab_ > Tab::App) return;
     if (key == '\b') {
         restoreField();
         return;
@@ -1725,6 +2099,8 @@ void SettingsEditor::handleKey(char key, bool down) {
             const auto &fields = rows();
             int next = step(rowIndex(), direction, int(fields.size()));
             if (page_ == Page::VolumeEffects) volumeEffectsRow_ = next;
+            else if (page_ == Page::MidiInput) midiRow_ = next;
+            else if (page_ == Page::Loop) loopRow_ = next;
             else if (page_ == Page::Setup) tabRows_[int(tab_)] = next;
             selection_ = fields[next];
         }
@@ -1734,7 +2110,53 @@ void SettingsEditor::handleKey(char key, bool down) {
     }
     if (key == '\n') {
         if (page_ == Page::Setup || page_ == Page::Backing || page_ == Page::FrontSound) openSetting();
-        else if (page_ != Page::VolumeEffects || selection_ == outputField) openPicker();
+        else if (page_ == Page::MidiInput || page_ == Page::AllFront) {
+            if (selectedKind() == RowKind::Opens) openPicker();
+        } else if (page_ == Page::Loop) {
+            if (selectedKind() != RowKind::Opens) return;
+            if (selection_ == loopMixField) {
+                page_ = Page::LoopMix;
+                selection_ = loopLayerField;
+            } else if (selection_ == loopDeleteField) askDeleteLoop();
+            else openPicker();
+        } else if (page_ == Page::LoopMix) {
+            if (!hasLoop()) return;
+            const int layer = selection_ - loopLayerField;
+            instrument_.looper->setLayer(layer, !instrument_.looper->layerOn(layer),
+                                         instrument_.looper->layerLevel(layer));
+        } else if (page_ != Page::VolumeEffects || selection_ == outputField) openPicker();
     }
+}
+bool SettingsEditor::hasLoop() const {
+    if (!instrument_.looper) return false;
+    const auto state = instrument_.looper->state();
+    return state == LoopState::Holding || state == LoopState::Counting ||
+           state == LoopState::Playing;
+}
+std::string SettingsEditor::loopSummary() const {
+    if (!instrument_.looper) return "None";
+    const auto &loop = *instrument_.looper;
+    switch (loop.state()) {
+    case LoopState::Empty: return "None";
+    case LoopState::Armed: return "Waiting to record";
+    case LoopState::Recording: return "Recording";
+    case LoopState::Holding:
+    case LoopState::Counting:
+    case LoopState::Playing: break;
+    }
+    return std::to_string(loop.recordedBars()) + (loop.recordedBars() == 1 ? " bar" : " bars") +
+           (loop.playing() ? ", playing" : "");
+}
+void SettingsEditor::askDeleteLoop() {
+    if (!hasLoop()) return;
+    loopQuestion_ = true;
+    heldKey_ = 0;
+    picker_ = false;
+}
+void SettingsEditor::adjustLoopLayer(int direction) {
+    if (!hasLoop()) return;
+    auto &loop = *instrument_.looper;
+    const int layer = selection_ - loopLayerField;
+    loop.setLayer(layer, loop.layerOn(layer), loop.layerLevel(layer) + 5 * direction);
 }
 } // namespace zc

@@ -34,7 +34,7 @@ def run(name, keys, expected, seed='', hold_escape=False):
     script = folder/'keys.events'
     script.write_text('\n'.join(events)+'\n')
     capture = folder/'screen.ppm'
-    env = dict(os.environ, XDG_CONFIG_HOME=str(config.parent.resolve()))
+    env = dict(os.environ, ZEROCHORD_HOME=str(config.resolve()))
     result = subprocess.run([str(args.binary.resolve()), '--headless', '--no-audio',
                              '--script', str(script.resolve()), '--capture', str(capture.resolve()),
                              '--quit-after-ms', str(duration)], cwd=ROOT, env=env,
@@ -84,10 +84,12 @@ run('absolute-roots-and-octaves',
 run('chord-scale-and-hold', chord_config + ['x','x','ENTER','x','ENTER','x','ENTER','f','ENTER'],
     {'chordScale':1, 'hold':0})
 run('chord-timing', chord_config + ['x']*8 + ['c']*18 + ['c'], {'combinationMs':120})
-run('front-scale-physical', ['TAB','TAB','f','ENTER','ENTER','x','ENTER','x','x','ENTER','x','x','ENTER'],
+run('front-scale-physical', ['TAB','TAB','x','x','x','ENTER','ENTER','x','ENTER','x','x','ENTER','x','x','ENTER'],
     {'frontMode':1, 'scale':1, 'frontFollow':0})
+run('all-front-free-play', ['TAB','TAB','x','x','x','x','ENTER','ENTER','x','ENTER','x','c','c'],
+    {'allFrontMode':1, 'allFrontLowest':57})
 run('front-key-follows-again',
-    ['TAB','TAB','f','ENTER','ENTER','x','ENTER','x','ENTER','x','ENTER','BACKSPACE'],
+    ['TAB','TAB','x','x','x','ENTER','ENTER','x','ENTER','x','ENTER','x','ENTER','BACKSPACE'],
     {'frontMode':1, 'frontFollow':1})
 run('envelope-physical', front_envelope + ['c','ESC','ESC','f','ENTER','2','x','x','ENTER','x','x','c'],
     {'envelope00':5000, 'envelope12':55}, 'envelope00 3000\nenvelope12 50\n')
@@ -117,9 +119,39 @@ run('restore-preset-keep', ['TAB','f','ENTER','ESC'], {'bpm':120}, 'bpm 120\n')
 run('front-source-rate', ['TAB','x','x','x','ENTER','ENTER'], {'harpProgram':11})
 run('mixed-source-rate', ['TAB','x','x','ENTER','2','x','ENTER'], {'chordProgram':49})
 run('strings-source-rate', ['TAB','x','x','x','ENTER','ENTER','TAB'], {'harpProgram':11})
-run('about-dark', ['TAB','TAB','TAB','x','ENTER','BACKSPACE'], {'theme':0, 'preset':0})
-run('about-light', ['TAB','3'], {'theme':1}, 'theme 1\n')
-run('about-wrap', ['TAB','3','TAB','x','ENTER','1','3','7','ENTER'], {'bpm':137})
+run('shortcuts-read-only', ['TAB','3','x','x','c','ENTER','BACKSPACE'], {'theme':0, 'preset':0, 'bpm':70})
+run('about-dark', ['TAB','TAB','TAB','TAB','x','ENTER','BACKSPACE'], {'theme':0, 'preset':0})
+run('about-light', ['TAB','4'], {'theme':1}, 'theme 1\n')
+run('about-wrap', ['TAB','4','TAB','x','ENTER','1','3','7','ENTER'], {'bpm':137})
+# Keys 12 ms apart tap faster than the range allows: the tempo stops at 240 BPM.
+run('tap-tempo', ['p','p','p','p','ENTER'], {'bpm':240})
+
+
+def moved_to_zerochord():
+    """First launch of 2.0: the old ~/.config/zerochord/ moves into ~/ZeroChord/, once."""
+    import shutil
+    home = ROOT/'build/test-flows/migration-home'
+    shutil.rmtree(home, ignore_errors=True)
+    old = home/'.config/zerochord'
+    (old/'presets/user').mkdir(parents=True)
+    (old/'settings.conf').write_text('frontMappingVersion 2\nbpm 99\n')
+    (old/'loop.txt').write_text('zerochord-loop 1\n')
+    (home/'ZeroChord/sounds/my-pack').mkdir(parents=True)
+    env = {k: v for k, v in os.environ.items() if k not in ('ZEROCHORD_HOME', 'XDG_CONFIG_HOME')}
+    env['HOME'] = str(home.resolve())
+    result = subprocess.run([str(args.binary.resolve()), '--headless', '--no-audio',
+                             '--quit-after-ms', '25'], cwd=ROOT, env=env,
+                            capture_output=True, text=True, timeout=8)
+    assert result.returncode == 0, result.stderr
+    new = home/'ZeroChord'
+    settings = dict(line.split(maxsplit=1) for line in (new/'settings.conf').read_text().splitlines())
+    assert settings['bpm'] == '99', settings['bpm']
+    assert (new/'loop.txt').exists() and (new/'presets/user').is_dir()
+    assert (new/'sounds/my-pack').is_dir() and not old.exists()
+    print('PASS: moved-to-zerochord')
+
+
+moved_to_zerochord()
 
 
 def playing_screen(name, events, end, seed=''):
@@ -137,7 +169,7 @@ def playing_screen(name, events, end, seed=''):
     result = subprocess.run([str(args.binary.resolve()), '--headless', '--no-audio', '--no-save',
                              '--script', str(script.resolve()), '--capture', str(capture.resolve()),
                              '--quit-after-ms', str(end)], cwd=ROOT,
-                            env=dict(os.environ, XDG_CONFIG_HOME=str(config.parent.resolve())),
+                            env=dict(os.environ, ZEROCHORD_HOME=str(config.resolve())),
                             capture_output=True, text=True, timeout=8)
     assert result.returncode == 0, (name, result.stderr)
     return capture.read_bytes()
@@ -153,4 +185,17 @@ for theme in ('', 'theme 1\n'):
         played = playing_screen('played', busy + target, 1500, theme)
         assert fresh == played, ('in-place playing screen differs', theme, target)
 print('PASS: playing screen after busy playing matches a fresh drawing (dark and light)')
-print('PASS: 43 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')
+# All front (hold Space) also updates in place; a Space tap stops without leaving it.
+enter = [(20,'SPACE','down'), (700,'SPACE','up')]
+for mode in ('', 'allFrontMode 1\n'):
+    keys = [(760,'e','down'), (780,'1','down'), (800,'d','down'), (820,'e','up'), (840,'w','down'),
+            (850,'w','up'), (860,'q','down'), (870,'q','up'), (880,'1','up'), (900,'d','up'),
+            (920,'SPACE','down'), (940,'SPACE','up')]
+    target = [(1200,'m','down'), (1220,'4','down')]
+    fresh = playing_screen('all-front-fresh', enter + target, 1500, mode)
+    played = playing_screen('all-front-played', enter + keys + target, 1500, mode)
+    assert fresh == played, ('in-place All front screen differs', mode)
+    chords = playing_screen('all-front-back', enter + [(800,'SPACE','down'), (1500,'SPACE','up')], 1600, mode)
+    assert chords == playing_screen('chord-screen', [], 1600, mode), ('Space hold did not return', mode)
+print('PASS: All front matches a fresh drawing in both modes; holding Space returns to chords')
+print('PASS: 47 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')

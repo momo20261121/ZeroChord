@@ -7,7 +7,7 @@ zerochord_binary=build/cross-device/M5CardputerZero-ZeroChord
 test -x "$zerochord_binary"
 zerochord_hash=$(shasum -a 256 "$zerochord_binary" | cut -d ' ' -f 1)
 : "${ZEROCHORD_SSH_HOST:?Set ZEROCHORD_SSH_HOST; see .env.example}"
-zerochord_remote_dir=${ZEROCHORD_REMOTE_DIR:-ZeroChord}
+zerochord_remote_dir=${ZEROCHORD_REMOTE_DIR:-zerochord-dev}
 # Encode the directory argument so SSH's remote shell cannot interpret it.
 zerochord_remote_encoded=$(printf '%s' "$zerochord_remote_dir" | base64 | tr -d '\n')
 set -- -o LogLevel=ERROR

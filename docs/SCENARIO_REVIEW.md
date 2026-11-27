@@ -68,7 +68,7 @@ volumes are preserved. Backspace on App → Volume & effects → Backing volume 
 From the project root, using the existing project-local toolchain:
 
 ```sh
-.venv/bin/cmake --build build/desktop -j8
+.venv/bin/cmake --build build/desktop -j4
 .venv/bin/ctest --test-dir build/desktop --output-on-failure
 .venv/bin/python scripts/test_local_flows.py
 ```

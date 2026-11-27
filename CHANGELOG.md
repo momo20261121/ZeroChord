@@ -1,5 +1,66 @@
 # Release notes
 
+## 2.0.0 - 2026-11-27
+
+ZeroChord becomes a pocket jam partner: record a loop with `Enter` and play over it.
+
+- **Loop.** `Enter` arms a loop, the first chord or note starts it on beat 1,
+  `Enter` finishes it on the nearest bar (a press up to a 1/8 note late ends on the
+  bar just played) and stops what was playing, and `Enter` plays and stops it. Hold `Enter` to delete it (asks
+  first). A light at the top left shows waiting to record (blinking red), recording
+  (red, bar and beat), held (yellow), the count-in and playing (green), with a thin
+  bar above it for the position. Playback starts after a bar of clicks (Count-in:
+  Off, 1 bar or 2 bars). The
+  loop records chords and notes, not audio, so it follows the tempo. It replays the
+  take's own style by default, or the current style and key. It plays alongside
+  live playing; with no live chord, its chord shows in green and `Z`–`M` follow it.
+  Clean-up merges chords shorter than a 1/8 note into the next and snaps each change
+  to the nearest 1/8 on its own, so errors never add up; both settings can be changed
+  at any time without re-recording. New **App → Loop** page with Style, Length limit
+  (default 64 bars), Count-in, Short chords, Snap changes, a **Loop mix** page (mute and level
+  per layer, Front included) and Delete loop. The loop is saved between sessions.
+- **All front.** Hold `Space` to switch to a screen where `4`–`0`, `E`–`O`, `D`–`L`
+  and `Z`–`M` all play the front sound; hold it again to return. A latched backing
+  chord keeps playing. `Q`/`W` shift the octave, a `Space` tap stops everything,
+  and the screen lights each held key with its note. **App → All front** chooses
+  **Scale** (one octave of the front scale per row from **Lowest octave**, default
+  3; `1` sharpens) or **Free play** (piano layout: `Z`–`M` and `E`–`O` white keys
+  from **Lowest note**, default F3, with the key above each its sharp; keys above B
+  and E are silent). Scale mode's **Key** and **Scale** are Front notes' own,
+  shared between both pages. A `Space` tap now stops sound on release.
+- **MIDI input.** A class-compliant USB MIDI keyboard plays one part of the
+  current style: Front (default), Chord, Arp, Pad, Bass, or Drums. Notes use that
+  part's sound, envelope, level, pan, and effects at the pitch played. Muting the
+  layer with `O` stops only its pattern, so you can play the part yourself. New
+  **App → MIDI input** page: **Keyboard** (connected keyboard; the bottom line
+  shows the last note and velocity), **Plays**, and **Velocity** (Soft, Normal,
+  Hard, Fixed). These settings apply to all presets. The sustain pedal and All
+  notes off work, `Space` stops MIDI notes, keyboards can be plugged in or out at
+  any time, and the playing screen shows a **MIDI** badge that lights on notes.
+  Up to 16 MIDI notes sound at once. When more arrive, a pedal-held note ends
+  first, otherwise the oldest.
+- **MIDI pitch bend and mod wheel.** Pitch bend moves MIDI notes up to two semitones
+  either way, and the mod wheel adds a vibrato of up to ±50 cents. Only MIDI notes
+  move; drums ignore both. Reset all controllers and unplugging centre them. Loops
+  record and replay them.
+- **3/4 loops.** A style is in 3/4 when any layer uses a 3/4 pattern (Chords on 2 and
+  3, Broken 3/4, or a Waltz 3/4 pattern), muted or not. Loops recorded in it have
+  three-beat bars: the light counts REC 2.3, the take ends on a whole 3/4 bar, the
+  length limit counts 3/4 bars, and the count-in clicks three times a bar. Each loop
+  keeps its own time; loops saved earlier stay 4/4. The Tempo page shows the time.
+- **Tap tempo.** Press `P` on the Tempo page in time with the beat. From the second tap
+  the tempo follows the average of the last four gaps and applies at once; a 2-second
+  pause starts a new count.
+- **Shortcuts tab.** Settings gains a Shortcuts tab before About: a six-page manual of
+  every key (Chords, Notes and keys, Loop and modes, All front, Tempo page, Settings
+  pages). Any arrow turns the page. About is now tab 4.
+- **One folder: `~/ZeroChord/`.** Settings, presets, the loop and sound packs now live
+  together in `~/ZeroChord/`, easy to find, back up and copy. The first launch moves
+  everything from `~/.config/zerochord/` there and deletes the old folder; packs
+  already in `~/ZeroChord/sounds/` stay, and a file both folders had stays in the old
+  one. If the move fails, it is undone and the old folder is used. Packs copied to the
+  old `sounds/` folder still load.
+
 ## 1.4.0 - 2026-11-26
 
 - New **Bass** and **Drums** layers. Both play on the beat clock while a chord

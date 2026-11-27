@@ -10,8 +10,11 @@
 namespace zc {
 class SettingsEditor {
   public:
-    enum class Page { Setup, Combinations, FrontNotes, Envelope, VolumeEffects, Backing, FrontSound };
-    enum class Tab { Style, App, About };
+    enum class Page {
+        Setup, Combinations, FrontNotes, Envelope, VolumeEffects, Backing, FrontSound, MidiInput,
+        AllFront, Loop, LoopMix
+    };
+    enum class Tab { Style, App, Shortcuts, About };
     // Number rows change with left/right; Opens rows (pages, lists, actions) open with Enter.
     enum class RowKind { Plain, Number, Opens };
     struct Choice {
@@ -36,7 +39,28 @@ class SettingsEditor {
     static constexpr int chordVoicingField = 45;
     static constexpr int padVoicingField = 46;
     static constexpr int frontMixField = 47;
-    static constexpr int settingCount = frontMixField + 1;
+    static constexpr int midiInputField = 48;    // App row that opens the MIDI input page.
+    static constexpr int midiDeviceField = 49;   // Connected keyboard; information only.
+    static constexpr int midiTargetField = 50;   // Plays: the layer whose sound MIDI uses.
+    static constexpr int midiVelocityField = 51; // Velocity curve.
+    static constexpr int allFrontField = 52;       // App row that opens the All front page.
+    static constexpr int allFrontModeField = 53;   // Scale or Free play.
+    static constexpr int allFrontKeyField = 54;    // Front key and scale, shared with Front notes.
+    static constexpr int allFrontScaleField = 55;
+    static constexpr int allFrontOctaveField = 56; // Scale mode: octave of Z-M.
+    static constexpr int allFrontLowestField = 57; // Free play: note of Z.
+    static constexpr int loopLayerRows = 6;
+    static constexpr int loopField = 58;       // App row that opens the Loop page.
+    static constexpr int loopStatusField = 59; // The recorded loop; information only.
+    static constexpr int loopStyleField = 60;  // Recorded or Follow current.
+    static constexpr int loopBarsField = 61;   // Length limit.
+    static constexpr int loopShortField = 62;  // Short chords.
+    static constexpr int loopSnapField = 63;   // Snap changes.
+    static constexpr int loopMixField = 64;    // Opens Loop mix.
+    static constexpr int loopDeleteField = 65;
+    static constexpr int loopLayerField = 66; // Loop mix rows 66-71: Front, then backingLayerOrder.
+    static constexpr int loopCountField = loopLayerField + loopLayerRows; // Count-in bars.
+    static constexpr int settingCount = loopCountField + 1;
     static constexpr int backingTabCount = 6; // Layers, Chord, Arp, Pad, Bass, Drums.
     explicit SettingsEditor(Instrument &instrument,
                             std::function<std::optional<int>()> readSystemVolume = {},
@@ -60,6 +84,9 @@ class SettingsEditor {
     bool backingOpen() const { return settingsOpen && page_ == Page::Backing && fromPlay_; }
     int backingTab() const { return backingTab_; }
     bool tempoOpen() const { return tempo_; }
+    // "Delete loop?" from a held Enter or the Loop page: Enter deletes, Esc keeps.
+    bool loopQuestion() const { return loopQuestion_; }
+    void askDeleteLoop();
     int tempoRow() const { return tempoRow_; } // 0 Tempo, 1 Swing, 2 Amount.
     const std::string &tempoText() const { return tempoInput_; }
     const std::string &tempoError() const { return tempoError_; }
@@ -77,13 +104,26 @@ class SettingsEditor {
     static const char *settingName(int index);
     static const char *combinationName(int index);
     static int envelopeField(int part);
+    // The Shortcuts tab: a read-only manual of every key, one page per group. Any arrow
+    // (F/X/Z/C) turns the page.
+    struct Shortcut {
+        std::string keys, action;
+    };
+    struct ShortcutPage {
+        const char *title;
+        std::vector<Shortcut> lines; // At most shortcutLines.
+    };
+    static constexpr int shortcutLines = 6;
+    static std::vector<ShortcutPage> shortcuts(const Settings &settings);
+    int shortcutPage() const { return shortcut_; }
 
   protected:
     static constexpr int chordHoldField = 9;
     static constexpr int chordScaleField = 10;
     static constexpr int frontKeyField = 5;
     enum class SetupDestination {
-        Picker, Tempo, Backing, Envelope, FrontNotes, Combinations, VolumeEffects, FrontSound, Mix
+        Picker, Tempo, Backing, Envelope, FrontNotes, Combinations, VolumeEffects, FrontSound, Mix,
+        MidiInput, AllFront, Loop
     };
     enum class Confirmation { None, Create, Restore };
     RowKind rowKind(int field) const;
@@ -94,8 +134,9 @@ class SettingsEditor {
     Page page_ = Page::Setup;
     Page envelopeParent_ = Page::Backing;
     Tab tab_ = Tab::Style;
-    int tabRows_[3] = {0, 0, 0};
-    int volumeEffectsRow_ = 0;
+    int tabRows_[4] = {0, 0, 0, 0};
+    int shortcut_ = 0; // Page of the Shortcuts tab.
+    int volumeEffectsRow_ = 0, midiRow_ = 1;
     std::array<int, backingTabCount> backingRows_{};
     int frontSoundRow_ = 0;
     int backingTab_ = 0;
@@ -109,14 +150,25 @@ class SettingsEditor {
     bool tempo_ = false, tempoReplace_ = true;
     int tempoRow_ = 0;
     std::string tempoInput_, tempoError_;
+    // Tap tempo: P on the Tempo page. Times of the recent taps; a pause of 2 s starts over.
+    std::vector<uint64_t> taps_;
+    void tapTempo();
     int choice_ = 0;
     std::vector<Choice> choices_;
     std::string status_;
     std::optional<int> systemVolume_;
+    bool loopQuestion_ = false;
+    int loopRow_ = 1;
     bool settingListPage() const {
         return page_ == Page::Setup || page_ == Page::VolumeEffects || page_ == Page::Backing ||
-               page_ == Page::FrontSound;
+               page_ == Page::FrontSound || page_ == Page::MidiInput || page_ == Page::AllFront ||
+               page_ == Page::Loop || page_ == Page::LoopMix;
     }
+    static bool loopLayerRow(int index) {
+        return index >= loopLayerField && index < loopLayerField + loopLayerRows;
+    }
+    bool hasLoop() const;
+    std::string loopSummary() const;
     static bool mixField(int index) {
         return (index >= chordMixField && index < chordMixField + 3) || index == drumMixField ||
                index == bassMixField;
@@ -183,6 +235,7 @@ class SettingsEditor {
     void nextTab();
     void jumpTab(int tab);
     void adjustMix(int direction);
+    void adjustLoopLayer(int direction);
     void adjustSwing(int direction);
     void restoreSwing();
     void toggleLayer();

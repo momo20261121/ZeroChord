@@ -17,4 +17,6 @@ struct Pattern {
 const std::vector<Pattern> &patterns(PlaybackMode mode);
 int patternIndex(const Settings &s);
 void setPatternIndex(Settings &s, int index);
+// Beats per bar: 3 when any layer's pattern is a 3/4 one (muted or not), otherwise 4.
+int beatsPerBar(const Settings &s);
 } // namespace zc

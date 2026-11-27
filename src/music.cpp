@@ -1,5 +1,6 @@
 #include "music.hpp"
 #include <algorithm>
+#include <cstring>
 #include <tuple>
 
 namespace zc {
@@ -181,6 +182,36 @@ std::array<int, 7> harpNotes(const Chord &c) {
         out[i] = notes[i % count] + 12 * (1 + i / count);
     return out;
 }
+bool whiteKey(int pitch) {
+    const int pc = ((pitch % 12) + 12) % 12;
+    return pc != 1 && pc != 3 && pc != 6 && pc != 8 && pc != 10;
+}
+int allFrontIndex(char key) {
+    if (!key) return -1;
+    const char *found = std::strchr(allFrontKeys, key);
+    return found ? int(found - allFrontKeys) : -1;
+}
+std::array<int, allFrontKeyCount> allFrontNotes(const Settings &s, int octaveShift, int semitone) {
+    std::array<int, allFrontKeyCount> notes{};
+    for (int row = 0; row < 4; row++)
+        for (int col = 0; col < 7; col++) {
+            int pitch;
+            if (s.allFrontMode == 0) {
+                const int octave = s.allFrontOctave + (3 - row); // Z-M is the lowest row.
+                pitch = 12 * (octave + 1) + s.frontKeyTonic() + scaleStep(s.frontKeyScale(), col) +
+                        semitone;
+            } else {
+                int white = s.allFrontLowest; // Z-M: white keys 0-6; E-O: 7-13.
+                for (int n = 0; n < col + (row < 2 ? 7 : 0); n++)
+                    white += whiteKey(white + 1) ? 1 : 2;
+                const bool sharpRow = row == 0 || row == 2;
+                pitch = !sharpRow ? white : whiteKey(white + 1) ? -1 : white + 1;
+            }
+            if (pitch >= 0) pitch += 12 * octaveShift;
+            notes[size_t(row * 7 + col)] = pitch < 0 || pitch > 127 ? -1 : pitch;
+        }
+    return notes;
+}
 std::string noteName(int pitch) {
     static const char *names[] = {"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
     return names[(pitch % 12 + 12) % 12];
@@ -294,6 +325,17 @@ void Settings::clamp() {
     reverbMs = std::clamp(reverbMs, 300, 8000);
     frontMix = std::clamp(frontMix, 0, 100);
     output = std::clamp(output, 0, 2);
+    midiTarget = std::clamp(midiTarget, 0, 5);
+    midiVelocity = std::clamp(midiVelocity, 0, 3);
+    allFrontMode = std::clamp(allFrontMode, 0, 1);
+    allFrontOctave = std::clamp(allFrontOctave, 0, 5);
+    allFrontLowest = std::clamp(allFrontLowest, 24, 84);
+    loopStyle = std::clamp(loopStyle, 0, 1);
+    loopBars = std::clamp(loopBars, 1, 64);
+    loopShort = std::clamp(loopShort, 0, 3);
+    loopSnap = std::clamp(loopSnap, 0, 3);
+    loopCount = std::clamp(loopCount, 0, 2);
+    if (!whiteKey(allFrontLowest)) --allFrontLowest; // Free play starts on a white key.
     chordPattern = std::clamp(chordPattern, 0, chordPatternCount - 1);
     padMotion = std::clamp(padMotion, 0, 3);
     hold = !!hold;

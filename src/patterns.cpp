@@ -306,4 +306,16 @@ void setPatternIndex(Settings &s, int n) {
     else
         s.pattern = n;
 }
+int beatsPerBar(const Settings &s) {
+    // 3/4 patterns repeat every 12 or 24 16ths; every 4/4 one is a multiple of 16.
+    auto threeFour = [](PlaybackMode mode, int index) {
+        const auto &list = patterns(mode);
+        return list[size_t(std::clamp(index, 0, int(list.size()) - 1))].ticks % 16 != 0;
+    };
+    return threeFour(PlaybackMode::Chord, s.chordPattern) || threeFour(PlaybackMode::Arp, s.pattern) ||
+                   threeFour(PlaybackMode::Bass, s.bassPattern) ||
+                   threeFour(PlaybackMode::Drums, s.drumPattern)
+               ? 3
+               : 4;
+}
 } // namespace zc

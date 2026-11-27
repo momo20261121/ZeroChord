@@ -23,8 +23,17 @@ class UI : public SettingsEditor {
     void menuFooter(bool edited);
     void drawPerformance();
     void drawAbout();
+    void drawShortcuts();
     bool drawSettingRows(int top, int limit, int spacing); // True when a listed row is edited.
     void drawVolumeEffects();
+    void drawMidiInput();
+    void drawAllFrontPage();
+    void drawLoopPage();
+    void drawLoopMix();
+    void drawLoopQuestion();
+    void drawLoopLight(PerformanceView &view);
+    void updateLoopLight(PerformanceView &view, const std::string &title, bool sharpened);
+    void drawAllFront(); // The playing screen in All front.
     void drawPicker();
     void drawTempo();
     void drawBacking();

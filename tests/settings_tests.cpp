@@ -1,6 +1,7 @@
 #include "settings_editor.hpp"
 #include "menu_navigation.hpp"
 #include "settings_io.hpp"
+#include "storage.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -22,6 +23,7 @@ struct Capture : Sink {
 };
 struct MenuAudit : SettingsEditor {
     using SettingsEditor::SettingsEditor;
+    using SettingsEditor::settingValue;
     std::vector<int> visibleRows() const {
         return page() == Page::FrontNotes ? frontRows()
                : page() == Page::Combinations ? combinationRows()
@@ -88,7 +90,7 @@ int main() {
     std::optional<int> outputVolume = 43;
     bool allowVolumeChange = true;
     int volumeWrites = 0;
-    SettingsEditor editor(instrument, [&] { return outputVolume; }, [&](int value) {
+    MenuAudit editor(instrument, [&] { return outputVolume; }, [&](int value) {
         ++volumeWrites;
         if (!allowVolumeChange) return false;
         outputVolume = value;
@@ -101,7 +103,10 @@ int main() {
     const auto original = instrument.settings;
     press(editor, '\t'); // Tab moves to the next tab; left/right stay for values.
     CHECK(editor.tab() == SettingsEditor::Tab::App && editor.selected() == 18);
-    CHECK((editor.rows() == std::vector<int>{18, SettingsEditor::volumeEffectsField, 3, 22}));
+    CHECK((editor.rows() == std::vector<int>{18, SettingsEditor::volumeEffectsField, 3, 22,
+                                             SettingsEditor::allFrontField,
+                                             SettingsEditor::loopField,
+                                             SettingsEditor::midiInputField}));
     row(editor, SettingsEditor::volumeEffectsField);
     press(editor, '\n');
     CHECK(editor.page() == SettingsEditor::Page::VolumeEffects &&
@@ -141,6 +146,100 @@ int main() {
           instrument.settings.strumMs == defaults.strumMs);
     press(editor, 27);
     CHECK(editor.page() == SettingsEditor::Page::Setup && editor.selected() == SettingsEditor::volumeEffectsField);
+    // MIDI input: an app-wide page. Plays and Velocity are lists; Keyboard only reports.
+    CHECK(editor.settingValue(SettingsEditor::midiInputField) == "No keyboard");
+    row(editor, SettingsEditor::midiInputField);
+    press(editor, '\n');
+    CHECK(editor.page() == SettingsEditor::Page::MidiInput &&
+          editor.selected() == SettingsEditor::midiTargetField);
+    CHECK((editor.rows() == std::vector<int>{SettingsEditor::midiDeviceField,
+                                            SettingsEditor::midiTargetField,
+                                            SettingsEditor::midiVelocityField}));
+    sink.events.clear();
+    press(editor, '\n');
+    CHECK(editor.pickerOpen() && editor.choices().size() == midiTargetCount &&
+          editor.choices()[editor.highlighted()].value == MidiFront);
+    for (int n = 0; n < MidiBass; n++) press(editor, 18);
+    press(editor, '\n');
+    CHECK(!editor.pickerOpen() && instrument.settings.midiTarget == MidiBass);
+    CHECK(std::none_of(sink.events.begin(), sink.events.end(), // Choosing plays no preview.
+                       [](const Command &c) { return c.type == CommandType::On; }));
+    instrument.midiDevice = "Keystation 49";
+    CHECK(editor.settingValue(SettingsEditor::midiInputField) == "Plays Bass");
+    CHECK(editor.settingValue(SettingsEditor::midiDeviceField) == "Keystation 49");
+    press(editor, 17);
+    CHECK(editor.selected() == SettingsEditor::midiDeviceField);
+    press(editor, '\n');
+    CHECK(!editor.pickerOpen() && editor.page() == SettingsEditor::Page::MidiInput);
+    row(editor, SettingsEditor::midiVelocityField);
+    press(editor, '\n');
+    press(editor, 18);
+    press(editor, '\n');
+    CHECK(instrument.settings.midiVelocity == VelocityHard);
+    press(editor, '\b'); // Restore the default.
+    CHECK(instrument.settings.midiVelocity == VelocityNormal);
+    // Style presets keep the app-wide MIDI choice.
+    instrument.library.select(instrument.settings, 1);
+    CHECK(instrument.settings.midiTarget == MidiBass);
+    press(editor, 27);
+    CHECK(editor.page() == SettingsEditor::Page::Setup &&
+          editor.selected() == SettingsEditor::midiInputField);
+    instrument.settings.midiTarget = defaults.midiTarget;
+    instrument.library.select(instrument.settings, original.preset);
+    instrument.midiDevice.clear();
+    // All front: Scale rows, or Free play's Lowest note. Key and Scale are Front notes' own.
+    row(editor, SettingsEditor::allFrontField);
+    press(editor, '\n');
+    CHECK(editor.page() == SettingsEditor::Page::AllFront &&
+          editor.selected() == SettingsEditor::allFrontModeField);
+    CHECK((editor.rows() == std::vector<int>{SettingsEditor::allFrontModeField,
+                                            SettingsEditor::allFrontKeyField,
+                                            SettingsEditor::allFrontScaleField,
+                                            SettingsEditor::allFrontOctaveField}));
+    row(editor, SettingsEditor::allFrontKeyField);
+    press(editor, '\n');
+    CHECK(editor.pickerOpen() && editor.choices()[editor.highlighted()].value == -1);
+    for (int n = 0; n < 3; n++) press(editor, 18); // Follow chord, C, C#, D.
+    press(editor, '\n');
+    CHECK(!instrument.settings.frontFollow && instrument.settings.frontTonic == 2 &&
+          instrument.settings.scale == instrument.settings.chordScale);
+    CHECK(editor.settingValue(SettingsEditor::allFrontKeyField) == "D");
+    {
+        // Front notes shows the same key, and choosing there shows here.
+        Settings &s = instrument.settings;
+        CHECK(s.frontKeyTonic() == 2);
+        s.frontMode = 1;
+    }
+    row(editor, SettingsEditor::allFrontOctaveField);
+    press(editor, 19);
+    CHECK(instrument.settings.allFrontOctave == 2);
+    CHECK(editor.settingValue(SettingsEditor::allFrontOctaveField) == "2  (Z-M D2, 4-0 D5)");
+    press(editor, '\b');
+    CHECK(instrument.settings.allFrontOctave == 3);
+    row(editor, SettingsEditor::allFrontKeyField);
+    press(editor, '\b'); // Backspace follows the chord again: key and scale together.
+    CHECK(instrument.settings.frontFollow == 1);
+    row(editor, SettingsEditor::allFrontModeField);
+    press(editor, '\n');
+    press(editor, 18);
+    press(editor, '\n');
+    CHECK(instrument.settings.allFrontMode == 1);
+    CHECK((editor.rows() == std::vector<int>{SettingsEditor::allFrontModeField,
+                                            SettingsEditor::allFrontLowestField}));
+    CHECK(editor.settingValue(SettingsEditor::allFrontLowestField) == "F3-E5");
+    row(editor, SettingsEditor::allFrontLowestField);
+    press(editor, 19); // White keys only: F3 to E3.
+    CHECK(instrument.settings.allFrontLowest == 52);
+    press(editor, 20);
+    press(editor, 20);
+    CHECK(instrument.settings.allFrontLowest == 55);
+    press(editor, 27);
+    CHECK(editor.page() == SettingsEditor::Page::Setup &&
+          editor.selected() == SettingsEditor::allFrontField &&
+          editor.settingValue(SettingsEditor::allFrontField) == "Free play");
+    instrument.settings.allFrontMode = defaults.allFrontMode;
+    instrument.settings.allFrontLowest = defaults.allFrontLowest;
+    instrument.settings.frontMode = defaults.frontMode;
     press(editor, '1'); // Number keys jump to a tab.
     CHECK(editor.tab() == SettingsEditor::Tab::Style && editor.selected() == 2);
     CHECK(samePresetSettings(original, instrument.settings));
@@ -333,6 +432,11 @@ int main() {
     instrument.settings.combinations[3] = int(Quality::Sus4);
     instrument.settings.degreeCombinations[6][0] = int(Quality::No3);
     instrument.settings.eqDb = {6, -3, 2};
+    instrument.settings.midiTarget = MidiDrums;
+    instrument.settings.midiVelocity = VelocityFixed;
+    instrument.settings.allFrontMode = 1;
+    instrument.settings.allFrontOctave = 2;
+    instrument.settings.allFrontLowest = 48;
     saveSettings(instrument.settings, path);
     Settings loaded;
     loadSettings(loaded, path);
@@ -340,6 +444,11 @@ int main() {
     CHECK(loaded.degreeCombinations == instrument.settings.degreeCombinations);
     CHECK(loaded.preset == 2 && loaded.tonic == 4);
     CHECK(loaded.eqDb == instrument.settings.eqDb);
+    CHECK(loaded.midiTarget == MidiDrums && loaded.midiVelocity == VelocityFixed);
+    CHECK(loaded.allFrontMode == 1 && loaded.allFrontOctave == 2 && loaded.allFrontLowest == 48);
+    loaded.midiTarget = 99, loaded.midiVelocity = -4;
+    loaded.clamp();
+    CHECK(loaded.midiTarget == MidiDrums && loaded.midiVelocity == VelocitySoft);
     loaded.eqDb = {-99, 0, 99}; loaded.clamp();
     CHECK((loaded.eqDb == std::array<int, 3>{-12, 0, 12}));
     {
@@ -557,6 +666,77 @@ int main() {
                     CHECK(menu.page() == SettingsEditor::Page::VolumeEffects && menu.selected() == fields.back());
                     press(menu, 27);
                     CHECK(menu.page() == SettingsEditor::Page::Setup && menu.selected() == SettingsEditor::volumeEffectsField);
+                } else if (menu.selected() == SettingsEditor::allFrontField) {
+                    for (int mode = 0; mode < 2; mode++) {
+                        walker.settings.allFrontMode = mode;
+                        press(menu, '\n');
+                        CHECK(menu.page() == SettingsEditor::Page::AllFront);
+                        for (int field : menu.visibleRows()) {
+                            CHECK(menu.selected() == field);
+                            if (field == SettingsEditor::allFrontOctaveField ||
+                                field == SettingsEditor::allFrontLowestField) {
+                                const auto before = state();
+                                press(menu, '\n');
+                                CHECK(!menu.pickerOpen() && state() == before);
+                                press(menu, right);
+                                CHECK(state() != before);
+                                press(menu, left);
+                                CHECK(state() == before);
+                            } else checkPicker();
+                            press(menu, down);
+                        }
+                        press(menu, 27);
+                        CHECK(menu.page() == SettingsEditor::Page::Setup &&
+                              menu.selected() == SettingsEditor::allFrontField);
+                    }
+                    walker.settings.allFrontMode = 0;
+                } else if (menu.selected() == SettingsEditor::loopField) {
+                    // With no loop recorded, Loop mix and Delete do nothing; the rest behave as
+                    // their kind says.
+                    press(menu, '\n');
+                    CHECK(menu.page() == SettingsEditor::Page::Loop &&
+                          menu.selected() == SettingsEditor::loopStyleField);
+                    press(menu, up);
+                    for (int field : menu.visibleRows()) {
+                        CHECK(menu.selected() == field);
+                        const auto before = state();
+                        if (field == SettingsEditor::loopStyleField) checkPicker();
+                        else if (field == SettingsEditor::loopBarsField ||
+                                 field == SettingsEditor::loopCountField ||
+                                 field == SettingsEditor::loopShortField ||
+                                 field == SettingsEditor::loopSnapField) {
+                            press(menu, '\n');
+                            CHECK(!menu.pickerOpen() && state() == before);
+                            press(menu, left);
+                            CHECK(state() != before);
+                            press(menu, right);
+                            CHECK(state() == before);
+                        } else {
+                            for (char key : {char('\n'), left, right, char('\b')}) press(menu, key);
+                            CHECK(!menu.pickerOpen() && !menu.loopQuestion() &&
+                                  menu.page() == SettingsEditor::Page::Loop && state() == before);
+                        }
+                        press(menu, down);
+                    }
+                    press(menu, 27);
+                    CHECK(menu.page() == SettingsEditor::Page::Setup &&
+                          menu.selected() == SettingsEditor::loopField);
+                } else if (menu.selected() == SettingsEditor::midiInputField) {
+                    press(menu, '\n');
+                    CHECK(menu.page() == SettingsEditor::Page::MidiInput);
+                    press(menu, up); // It opens on Plays; Keyboard is above.
+                    for (int field : menu.visibleRows()) {
+                        CHECK(menu.selected() == field);
+                        if (field == SettingsEditor::midiDeviceField) {
+                            const auto before = state();
+                            for (char key : {char('\n'), left, right, char('\b')}) press(menu, key);
+                            CHECK(!menu.pickerOpen() && state() == before);
+                        } else checkPicker();
+                        press(menu, down);
+                    }
+                    press(menu, 27);
+                    CHECK(menu.page() == SettingsEditor::Page::Setup &&
+                          menu.selected() == SettingsEditor::midiInputField);
                 } else if (menu.selected() == SettingsEditor::backingField ||
                            menu.selected() == SettingsEditor::frontSoundField) {
                     const int opener = menu.selected();
@@ -633,6 +813,33 @@ int main() {
             press(menu, down);
             press(menu, '\t');
         }
+        // Shortcuts is a read-only manual: any arrow turns the page and changes nothing else.
+        CHECK(menu.tab() == SettingsEditor::Tab::Shortcuts && menu.rows().empty());
+        const auto beforeShortcuts = state();
+        const auto pages = SettingsEditor::shortcuts(walker.settings);
+        const int pageCount = int(pages.size());
+        size_t lines = 0;
+        for (const auto &page : pages) {
+            CHECK(!page.lines.empty() && int(page.lines.size()) <= SettingsEditor::shortcutLines);
+            lines += page.lines.size();
+        }
+        CHECK(menu.shortcutPage() == 0 && pageCount >= 5 && lines > 25);
+        press(menu, right);
+        CHECK(menu.shortcutPage() == 1);
+        press(menu, down);
+        CHECK(menu.shortcutPage() == 2);
+        press(menu, up);
+        press(menu, left);
+        press(menu, left); // Wraps to the last page.
+        CHECK(menu.shortcutPage() == pageCount - 1);
+        for (char key : {char('\n'), char('\b'), 'r', 'o', 'p'}) {
+            press(menu, key);
+            CHECK(menu.tab() == SettingsEditor::Tab::Shortcuts && menu.selected() == -1);
+            CHECK(menu.shortcutPage() == pageCount - 1);
+            CHECK(!menu.pickerOpen() && !menu.tempoOpen() && !menu.backingOpen());
+            CHECK(state() == beforeShortcuts);
+        }
+        press(menu, '\t');
         CHECK(menu.tab() == SettingsEditor::Tab::About && menu.rows().empty());
         const auto beforeAbout = state();
         for (char key : {up, down, left, right, char('\n'), char('\b'), 'r', 'o', 'p'}) {
@@ -644,6 +851,8 @@ int main() {
         press(menu, '\t'); // Tab wraps from the last tab to the first.
         CHECK(menu.tab() == SettingsEditor::Tab::Style && menu.selected() == 2);
         press(menu, '3');
+        CHECK(menu.tab() == SettingsEditor::Tab::Shortcuts);
+        press(menu, '4');
         CHECK(menu.tab() == SettingsEditor::Tab::About);
         press(menu, 27); CHECK(!menu.settingsOpen);
         press(menu, '\t'); CHECK(menu.settingsOpen && menu.tab() == SettingsEditor::Tab::About);
@@ -953,6 +1162,89 @@ int main() {
         CHECK(int(menu.choices().size()) == chordScaleCount);
         choose(menu, 4); press(menu, '\n');
         CHECK(player.settings.chordScale == 4 && player.settings.frontKeyScale() == 4);
+    }
+    {
+        // Tap tempo: P on the Tempo page. From the second tap the tempo is the average of up
+        // to the last four gaps and applies at once; a pause over 2 s starts over.
+        Capture captured; Instrument player(captured); SettingsEditor menu(player);
+        player.settings.bpm = 70;
+        auto tapAt = [&](uint64_t at) { menu.tick(at); press(menu, 'p'); };
+        tapAt(1000); // Opens the Tempo page.
+        CHECK(menu.tempoOpen());
+        tapAt(1100);
+        CHECK(player.settings.bpm == 70); // One tap sets nothing yet.
+        tapAt(1600);
+        CHECK(player.settings.bpm == 120 && menu.tempoText() == "120");
+        for (uint64_t at : {2100, 2600, 3100, 3500, 3900, 4300, 4700}) tapAt(at);
+        CHECK(player.settings.bpm == 150); // The last four gaps of 400 ms.
+        tapAt(7000); // After a pause: the first tap of a new count.
+        CHECK(player.settings.bpm == 150);
+        tapAt(7250);
+        CHECK(player.settings.bpm == 240); // Clamped to the range.
+        press(menu, 27); // Already applied: Esc keeps it.
+        CHECK(!menu.tempoOpen() && player.settings.bpm == 240);
+    }
+    {
+        // 2.0 keeps everything in ~/ZeroChord/ and moves the old ~/.config/zerochord/ there once.
+        namespace fs = std::filesystem;
+        const auto root = fs::temp_directory_path() /
+                          ("zerochord-storage-" +
+                           std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        auto write = [](const fs::path &path, const std::string &text) {
+            fs::create_directories(path.parent_path());
+            std::ofstream(path) << text;
+        };
+        auto read = [](const fs::path &path) {
+            std::ifstream in(path);
+            return std::string(std::istreambuf_iterator<char>(in), {});
+        };
+        const auto old = root / "config/zerochord", home = root / "ZeroChord";
+        write(old / "settings.conf", "bpm 99\n");
+        write(old / "presets/user/mine.toml", "mine");
+        write(old / "loop.txt", "old loop");
+        write(old / "sounds/fluid-grand/bank.sf2", "grand");
+        write(home / "sounds/my-pack/bank.sf2", "mine"); // Packs already put in ~/ZeroChord.
+        std::string message;
+        CHECK(migrateData(old.string(), home.string(), message) == home.string() && message.empty());
+        CHECK(read(home / "settings.conf") == "bpm 99\n" && read(home / "loop.txt") == "old loop");
+        CHECK(read(home / "presets/user/mine.toml") == "mine");
+        CHECK(read(home / "sounds/fluid-grand/bank.sf2") == "grand" &&
+              read(home / "sounds/my-pack/bank.sf2") == "mine");
+        CHECK(!fs::exists(old)); // The emptied old folder is deleted.
+        // Once moved, nothing moves again, even if an old version recreates its folder.
+        write(old / "settings.conf", "bpm 50\n");
+        CHECK(migrateData(old.string(), home.string(), message) == home.string());
+        CHECK(read(home / "settings.conf") == "bpm 99\n" && fs::exists(old / "settings.conf"));
+        fs::remove_all(root);
+        // A file both folders have stays in each; the old folder then stays too.
+        write(old / "settings.conf", "bpm 99\n");
+        write(old / "loop.txt", "old loop");
+        write(home / "loop.txt", "new loop");
+        CHECK(migrateData(old.string(), home.string(), message) == home.string() && !message.empty());
+        CHECK(read(home / "loop.txt") == "new loop" && read(old / "loop.txt") == "old loop");
+        CHECK(read(home / "settings.conf") == "bpm 99\n" && !fs::exists(old / "settings.conf"));
+        fs::remove_all(root);
+        // A move that fails puts back what it moved, and the old folder stays in use.
+        write(old / "settings.conf", "bpm 99\n");
+        write(old / "presets/user/mine.toml", "mine");
+        fs::create_directories(home);
+        fs::permissions(home, fs::perms::owner_read | fs::perms::owner_exec);
+        const bool writable = std::ofstream(home / "probe").good(); // Root ignores permissions.
+        if (!writable) {
+            CHECK(migrateData(old.string(), home.string(), message) == old.string() && !message.empty());
+            CHECK(read(old / "settings.conf") == "bpm 99\n" && read(old / "presets/user/mine.toml") == "mine");
+        }
+        fs::permissions(home, fs::perms::owner_all);
+        fs::remove_all(root);
+        // No old folder: nothing to do.
+        CHECK(migrateData((root / "none").string(), home.string(), message) == home.string());
+        // ZEROCHORD_HOME isolates a run completely: its own folder, and no old one to move.
+        setenv("ZEROCHORD_HOME", (root / "isolated").c_str(), 1);
+        CHECK(dataDirectory() == (root / "isolated").string() && legacyDirectory().empty());
+        unsetenv("ZEROCHORD_HOME");
+        setenv("XDG_CONFIG_HOME", (root / "xdg").c_str(), 1);
+        CHECK(legacyDirectory() == (root / "xdg/zerochord").string());
+        if (const char *h = std::getenv("HOME")) CHECK(dataDirectory() == (fs::path(h) / "ZeroChord").string());
     }
     std::cout << "PASS: defaults, no3/sus voicings, shared/degree resolution, scope shortcuts, "
                  "preview/save/cancel, resets, performance and persistence\n";
