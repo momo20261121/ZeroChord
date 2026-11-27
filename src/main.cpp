@@ -132,6 +132,10 @@ int main(int argc, char **argv) {
         const auto start = std::chrono::steady_clock::now();
         uint64_t previous = 0, escAt = 0;
         bool escDown = false, quit = false;
+        // While playing, a Space tap stops (on release) and a hold switches All front.
+        uint64_t spaceAt = 0;
+        bool spaceDown = false, spaceHeld = false;
+        constexpr uint64_t spaceHoldMs = 600;
         size_t eventIndex = 0;
         auto input = [&](char key, bool down, uint64_t now) {
             if (key == 27) {
@@ -150,7 +154,20 @@ int main(int argc, char **argv) {
                 ui.key(key, down);
                 return;
             }
-            if (ui.settingsOpen || ui.tempoOpen() || ui.backingOpen() || key == 'p' || key == 'o') {
+            if (key == ' ' && (spaceDown || (down && !ui.settingsOpen && !ui.tempoOpen()))) {
+                if (down && !spaceDown) {
+                    spaceDown = true, spaceHeld = false, spaceAt = now;
+                } else if (!down && spaceDown) {
+                    spaceDown = false;
+                    if (!spaceHeld) {
+                        instrument.key(' ', true, now);
+                        instrument.key(' ', false, now);
+                    }
+                }
+                return;
+            }
+            const bool shortcut = !instrument.allFront && (key == 'p' || key == 'o'); // Notes there.
+            if (ui.settingsOpen || ui.tempoOpen() || ui.backingOpen() || shortcut) {
                 const bool quickBacking = ui.backingOpen();
                 ui.key(key, down);
                 // Releases still reach the instrument while O's quick Backing page is open.
@@ -192,6 +209,10 @@ int main(int argc, char **argv) {
             play(now);
             if (escDown && now - escAt >= 800)
                 quit = true;
+            if (spaceDown && !spaceHeld && now - spaceAt >= spaceHoldMs && !ui.settingsOpen) {
+                spaceHeld = true;
+                instrument.setAllFront(!instrument.allFront);
+            }
             if (now >= nextJackCheck) { // Auto output follows the headphone jack.
                 instrument.setJack(platform.headphones());
                 midi.scan(); // Keyboards may be plugged in at any time.

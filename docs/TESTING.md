@@ -1,5 +1,18 @@
 # Testing ZeroChord
 
+## All front — 2026-11-27
+
+- **Layout:** the device keymap (`tca8418` `linux,keymap`) puts `4`–`0`, `E`–`O`, `D`–`L`
+  and `Z`–`M` in matrix columns 2–8, an aligned 7×4 block. The screen draws it aligned.
+- **Local:** all seven desktop suites pass. `music_tests` covers both layouts (gaps, short
+  scales, own key, Lowest note clamping to white keys, the octave range), playing, `1`,
+  `Q`/`W` limits, the chord kept with Hold and stopped without it, Space and
+  leaving. `settings_tests` covers the page, the shared Key/Scale, white-key
+  stepping, restore and persistence. All 44 real-app flows pass, including a new All
+  front flow. The in-place All front screen matches a fresh drawing in both modes, and
+  holding Space returns to the chord screen.
+- **UI:** both modes and the settings page were checked at 320×170.
+
 ## MIDI input — 2026-11-27
 
 - **Local:** all seven desktop suites pass, including the new `midi_tests`. It covers

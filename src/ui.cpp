@@ -2,6 +2,7 @@
 #include "sounds.hpp"
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstring>
 #include <initializer_list>
 #include <lvgl.h>
@@ -285,6 +286,14 @@ void UI::drawMidiInput() {
     label(230, 8, 84, "All presets", colors.muted, small, LV_TEXT_ALIGN_RIGHT);
     menuFooter(drawSettingRows(26, 3, 18));
 }
+void UI::drawAllFrontPage() {
+    label(8, 5, 222, settingName(allFrontField), colors.accent, titleFont);
+    label(230, 8, 84, "All presets", colors.muted, small, LV_TEXT_ALIGN_RIGHT);
+    const bool edited = drawSettingRows(26, 4, 18);
+    // How to get there: the page sets the mode up, but it is opened from playing.
+    label(8, 106, 304, "Hold Space while playing to open or close All front", colors.accent);
+    menuFooter(edited);
+}
 void UI::drawEnvelope() {
     const auto &s = instrument_.settings;
     const auto &d = instrument_.library.current(s).sound;
@@ -463,6 +472,7 @@ void UI::drawPicker() {
     case Page::FrontSound:
     case Page::VolumeEffects:
     case Page::MidiInput:
+    case Page::AllFront:
         title = settingName(selection_);
         if (confirming) {
             title = action == Confirmation::Create ? "Create preset copy?" : "Restore preset?";
@@ -562,11 +572,75 @@ struct UI::PerformanceView {
     std::array<lv_obj_t *, 7> degrees, roots, frontBoxes, frontNotes, frontKeys;
     std::array<std::array<lv_obj_t *, 3>, 7> chordKeys;
     lv_obj_t *midi = nullptr; // "MIDI Front" while a keyboard is connected; lights on notes.
+    // All front: one box, note and keycap per key, in allFrontKeys order.
+    bool allFront = false;
+    std::array<lv_obj_t *, allFrontKeyCount> keyBoxes{}, keyNotes{}, keyCaps{};
 };
+
+void UI::drawAllFront() {
+    const auto &i = instrument_;
+    const auto &s = i.settings;
+    auto view = std::make_shared<PerformanceView>();
+    auto &v = *view;
+    v.allFront = true;
+    v.title = label(8, 5, 108, "", colors.accent, titleFont);
+    const bool free = s.allFrontMode == 1;
+    std::string range;
+    if (free) {
+        const auto notes = i.playingAllFrontNotes();
+        range = noteName(notes[21]) + std::to_string(notes[21] / 12 - 1) + "-" +
+                noteName(notes[13]) + std::to_string(notes[13] / 12 - 1);
+    }
+    const std::string value = free ? range : keyLabel(s);
+    const char *name = free ? "Range:" : "Key:";
+    const auto &preset = i.library.current(s).name;
+    constexpr int statusLeft = 116, statusRight = 312, betweenFields = 4;
+    const int keyWidth = statusFieldWidth(name, value);
+    const int presetWidth = std::min(statusFieldWidth("Preset:", preset, i.library.modified(s)),
+                                     statusRight - statusLeft - keyWidth - betweenFields);
+    const int presetX = statusRight - presetWidth;
+    statusField(presetX - betweenFields - keyWidth, keyWidth, name, value);
+    statusField(presetX, presetWidth, "Preset:", preset, i.library.modified(s));
+    // The keyboard's aligned 7x4 block. In Free play the sharp rows are darker, with gaps blank.
+    const auto notes = i.playingAllFrontNotes();
+    for (int n = 0; n < allFrontKeyCount; n++) {
+        const int row = n / 7, col = n % 7;
+        const int x = 8 + col * 44, y = 22 + row * 32;
+        const bool sharp = free && (row == 0 || row == 2);
+        const char cap = char(std::toupper(static_cast<unsigned char>(allFrontKeys[n])));
+        if (notes[size_t(n)] < 0) {
+            v.keyCaps[size_t(n)] = keycap(x + 11, y + 16, 18, std::string(1, cap), mono,
+                                          colors.bg, colors.panel, 12);
+            continue;
+        }
+        v.keyBoxes[size_t(n)] = box(x, y, 40, 30, sharp ? colors.panel : colors.frontPanel);
+        v.keyNotes[size_t(n)] = label(x + 2, y, 36, "", colors.text, body, LV_TEXT_ALIGN_CENTER);
+        v.keyCaps[size_t(n)] = keycap(x + 11, y + 16, 18, std::string(1, cap), mono,
+                                      colors.keyFace, colors.keyText, 12);
+    }
+    int hintsRight = 314;
+    if (!i.midiDevice.empty()) {
+        const std::string badge = std::string("MIDI ") + midiTargetName(s.midiTarget);
+        const int width = textWidth(badge, small) + 10;
+        v.midi = keycap(312 - width, 153, width, badge, small, colors.panel, colors.muted);
+        hintsRight = 312 - width - 6;
+    }
+    std::vector<Hint> hints{{"Q/W", "Octave"}};
+    if (!free) hints.push_back({"1", "Sharpen"});
+    hints.push_back({"Tab", "Setup"});
+    hints.push_back({"Space", "Hold: chords", "Hold"});
+    hintLine(153, hints, body, true, 6, hintsRight);
+    performance_ = view;
+    updatePerformance();
+}
 
 void UI::drawPerformance() {
     const auto &i = instrument_;
     const auto &s = i.settings;
+    if (i.allFront) {
+        drawAllFront();
+        return;
+    }
     auto view = std::make_shared<PerformanceView>();
     auto &v = *view;
     // Objects that follow playing start blank; updatePerformance() fills them in.
@@ -632,6 +706,26 @@ void UI::updatePerformance() {
     const auto &i = instrument_;
     const auto &s = i.settings;
     const int transpose = i.semitoneShift();
+    if (v.midi) {
+        setFace(v.midi, i.midiLit() ? colors.signal : colors.panel);
+        setInk(v.midi, i.midiLit() ? colors.bg : colors.muted);
+    }
+    if (v.allFront) {
+        setText(v.title, s.allFrontMode == 0 && transpose ? "All front  +1" : "All front");
+        const auto notes = i.playingAllFrontNotes();
+        for (int n = 0; n < allFrontKeyCount; n++) {
+            if (!v.keyBoxes[size_t(n)]) continue;
+            const bool held = i.allFrontHeld(n);
+            const bool sharp = s.allFrontMode == 1 && (n / 7 == 0 || n / 7 == 2);
+            const int pitch = notes[size_t(n)];
+            setFace(v.keyBoxes[size_t(n)], held ? colors.signal : sharp ? colors.panel : colors.frontPanel);
+            setText(v.keyNotes[size_t(n)], pitch < 0 ? "-" : noteName(pitch) + std::to_string(pitch / 12 - 1));
+            setInk(v.keyNotes[size_t(n)], held ? colors.bg : colors.text);
+            setFace(v.keyCaps[size_t(n)], held ? colors.bg : colors.keyFace);
+            setInk(v.keyCaps[size_t(n)], held ? colors.signal : colors.keyText);
+        }
+        return;
+    }
     setText(v.title, transpose ? "ZeroChord  +1" : "ZeroChord");
 
     setFace(v.chordBox, i.active ? colors.activeChord : colors.panel);
@@ -665,11 +759,6 @@ void UI::updatePerformance() {
         }
     }
 
-    if (v.midi) {
-        setFace(v.midi, i.midiLit() ? colors.signal : colors.panel);
-        setInk(v.midi, i.midiLit() ? colors.bg : colors.muted);
-    }
-
     const auto pitches = i.playingFrontNotes();
     const bool frontReady = i.active || s.frontMode == 1;
     for (int n = 0; n < 7; n++) {
@@ -698,6 +787,10 @@ void UI::draw() {
             << i.frontOctaveShift[1];
     for (int n = 0; n < 7; n++) playing << ',' << i.frontHeld(n);
     playing << ',' << i.midiLit();
+    for (int n = 0; n < allFrontKeyCount; n++) playing << ',' << i.allFrontHeld(n);
+    // All front redraws when it opens or its range moves (status line and silent keys).
+    signature << ',' << i.allFront << ',' << i.allFrontShift << ',' << s.allFrontMode << ','
+              << s.allFrontOctave << ',' << s.allFrontLowest;
     // The keyboard and its target change the playing screen; the last note only this page.
     signature << ',' << i.midiDevice << ',' << s.midiTarget << ',' << s.midiVelocity << ','
               << midiRow_;
@@ -773,6 +866,10 @@ void UI::draw() {
     }
     if (settingsOpen && page_ == Page::MidiInput) {
         drawMidiInput();
+        return;
+    }
+    if (settingsOpen && page_ == Page::AllFront) {
+        drawAllFrontPage();
         return;
     }
     if (settingsOpen && page_ == Page::Envelope) {

@@ -83,7 +83,7 @@ mapping as a working baseline; exact musical behavior remains open.
 | I | Toggle chord hold |
 | O | Backing layers: mute and mix Chord, Arp, Pad, Bass and Drums. None audible is Front only |
 | P | Tempo page: Tempo (typed, 40–240 BPM), Swing (Off / 8ths / 16ths) and Swing amount (0–100%) |
-| Space | Stop all sound; detailed reset behavior to be specified |
+| Space | Tap: stop all sound. Hold: switch All front, where every key plays the front |
 | Tab | Open/close settings |
 | Esc | Back/close the current panel; long press returns home |
 

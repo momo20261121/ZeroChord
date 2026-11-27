@@ -84,10 +84,12 @@ run('absolute-roots-and-octaves',
 run('chord-scale-and-hold', chord_config + ['x','x','ENTER','x','ENTER','x','ENTER','f','ENTER'],
     {'chordScale':1, 'hold':0})
 run('chord-timing', chord_config + ['x']*8 + ['c']*18 + ['c'], {'combinationMs':120})
-run('front-scale-physical', ['TAB','TAB','f','f','ENTER','ENTER','x','ENTER','x','x','ENTER','x','x','ENTER'],
+run('front-scale-physical', ['TAB','TAB','x','x','x','ENTER','ENTER','x','ENTER','x','x','ENTER','x','x','ENTER'],
     {'frontMode':1, 'scale':1, 'frontFollow':0})
+run('all-front-free-play', ['TAB','TAB','x','x','x','x','ENTER','ENTER','x','ENTER','x','c','c'],
+    {'allFrontMode':1, 'allFrontLowest':57})
 run('front-key-follows-again',
-    ['TAB','TAB','f','f','ENTER','ENTER','x','ENTER','x','ENTER','x','ENTER','BACKSPACE'],
+    ['TAB','TAB','x','x','x','ENTER','ENTER','x','ENTER','x','ENTER','x','ENTER','BACKSPACE'],
     {'frontMode':1, 'frontFollow':1})
 run('envelope-physical', front_envelope + ['c','ESC','ESC','f','ENTER','2','x','x','ENTER','x','x','c'],
     {'envelope00':5000, 'envelope12':55}, 'envelope00 3000\nenvelope12 50\n')
@@ -153,4 +155,17 @@ for theme in ('', 'theme 1\n'):
         played = playing_screen('played', busy + target, 1500, theme)
         assert fresh == played, ('in-place playing screen differs', theme, target)
 print('PASS: playing screen after busy playing matches a fresh drawing (dark and light)')
-print('PASS: 43 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')
+# All front (hold Space) also updates in place; a Space tap stops without leaving it.
+enter = [(20,'SPACE','down'), (700,'SPACE','up')]
+for mode in ('', 'allFrontMode 1\n'):
+    keys = [(760,'e','down'), (780,'1','down'), (800,'d','down'), (820,'e','up'), (840,'w','down'),
+            (850,'w','up'), (860,'q','down'), (870,'q','up'), (880,'1','up'), (900,'d','up'),
+            (920,'SPACE','down'), (940,'SPACE','up')]
+    target = [(1200,'m','down'), (1220,'4','down')]
+    fresh = playing_screen('all-front-fresh', enter + target, 1500, mode)
+    played = playing_screen('all-front-played', enter + keys + target, 1500, mode)
+    assert fresh == played, ('in-place All front screen differs', mode)
+    chords = playing_screen('all-front-back', enter + [(800,'SPACE','down'), (1500,'SPACE','up')], 1600, mode)
+    assert chords == playing_screen('chord-screen', [], 1600, mode), ('Space hold did not return', mode)
+print('PASS: All front matches a fresh drawing in both modes; holding Space returns to chords')
+print('PASS: 44 real-app flows with physical navigation, persistence, 320x170 capture and clean/long-Esc exit')

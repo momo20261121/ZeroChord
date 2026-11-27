@@ -181,6 +181,10 @@ void Instrument::key(char key, bool down, uint64_t now) {
     pressed_[k] = down;
     if (key == '1')
         return;
+    if (allFront) {
+        allFrontKey(key, down);
+        return;
+    }
     int col = columnFor(key);
     auto harp = std::string("zxcvbnm").find(key);
     if (!down && harp != std::string::npos) {
@@ -390,9 +394,62 @@ void Instrument::tick(uint64_t now) {
     } else
         runTick(now);
 }
+void Instrument::releaseHeldNotes() {
+    auto release = [&](auto &voices) {
+        for (auto &voice : voices)
+            if (voice) sink_.send(Command{CommandType::Off, voice}), voice = 0;
+    };
+    release(frontVoices_);
+    release(allFrontVoices_);
+}
+void Instrument::allFrontKey(char key, bool down) {
+    const int index = allFrontIndex(key);
+    if (index >= 0) {
+        auto &voice = allFrontVoices_[size_t(index)];
+        if (!down) {
+            if (voice) sink_.send(Command{CommandType::Off, voice});
+            voice = 0;
+            return;
+        }
+        const int pitch = playingAllFrontNotes()[size_t(index)];
+        if (pitch < 0) return; // A gap in the piano layout.
+        sink_.send(Command{CommandType::On, ++nextId_, pitch, 0, Part::Harp});
+        voice = nextId_;
+        return;
+    }
+    if (!down) return;
+    if (key == 'q' || key == 'w') { // Octave shift, while every sounding key stays in range.
+        const int step = key == 'w' ? 1 : -1;
+        const auto notes = allFrontNotes(settings, allFrontShift + step);
+        const auto current = allFrontNotes(settings, allFrontShift);
+        for (size_t n = 0; n < notes.size(); n++)
+            if (current[n] >= 0 && notes[n] < 0) return;
+        allFrontShift += step;
+    }
+    if (key == ' ') panic();
+}
+void Instrument::setAllFront(bool on) {
+    if (on == allFront) return;
+    // Every key changes meaning: end held notes and treat held chord keys as released.
+    releaseHeldNotes();
+    pending_.clear();
+    const bool chordHeld = anyChordKey();
+    const bool sharp = pressed_['1'];
+    std::memset(pressed_, 0, sizeof(pressed_));
+    pressed_['1'] = sharp;
+    baseColumn_ = -1;
+    if (chordHeld && !settings.hold) {
+        chordPending_ = false;
+        stopChord();
+        sink_.send(Command{CommandType::StopChord});
+        active = false;
+    }
+    allFront = on;
+}
 void Instrument::clearKeys() {
     std::memset(pressed_, 0, sizeof(pressed_));
     frontVoices_.fill(0);
+    allFrontVoices_.fill(0);
     baseColumn_ = -1;
 }
 void Instrument::endMidiNote(size_t index) {

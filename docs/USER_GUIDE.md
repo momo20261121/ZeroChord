@@ -10,6 +10,7 @@ through Chord, Arp, Pad, Bass, and Drums.
 - [Choose and combine chords](#choose-and-combine-chords)
 - [Set up backing layers](#set-up-backing-layers)
 - [Customize your front notes](#customize-your-front-notes)
+- [Play every key: All front](#play-every-key-all-front)
 - [Find and edit settings](#find-and-edit-settings)
 - [Shape your sound](#shape-your-sound)
 - [Import your own sounds](#import-your-own-sounds)
@@ -26,7 +27,7 @@ of **C**. The app starts silently until you play.
 2. Play `Z` `X` `C` `V` `B` `N` `M` to pick its notes. `L` strums up. `K` strums down.
 3. Try `8` → `5` → `T` → `4` for C → G → Am → F in the default key of C.
 4. Press `O` to choose backing layers. `I` toggles **Hold**.
-5. Press `Space` to stop sound. Hold `Esc` for about a second to save your
+5. Tap `Space` to stop sound. Hold `Esc` for about a second to save your
    settings and return to the launcher.
 
 ![Playing screen with the Key and Preset at the top, chord buttons in the center, and front notes below](images/release-performance.png)
@@ -213,6 +214,32 @@ root is already sharp. The displayed front notes show the pitches you will play
 next. Ringing notes and queued strums keep their starting pitches. See the
 [front-note reference](FRONT_NOTES.md#each-key) for the mapping and octave options.
 
+## Play every key: All front
+
+Hold `Space` for about half a second to switch to **All front**, and hold it again
+to return to the chord screen. In All front, the four rows `4`–`0`, `E`–`O`,
+`D`–`L`, and `Z`–`M` all play the front sound, and the screen shows each key's
+note. A backing chord that is playing keeps going, so you can latch a chord with
+Hold, switch, and play over the groove. With Hold off, switching stops the chord.
+
+- `Q` / `W` shift every key down or up an octave.
+- Tap `Space` to stop everything; you stay in All front.
+- `Tab` opens settings. `O`, `P`, `9`, and `0` are notes here, not shortcuts.
+
+Choose the layout in **App → All front**. These settings apply to every preset.
+
+- **Scale** (default): each row is one octave of the front scale, `Z`–`M` lowest
+  and `4`–`0` highest. **Key** and **Scale** are the same settings as **App → Front
+  notes**, so changing them in either place changes both. By default they follow
+  the chord's key and scale; `Backspace` follows the chord again. Scales with
+  fewer than seven notes continue up an octave along each row, as on `Z`–`M`.
+  **Lowest octave** (0–5, default 3) is the octave of `Z`–`M`. Holding `1` raises
+  new notes one semitone.
+- **Free play**: a piano layout. `Z`–`M` and `E`–`O` are white keys, `E`–`O` an
+  octave above, and the key directly above each white key plays its sharp. Keys
+  above B and E have no sharp and are silent. **Lowest note** (C1–C6, white keys,
+  default F3) is the note of `Z`; with F3 the range is F3–E5.
+
 ## Find and edit settings
 
 Press `Tab` to open settings. Inside, the keys work the same on every page:
@@ -368,7 +395,8 @@ that are still ringing. Pitch bend and the mod wheel are not used yet.
 | `O` | Open **Backing layers** to mute and mix Chord, Arp, Pad, Bass, and Drums |
 | `P` | Type a tempo and set swing |
 | `Tab` | Open settings |
-| `Space` | Stop backing, bass, drums, front notes, and queued strums |
+| Tap `Space` | Stop backing, bass, drums, front notes, and queued strums |
+| Hold `Space` | Switch to [All front](#play-every-key-all-front) and back |
 | Hold `Esc` | Save changes and return to the launcher |
 
 ### In settings

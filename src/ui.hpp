@@ -26,6 +26,8 @@ class UI : public SettingsEditor {
     bool drawSettingRows(int top, int limit, int spacing); // True when a listed row is edited.
     void drawVolumeEffects();
     void drawMidiInput();
+    void drawAllFrontPage();
+    void drawAllFront(); // The playing screen in All front.
     void drawPicker();
     void drawTempo();
     void drawBacking();

@@ -8,6 +8,11 @@ namespace zc {
 namespace {
 const std::vector<int> volumeEffectsRows{SettingsEditor::systemVolumeField, 17, 4, 5, 6, 26, 27, 28,
                                         SettingsEditor::outputField};
+const std::vector<int> allFrontScaleRows{
+    SettingsEditor::allFrontModeField, SettingsEditor::allFrontKeyField,
+    SettingsEditor::allFrontScaleField, SettingsEditor::allFrontOctaveField};
+const std::vector<int> allFrontFreeRows{SettingsEditor::allFrontModeField,
+                                        SettingsEditor::allFrontLowestField};
 const std::vector<int> midiRows{SettingsEditor::midiDeviceField, SettingsEditor::midiTargetField,
                                 SettingsEditor::midiVelocityField};
 const char *scaleName(int scale) { return scaleInfo(scale).name; }
@@ -23,6 +28,31 @@ std::string drumKitName(const Settings &s) {
     return "Kit " + std::to_string(s.drumKit + 1);
 }
 std::string milliseconds(int value) { return std::to_string(value) + " ms"; }
+// The front's Key and Scale, shared by Front notes and All front. -1 follows the chord; choosing
+// either sets the front's own key and scale together.
+void assignFrontKeyScale(Settings &s, bool key, int value) {
+    const int tonic = s.frontKeyTonic(), scale = s.frontKeyScale();
+    s.frontFollow = value < 0;
+    s.frontTonic = key && value >= 0 ? value : tonic;
+    s.scale = !key && value >= 0 ? value : scale;
+}
+std::vector<SettingsEditor::Choice> frontKeyChoices(const Settings &s) {
+    std::vector<SettingsEditor::Choice> choices{
+        {-1, "Follow chord (" + noteName(s.tonic) + ")", "Use the Chord config key and scale"}};
+    for (int n = 0; n < 12; n++) choices.push_back({n, noteName(n), "Scale notes start here; chords stay"});
+    return choices;
+}
+std::vector<SettingsEditor::Choice> frontScaleChoices(const Settings &s) {
+    std::vector<SettingsEditor::Choice> choices{
+        {-1, std::string("Follow chord (") + scaleName(s.chordScale) + ")",
+         "Use the Chord config key and scale"}};
+    for (int scale : scaleMenu(false))
+        choices.push_back({scale, scaleName(scale),
+                           scaleInfo(scale).size == 7 ? "Scale notes only; chord roots stay independent"
+                                                      : "Fewer notes than keys; continues an octave up"});
+    return choices;
+}
+std::string octaveNote(int pitch) { return noteName(pitch) + std::to_string(pitch / 12 - 1); }
 constexpr uint64_t repeatDelayMs = 400, repeatMs = 80, fastRepeatAfterMs = 1500, fastRepeatMs = 40;
 } // namespace
 const char *SettingsEditor::envelopePartName(int part) {
@@ -103,16 +133,16 @@ int SettingsEditor::envelopeValue(const Settings &s) const {
 bool SettingsEditor::appField(int index) {
     return index == 0 || index == 1 || (index >= 3 && index <= 7) || index == 17 ||
            index == 18 || index == 22 || (index >= 26 && index <= systemVolumeField) ||
-           index == outputField || (index >= midiInputField && index <= midiVelocityField);
+           index == outputField || (index >= midiInputField && index <= allFrontLowestField);
 }
 bool SettingsEditor::appPage() const {
     return page_ == Page::Combinations || page_ == Page::FrontNotes ||
-           page_ == Page::VolumeEffects || page_ == Page::MidiInput ||
+           page_ == Page::VolumeEffects || page_ == Page::MidiInput || page_ == Page::AllFront ||
            (page_ == Page::Setup && tab_ == Tab::App);
 }
 const std::vector<int> &SettingsEditor::rows() const {
     static const std::vector<int> style{2, 8, backingField, frontSoundField, 19, 20};
-    static const std::vector<int> app{18, volumeEffectsField, 3, 22, midiInputField};
+    static const std::vector<int> app{18, volumeEffectsField, 3, 22, allFrontField, midiInputField};
     static const std::vector<int> about;
     static const std::vector<int> backing[backingTabCount]{
         {chordMixField, chordMixField + 1, chordMixField + 2, bassMixField, drumMixField},
@@ -124,6 +154,8 @@ const std::vector<int> &SettingsEditor::rows() const {
     static const std::vector<int> frontSound{14, 23, frontMixField};
     if (page_ == Page::VolumeEffects) return volumeEffectsRows;
     if (page_ == Page::MidiInput) return midiRows;
+    if (page_ == Page::AllFront)
+        return instrument_.settings.allFrontMode ? allFrontFreeRows : allFrontScaleRows;
     if (page_ == Page::Backing) return backing[backingTab_];
     if (page_ == Page::FrontSound) return frontSound;
     return tab_ == Tab::About ? about : tab_ == Tab::Style ? style : app;
@@ -161,7 +193,9 @@ const char *SettingsEditor::settingName(int index) {
                                   "Front sound", "Drum mix", "Drum kit", "Drum pattern",
                                   "Bass mix", "Bass sound", "Bass pattern", "Bass envelope",
                                   "Output", "Chord voicing", "Pad voicing", "Front level",
-                                  "MIDI input", "Keyboard", "Plays", "Velocity"};
+                                  "MIDI input", "Keyboard", "Plays", "Velocity",
+                                  "All front", "Mode", "Key", "Scale", "Lowest octave",
+                                  "Lowest note"};
     return names[index];
 }
 std::string SettingsEditor::rowName(int index) const {
@@ -241,6 +275,12 @@ std::string SettingsEditor::rowDescription() const {
         return std::string("This style's ") + midiTargetName(instrument_.settings.midiTarget) +
                " sound and level. Mute it (O) to stop its pattern only.";
     case midiVelocityField: return "How hard you play sets each note's level";
+    case allFrontField: return "Every key plays the front; hold Space to switch";
+    case allFrontModeField: return "Scale: four octaves of the scale. Free play: piano layout.";
+    case allFrontKeyField: case allFrontScaleField:
+        return "Shared with Front notes; follows the chord by default";
+    case allFrontOctaveField: return "Octave of Z-M; each row above is one higher";
+    case allFrontLowestField: return "Z plays this note; E-O continue an octave up";
     case chordVoicingField: case padVoicingField: return "How the chord notes are spread";
     case frontMixField: return "Level of Z-M and strums in this style";
     case 26: return "Bass of the whole mix";
@@ -354,13 +394,7 @@ void SettingsEditor::assignFront(Settings &s, int field, int value) {
             s.frontAction[s.frontMode] = value;
         if (field == 2)
             (s.frontMode ? s.scaleStrumMs : s.strumMs) = value;
-        if (field == 4 || field == frontKeyField) {
-            // Key and Scale follow the chord together; choosing either keeps the other.
-            const int tonic = s.frontKeyTonic(), scale = s.frontKeyScale();
-            s.frontFollow = value < 0;
-            s.frontTonic = field == frontKeyField && value >= 0 ? value : tonic;
-            s.scale = field == 4 && value >= 0 ? value : scale;
-        }
+        if (field == 4 || field == frontKeyField) assignFrontKeyScale(s, field == frontKeyField, value);
     } else if (field == 0) {
         if (s.frontMode)
             s.frontDegree[frontKey_] = value;
@@ -422,7 +456,12 @@ int SettingsEditor::valueFor(const Settings &s, int index) const {
     if (index == outputField) return s.output;
     if (index == midiTargetField) return s.midiTarget;
     if (index == midiVelocityField) return s.midiVelocity;
-    if (index == midiInputField || index == midiDeviceField) return 0;
+    if (index == midiInputField || index == midiDeviceField || index == allFrontField) return 0;
+    if (index == allFrontModeField) return s.allFrontMode;
+    if (index == allFrontKeyField) return s.frontFollow ? -1 : s.frontTonic;
+    if (index == allFrontScaleField) return s.frontFollow ? -1 : s.scale;
+    if (index == allFrontOctaveField) return s.allFrontOctave;
+    if (index == allFrontLowestField) return s.allFrontLowest;
     if (index == frontMixField) return s.frontMix;
     if (index == chordVoicingField) return s.chordVoicing;
     if (index == padVoicingField) return s.padVoicing;
@@ -462,7 +501,8 @@ int SettingsEditor::fieldValue() const {
     case Page::Backing:
     case Page::FrontSound:
     case Page::VolumeEffects:
-    case Page::MidiInput: return settingValueNumber();
+    case Page::MidiInput:
+    case Page::AllFront: return settingValueNumber();
     case Page::Envelope: return envelopeValue(s);
     case Page::FrontNotes: return frontValue(s, frontField_);
     case Page::Combinations: return chordConfigValue(s);
@@ -493,6 +533,9 @@ bool SettingsEditor::fieldModified(int index) const {
                            [&](int field) { return fieldModified(field); });
     if (index == midiInputField)
         return fieldModified(midiTargetField) || fieldModified(midiVelocityField);
+    if (index == allFrontField)
+        return fieldModified(allFrontModeField) || fieldModified(allFrontKeyField) ||
+               fieldModified(allFrontOctaveField) || fieldModified(allFrontLowestField);
     if (envelopeRow(index))
         return s.envelopes[envelopePartFor(index)] != preset.envelopes[envelopePartFor(index)];
     if (mixField(index)) {
@@ -591,6 +634,23 @@ std::string SettingsEditor::settingValue(int index) const {
         return instrument_.midiDevice.empty() ? "None" : instrument_.midiDevice;
     case midiTargetField:
         return midiTargetName(s.midiTarget);
+    case allFrontField:
+    case allFrontModeField:
+        return s.allFrontMode ? "Free play" : "Scale";
+    case allFrontKeyField:
+        return s.frontFollow ? "Chord (" + noteName(s.tonic) + ")" : noteName(s.frontTonic);
+    case allFrontScaleField:
+        return s.frontFollow ? std::string("Chord (") + scaleName(s.chordScale) + ")"
+                             : scaleName(s.scale);
+    case allFrontOctaveField: {
+        const int tonic = 12 * (s.allFrontOctave + 1) + s.frontKeyTonic();
+        return std::to_string(s.allFrontOctave) + "  (Z-M " + octaveNote(tonic) + ", 4-0 " +
+               octaveNote(tonic + 36) + ")";
+    }
+    case allFrontLowestField: {
+        const auto notes = allFrontNotes(s);
+        return octaveNote(s.allFrontLowest) + "-" + octaveNote(notes[13]);
+    }
     case midiVelocityField:
         return midiVelocityName(s.midiVelocity);
     case chordVoicingField:
@@ -709,6 +769,19 @@ void SettingsEditor::assign(Settings &s, int index, int value) {
     case midiVelocityField:
         s.midiVelocity = value;
         break;
+    case allFrontModeField:
+        s.allFrontMode = value;
+        break;
+    case allFrontKeyField:
+    case allFrontScaleField:
+        assignFrontKeyScale(s, index == allFrontKeyField, value);
+        break;
+    case allFrontOctaveField:
+        s.allFrontOctave = value;
+        break;
+    case allFrontLowestField:
+        s.allFrontLowest = value;
+        break;
     case chordVoicingField:
         s.chordVoicing = value;
         break;
@@ -768,6 +841,20 @@ void SettingsEditor::buildChoices() {
                                    "This style's kit; General MIDI drum notes"};
         for (int target = 0; target < midiTargetCount; target++)
             choices_.push_back({target, midiTargetName(target), about[target]});
+        return;
+    }
+    if (page_ == Page::AllFront) {
+        if (selection_ == allFrontModeField)
+            choices_ = {{0, "Scale", "Four octaves of the front scale, Z-M lowest"},
+                        {1, "Free play", "Piano layout: E-O, Z-M white keys; the row above sharps"}};
+        else if (selection_ == allFrontKeyField) choices_ = frontKeyChoices(s);
+        else if (selection_ == allFrontScaleField) choices_ = frontScaleChoices(s);
+        else if (selection_ == allFrontOctaveField)
+            for (int octave = 0; octave <= 5; octave++)
+                choices_.push_back({octave, std::to_string(octave), ""});
+        else
+            for (int pitch = 24; pitch <= 84; pitch++)
+                if (whiteKey(pitch)) choices_.push_back({pitch, octaveNote(pitch), ""});
         return;
     }
     if (page_ == Page::MidiInput && selection_ == midiVelocityField) {
@@ -846,21 +933,10 @@ void SettingsEditor::buildChoices() {
                 choices_ = {{0, "Chord notes", "Follow the selected chord and its quality"},
                             {1, "Scale notes", "I-VII of the front key; independent of chords"}};
             else if (frontField_ == 4)
-            {
-                choices_ = {{-1, std::string("Follow chord (") + scaleName(s.chordScale) + ")",
-                             "Use the Chord config key and scale"}};
-                for (int scale : scaleMenu(false))
-                    choices_.push_back({scale, scaleName(scale),
-                                        scaleInfo(scale).size == 7
-                                            ? "Scale notes only; chord roots stay independent"
-                                            : "Fewer notes than keys; continues an octave up"});
-            }
-            else if (frontField_ == frontKeyField) {
-                choices_.push_back({-1, "Follow chord (" + noteName(s.tonic) + ")",
-                                    "Use the Chord config key and scale"});
-                for (int n = 0; n < 12; n++)
-                    choices_.push_back({n, noteName(n), "Scale notes start here; chords stay"});
-            } else if (frontField_ == 1)
+                choices_ = frontScaleChoices(s);
+            else if (frontField_ == frontKeyField)
+                choices_ = frontKeyChoices(s);
+            else if (frontField_ == 1)
                 choices_ = {{0, "Strum", "K: M to Z / L: Z to M"},
                             {1, "Octave shift", "K: down / L: up; front notes only"}};
             else {
@@ -1054,7 +1130,7 @@ void SettingsEditor::preview() {
     }
     // A chord playing from O already sounds each change; do not interrupt it.
     if (!picker_ && backingOpen() && instrument_.active) return;
-    if (page_ == Page::MidiInput) return; // Play the keyboard to hear a choice.
+    if (page_ == Page::MidiInput || page_ == Page::AllFront) return; // Play to hear a choice.
     ++previews_;
     if (page_ == Page::VolumeEffects) {
         // Audition with the saved mix so returning to playing needs no audio reconfiguration.
@@ -1157,6 +1233,7 @@ SettingsEditor::SetupDestination SettingsEditor::setupDestination() const {
     case 3: return SetupDestination::Combinations;
     case volumeEffectsField: return SetupDestination::VolumeEffects;
     case midiInputField: return SetupDestination::MidiInput;
+    case allFrontField: return SetupDestination::AllFront;
     default: return SetupDestination::Picker;
     }
 }
@@ -1214,6 +1291,10 @@ void SettingsEditor::openSetting() {
         page_ = Page::MidiInput;
         selection_ = midiRows[size_t(midiRow_)];
         break;
+    case SetupDestination::AllFront:
+        page_ = Page::AllFront;
+        selection_ = allFrontModeField;
+        break;
     }
     instrument_.panic();
 }
@@ -1221,6 +1302,7 @@ void SettingsEditor::returnToSetup() {
     if (page_ == Page::Envelope) page_ = envelopeParent_;
     if (page_ == Page::VolumeEffects) selection_ = volumeEffectsField;
     if (page_ == Page::MidiInput) selection_ = midiInputField;
+    if (page_ == Page::AllFront) selection_ = allFrontField;
     if (page_ == Page::Backing) {
         backingRows_[backingTab_] = std::max(0, rowIndex());
         selection_ = backingField;
@@ -1276,6 +1358,9 @@ SettingsEditor::RowKind SettingsEditor::rowKind(int field) const {
         if (field == outputField) return RowKind::Opens;
         return field == systemVolumeField && !systemVolume_ ? RowKind::Plain : RowKind::Number;
     case Page::MidiInput: return field == midiDeviceField ? RowKind::Plain : RowKind::Opens;
+    case Page::AllFront:
+        return field == allFrontOctaveField || field == allFrontLowestField ? RowKind::Number
+                                                                           : RowKind::Opens;
     default: break;
     }
     if (mixField(field) || field == 8 || field == frontMixField) return RowKind::Number;
@@ -1799,8 +1884,8 @@ void SettingsEditor::handleKey(char key, bool down) {
     }
     if (key == '\n') {
         if (page_ == Page::Setup || page_ == Page::Backing || page_ == Page::FrontSound) openSetting();
-        else if (page_ == Page::MidiInput) {
-            if (selection_ != midiDeviceField) openPicker();
+        else if (page_ == Page::MidiInput || page_ == Page::AllFront) {
+            if (selectedKind() == RowKind::Opens) openPicker();
         } else if (page_ != Page::VolumeEffects || selection_ == outputField) openPicker();
     }
 }

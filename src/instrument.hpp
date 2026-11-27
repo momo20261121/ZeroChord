@@ -42,6 +42,16 @@ class Instrument {
     std::array<int, 7> playingFrontNotes() const;
     bool frontHeld(int key) const { return frontVoices_[key] != 0; } // Z-M sounding while held.
     void key(char key, bool down, uint64_t now);
+    // All front (hold Space): every letter and number key plays the front; the backing keeps
+    // its chord. Not saved; Q/W shift the octave for this session.
+    bool allFront = false;
+    int allFrontShift = 0;
+    void setAllFront(bool on);
+    std::array<int, allFrontKeyCount> playingAllFrontNotes() const {
+        return allFrontNotes(settings, allFrontShift,
+                             settings.allFrontMode == 0 ? semitoneShift() : 0);
+    }
+    bool allFrontHeld(int index) const { return allFrontVoices_[size_t(index)] != 0; }
     void tick(uint64_t now);
     void panic();
     void configure();
@@ -90,6 +100,9 @@ class Instrument {
     bool previewLoop_ = false, frontAudition_ = false;
     std::vector<uint32_t> chordVoices_;
     std::array<uint32_t, 7> frontVoices_{}; // Held Z-M notes, released on key up.
+    std::array<uint32_t, allFrontKeyCount> allFrontVoices_{};
+    void allFrontKey(char key, bool down);
+    void releaseHeldNotes(); // Ends held front and All front notes.
     struct Pending {
         uint64_t at;
         int pitch, index;

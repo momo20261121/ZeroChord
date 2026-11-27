@@ -103,6 +103,7 @@ int main() {
     press(editor, '\t'); // Tab moves to the next tab; left/right stay for values.
     CHECK(editor.tab() == SettingsEditor::Tab::App && editor.selected() == 18);
     CHECK((editor.rows() == std::vector<int>{18, SettingsEditor::volumeEffectsField, 3, 22,
+                                             SettingsEditor::allFrontField,
                                              SettingsEditor::midiInputField}));
     row(editor, SettingsEditor::volumeEffectsField);
     press(editor, '\n');
@@ -184,6 +185,59 @@ int main() {
     instrument.settings.midiTarget = defaults.midiTarget;
     instrument.library.select(instrument.settings, original.preset);
     instrument.midiDevice.clear();
+    // All front: Scale rows, or Free play's Lowest note. Key and Scale are Front notes' own.
+    row(editor, SettingsEditor::allFrontField);
+    press(editor, '\n');
+    CHECK(editor.page() == SettingsEditor::Page::AllFront &&
+          editor.selected() == SettingsEditor::allFrontModeField);
+    CHECK((editor.rows() == std::vector<int>{SettingsEditor::allFrontModeField,
+                                            SettingsEditor::allFrontKeyField,
+                                            SettingsEditor::allFrontScaleField,
+                                            SettingsEditor::allFrontOctaveField}));
+    row(editor, SettingsEditor::allFrontKeyField);
+    press(editor, '\n');
+    CHECK(editor.pickerOpen() && editor.choices()[editor.highlighted()].value == -1);
+    for (int n = 0; n < 3; n++) press(editor, 18); // Follow chord, C, C#, D.
+    press(editor, '\n');
+    CHECK(!instrument.settings.frontFollow && instrument.settings.frontTonic == 2 &&
+          instrument.settings.scale == instrument.settings.chordScale);
+    CHECK(editor.settingValue(SettingsEditor::allFrontKeyField) == "D");
+    {
+        // Front notes shows the same key, and choosing there shows here.
+        Settings &s = instrument.settings;
+        CHECK(s.frontKeyTonic() == 2);
+        s.frontMode = 1;
+    }
+    row(editor, SettingsEditor::allFrontOctaveField);
+    press(editor, 19);
+    CHECK(instrument.settings.allFrontOctave == 2);
+    CHECK(editor.settingValue(SettingsEditor::allFrontOctaveField) == "2  (Z-M D2, 4-0 D5)");
+    press(editor, '\b');
+    CHECK(instrument.settings.allFrontOctave == 3);
+    row(editor, SettingsEditor::allFrontKeyField);
+    press(editor, '\b'); // Backspace follows the chord again: key and scale together.
+    CHECK(instrument.settings.frontFollow == 1);
+    row(editor, SettingsEditor::allFrontModeField);
+    press(editor, '\n');
+    press(editor, 18);
+    press(editor, '\n');
+    CHECK(instrument.settings.allFrontMode == 1);
+    CHECK((editor.rows() == std::vector<int>{SettingsEditor::allFrontModeField,
+                                            SettingsEditor::allFrontLowestField}));
+    CHECK(editor.settingValue(SettingsEditor::allFrontLowestField) == "F3-E5");
+    row(editor, SettingsEditor::allFrontLowestField);
+    press(editor, 19); // White keys only: F3 to E3.
+    CHECK(instrument.settings.allFrontLowest == 52);
+    press(editor, 20);
+    press(editor, 20);
+    CHECK(instrument.settings.allFrontLowest == 55);
+    press(editor, 27);
+    CHECK(editor.page() == SettingsEditor::Page::Setup &&
+          editor.selected() == SettingsEditor::allFrontField &&
+          editor.settingValue(SettingsEditor::allFrontField) == "Free play");
+    instrument.settings.allFrontMode = defaults.allFrontMode;
+    instrument.settings.allFrontLowest = defaults.allFrontLowest;
+    instrument.settings.frontMode = defaults.frontMode;
     press(editor, '1'); // Number keys jump to a tab.
     CHECK(editor.tab() == SettingsEditor::Tab::Style && editor.selected() == 2);
     CHECK(samePresetSettings(original, instrument.settings));
@@ -378,6 +432,9 @@ int main() {
     instrument.settings.eqDb = {6, -3, 2};
     instrument.settings.midiTarget = MidiDrums;
     instrument.settings.midiVelocity = VelocityFixed;
+    instrument.settings.allFrontMode = 1;
+    instrument.settings.allFrontOctave = 2;
+    instrument.settings.allFrontLowest = 48;
     saveSettings(instrument.settings, path);
     Settings loaded;
     loadSettings(loaded, path);
@@ -386,6 +443,7 @@ int main() {
     CHECK(loaded.preset == 2 && loaded.tonic == 4);
     CHECK(loaded.eqDb == instrument.settings.eqDb);
     CHECK(loaded.midiTarget == MidiDrums && loaded.midiVelocity == VelocityFixed);
+    CHECK(loaded.allFrontMode == 1 && loaded.allFrontOctave == 2 && loaded.allFrontLowest == 48);
     loaded.midiTarget = 99, loaded.midiVelocity = -4;
     loaded.clamp();
     CHECK(loaded.midiTarget == MidiDrums && loaded.midiVelocity == VelocitySoft);
@@ -606,6 +664,30 @@ int main() {
                     CHECK(menu.page() == SettingsEditor::Page::VolumeEffects && menu.selected() == fields.back());
                     press(menu, 27);
                     CHECK(menu.page() == SettingsEditor::Page::Setup && menu.selected() == SettingsEditor::volumeEffectsField);
+                } else if (menu.selected() == SettingsEditor::allFrontField) {
+                    for (int mode = 0; mode < 2; mode++) {
+                        walker.settings.allFrontMode = mode;
+                        press(menu, '\n');
+                        CHECK(menu.page() == SettingsEditor::Page::AllFront);
+                        for (int field : menu.visibleRows()) {
+                            CHECK(menu.selected() == field);
+                            if (field == SettingsEditor::allFrontOctaveField ||
+                                field == SettingsEditor::allFrontLowestField) {
+                                const auto before = state();
+                                press(menu, '\n');
+                                CHECK(!menu.pickerOpen() && state() == before);
+                                press(menu, right);
+                                CHECK(state() != before);
+                                press(menu, left);
+                                CHECK(state() == before);
+                            } else checkPicker();
+                            press(menu, down);
+                        }
+                        press(menu, 27);
+                        CHECK(menu.page() == SettingsEditor::Page::Setup &&
+                              menu.selected() == SettingsEditor::allFrontField);
+                    }
+                    walker.settings.allFrontMode = 0;
                 } else if (menu.selected() == SettingsEditor::midiInputField) {
                     press(menu, '\n');
                     CHECK(menu.page() == SettingsEditor::Page::MidiInput);

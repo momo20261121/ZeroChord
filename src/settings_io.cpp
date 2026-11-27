@@ -60,6 +60,9 @@ template <class F> void fields(Settings &s, F field) {
     field("output", s.output);
     field("midiTarget", s.midiTarget);
     field("midiVelocity", s.midiVelocity);
+    field("allFrontMode", s.allFrontMode);
+    field("allFrontOctave", s.allFrontOctave);
+    field("allFrontLowest", s.allFrontLowest);
     field("drums", s.drums);
     field("drumKit", s.drumKit);
     field("drumPattern", s.drumPattern);

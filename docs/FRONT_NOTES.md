@@ -18,7 +18,7 @@ default in a list.
   the front's own key and scale together. `Backspace` follows the chord again.
   The notes can play before you choose a backing chord. Holding `1`
   raises new scale notes by one semitone, including custom notes and octaves.
-- **Scale.** **Follow chord** uses the Chord config scale. The front's own
+- **Scale.** Key and Scale are shared with **App → All front**. **Follow chord** uses the Chord config scale. The front's own
   scale can be Major, Natural minor, Major pentatonic, Minor pentatonic, Blues,
   Harmonic minor, Melodic minor, Dorian, Mixolydian, Lydian, or Phrygian.
   Pentatonic scales have five notes and Blues six, fewer than the seven keys,

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **All front.** Hold `Space` to switch to a screen where `4`–`0`, `E`–`O`, `D`–`L`
+  and `Z`–`M` all play the front sound; hold it again to return. A latched backing
+  chord keeps playing. `Q`/`W` shift the octave, a `Space` tap stops everything,
+  and the screen lights each held key with its note. **App → All front** chooses
+  **Scale** (one octave of the front scale per row from **Lowest octave**, default
+  3; `1` sharpens) or **Free play** (piano layout: `Z`–`M` and `E`–`O` white keys
+  from **Lowest note**, default F3, with the key above each its sharp; keys above B
+  and E are silent). Scale mode's **Key** and **Scale** are Front notes' own,
+  shared between both pages. A `Space` tap now stops sound on release.
 - **MIDI input.** A class-compliant USB MIDI keyboard plays one part of the
   current style: Front (default), Chord, Arp, Pad, Bass, or Drums. Notes use that
   part's sound, envelope, level, pan, and effects at the pitch played. Muting the

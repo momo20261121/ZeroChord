@@ -11,7 +11,8 @@ namespace zc {
 class SettingsEditor {
   public:
     enum class Page {
-        Setup, Combinations, FrontNotes, Envelope, VolumeEffects, Backing, FrontSound, MidiInput
+        Setup, Combinations, FrontNotes, Envelope, VolumeEffects, Backing, FrontSound, MidiInput,
+        AllFront
     };
     enum class Tab { Style, App, About };
     // Number rows change with left/right; Opens rows (pages, lists, actions) open with Enter.
@@ -42,7 +43,13 @@ class SettingsEditor {
     static constexpr int midiDeviceField = 49;   // Connected keyboard; information only.
     static constexpr int midiTargetField = 50;   // Plays: the layer whose sound MIDI uses.
     static constexpr int midiVelocityField = 51; // Velocity curve.
-    static constexpr int settingCount = midiVelocityField + 1;
+    static constexpr int allFrontField = 52;       // App row that opens the All front page.
+    static constexpr int allFrontModeField = 53;   // Scale or Free play.
+    static constexpr int allFrontKeyField = 54;    // Front key and scale, shared with Front notes.
+    static constexpr int allFrontScaleField = 55;
+    static constexpr int allFrontOctaveField = 56; // Scale mode: octave of Z-M.
+    static constexpr int allFrontLowestField = 57; // Free play: note of Z.
+    static constexpr int settingCount = allFrontLowestField + 1;
     static constexpr int backingTabCount = 6; // Layers, Chord, Arp, Pad, Bass, Drums.
     explicit SettingsEditor(Instrument &instrument,
                             std::function<std::optional<int>()> readSystemVolume = {},
@@ -90,7 +97,7 @@ class SettingsEditor {
     static constexpr int frontKeyField = 5;
     enum class SetupDestination {
         Picker, Tempo, Backing, Envelope, FrontNotes, Combinations, VolumeEffects, FrontSound, Mix,
-        MidiInput
+        MidiInput, AllFront
     };
     enum class Confirmation { None, Create, Restore };
     RowKind rowKind(int field) const;
@@ -122,7 +129,7 @@ class SettingsEditor {
     std::optional<int> systemVolume_;
     bool settingListPage() const {
         return page_ == Page::Setup || page_ == Page::VolumeEffects || page_ == Page::Backing ||
-               page_ == Page::FrontSound || page_ == Page::MidiInput;
+               page_ == Page::FrontSound || page_ == Page::MidiInput || page_ == Page::AllFront;
     }
     static bool mixField(int index) {
         return (index >= chordMixField && index < chordMixField + 3) || index == drumMixField ||
