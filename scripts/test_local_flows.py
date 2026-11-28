@@ -188,8 +188,8 @@ print('PASS: playing screen after busy playing matches a fresh drawing (dark and
 # All front (hold Space) also updates in place; a Space tap stops without leaving it.
 enter = [(20,'SPACE','down'), (700,'SPACE','up')]
 for mode in ('', 'allFrontMode 1\n'):
-    keys = [(760,'e','down'), (780,'1','down'), (800,'d','down'), (820,'e','up'), (840,'w','down'),
-            (850,'w','up'), (860,'q','down'), (870,'q','up'), (880,'1','up'), (900,'d','up'),
+    keys = [(760,'e','down'), (780,'1','down'), (800,'d','down'), (820,'e','up'), (840,'3','down'),
+            (850,'3','up'), (860,'2','down'), (870,'2','up'), (880,'1','up'), (900,'d','up'),
             (920,'SPACE','down'), (940,'SPACE','up')]
     target = [(1200,'m','down'), (1220,'4','down')]
     fresh = playing_screen('all-front-fresh', enter + target, 1500, mode)

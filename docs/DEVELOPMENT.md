@@ -5,7 +5,7 @@ Run commands from the project root. User controls are in the [user guide](USER_G
 ## Branches and releases
 
 `main` contains tested releases, identified by `v<version>` tags (starting with
-`v1.0.0`). Use `dev` for the next release (currently 2.0.0) and merge into `main`
+`v1.0.0`). Use `dev` for the next release (currently 2.0.1) and merge into `main`
 when the release is tested and ready. Preserve existing
 history. `dev` stays local and is never pushed (`scripts/install_git_guard.sh`
 installs a pre-push hook enforcing this); pushing `main` or a release tag requires

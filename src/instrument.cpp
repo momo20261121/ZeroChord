@@ -442,8 +442,8 @@ void Instrument::allFrontKey(char key, bool down) {
         return;
     }
     if (!down) return;
-    if (key == 'q' || key == 'w') { // Octave shift, while every sounding key stays in range.
-        const int step = key == 'w' ? 1 : -1;
+    if (key == '2' || key == '3') { // Octave shift, while every sounding key stays in range.
+        const int step = key == '3' ? 1 : -1;
         const auto notes = allFrontNotes(settings, allFrontShift + step);
         const auto current = allFrontNotes(settings, allFrontShift);
         for (size_t n = 0; n < notes.size(); n++)

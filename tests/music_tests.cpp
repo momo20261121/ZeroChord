@@ -791,15 +791,15 @@ int main() {
         p.key('e', false, 35);
         CHECK(captured.events.back().type == CommandType::Off &&
               captured.events.back().id == captured.events[0].id && !p.allFrontHeld(7));
-        p.key('w', true, 40); // Q/W shift the octave.
-        p.key('w', false, 41);
+        p.key('3', true, 40); // 2/3 shift the octave.
+        p.key('3', false, 41);
         CHECK(p.playingAllFrontNotes()[21] == 60);
         p.settings.allFrontOctave = 5; // Top row already B8: one more octave would leave MIDI.
         p.allFrontShift = 0;
-        p.key('w', true, 42);
-        p.key('w', false, 43);
+        p.key('3', true, 42);
+        p.key('3', false, 43);
         CHECK(p.allFrontShift == 0);
-        p.key('q', true, 44);
+        p.key('2', true, 44);
         CHECK(p.allFrontShift == -1);
         p.settings.allFrontOctave = 3, p.allFrontShift = 0;
         // Leaving releases held keys; the chord keeps sounding.

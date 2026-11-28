@@ -792,7 +792,7 @@ void UI::drawAllFront() {
         v.midi = keycap(312 - width, 153, width, badge, small, colors.panel, colors.muted);
         hintsRight = 312 - width - 6;
     }
-    std::vector<Hint> hints{{"Q/W", "Octave"}};
+    std::vector<Hint> hints{{"2/3", "Octave"}};
     if (!free) hints.push_back({"1", "Sharpen"});
     hints.push_back({"Tab", "Setup"});
     hints.push_back({"Space", "Hold: chords", "Hold"});

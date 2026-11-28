@@ -1358,7 +1358,7 @@ std::vector<SettingsEditor::ShortcutPage> SettingsEditor::shortcuts(const Settin
           {"Hold Esc", "Save and exit"}}},
         {"All front",
          {{"4-0 E-O D-L Z-M", "Every key plays a note"},
-          {"Q / W", "Octave down / up"},
+          {"2 / 3", "Octave down / up"},
           {"1", "Sharpen (Scale layout)"},
           {"Enter / Space", "Loop and stop, as usual"},
           {"Layout", "App > All front"}}},
