@@ -93,10 +93,15 @@ Details and limits are in the [testing record](docs/TESTING.md).
 
 The `CHRD` description and screenshot order are in the [store listing](store/LISTING.md).
 
-**2.0.0 has not been submitted.** On 2026-11-27 GitHub reported the project's GitHub
-account as suspended, and `czdev publish` opens its pull request through that account.
-The package, listing and screenshots below are ready for submission once it is
-available again, or once the store transfers `zerochord` to another account.
+The 2.0.0 package (SHA-256 `45d000d2…`) was submitted on 2026-11-28 with
+`czdev publish` in
+[CardputerZero/packages #1032](https://github.com/CardputerZero/packages/pull/1032),
+with the new listing and the five looper-first screenshots. Its commit, uploaded
+package and manifest name only the project's GitHub account, its noreply address
+and the project's public name; the uploaded package matches the final checksum.
+Validation and capture checks passed. The first two attempts stopped with a 404
+while creating the branch, after GitHub had briefly suspended the account: the
+fork had fallen 332 commits behind. Syncing the fork's `main` fixed it.
 
 The 1.4.0 package (SHA-256 `c3c26957…`) was submitted on 2026-11-26 with
 `czdev publish` in
@@ -119,6 +124,7 @@ The 1.2.0 submission is recorded in [CardputerZero/packages #712](https://github
 
 ## Git release
 
-`v2.0.0` is not tagged yet: the candidate commit on `dev` waits for approval. GitHub
-publication is blocked while the project account is suspended (see above). The
-`v1.4.0` tag and GitHub Release remain the latest published.
+The release tag is `v2.0.0` on `main`, pushed on 2026-11-28 with `main`. The
+GitHub Release for `v2.0.0` has the final package and checksum listed above, with
+notes from the tagged changelog; its downloaded package matches the final SHA-256,
+and its author and asset uploader are the project's account. `dev` stays local.
