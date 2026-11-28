@@ -99,7 +99,7 @@ The 2.0.0 package (SHA-256 `45d000d2…`) was submitted on 2026-11-28 with
 with the new listing and the five looper-first screenshots. Its commit, uploaded
 package and manifest name only the project's GitHub account, its noreply address
 and the project's public name; the uploaded package matches the final checksum.
-Validation and capture checks passed. The first two attempts stopped with a 404
+Validation and capture checks passed, and it merged on 2026-11-28. The first two attempts stopped with a 404
 while creating the branch, after GitHub had briefly suspended the account: the
 fork had fallen 332 commits behind. Syncing the fork's `main` fixed it.
 
