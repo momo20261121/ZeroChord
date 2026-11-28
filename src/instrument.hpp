@@ -51,7 +51,7 @@ class Instrument {
     bool frontHeld(int key) const { return frontVoices_[key] != 0; } // Z-M sounding while held.
     void key(char key, bool down, uint64_t now);
     // All front (hold Space): every letter and number key plays the front; the backing keeps
-    // its chord. Not saved; Q/W shift the octave for this session.
+    // its chord. Not saved; 2/3 shift the octave for this session.
     bool allFront = false;
     int allFrontShift = 0;
     void setAllFront(bool on);

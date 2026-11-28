@@ -1,5 +1,10 @@
 # Release notes
 
+## 2.0.1 - 2026-11-28
+
+- **All front.** `2` and `3` now shift every key down or up an octave, replacing
+  `Q`/`W`. The on-screen hint and the Shortcuts tab show the new keys.
+
 ## 2.0.0 - 2026-11-27
 
 ZeroChord becomes a pocket jam partner: record a loop with `Enter` and play over it.

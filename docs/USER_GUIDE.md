@@ -231,7 +231,7 @@ to return to the chord screen. In All front, the four rows `4`–`0`, `E`–`O`,
 note. A backing chord that is playing keeps going, so you can latch a chord with
 Hold, switch, and play over the groove. With Hold off, switching stops the chord.
 
-- `Q` / `W` shift every key down or up an octave.
+- `2` / `3` shift every key down or up an octave.
 - Tap `Space` to stop everything; you stay in All front.
 - `Tab` opens settings. `O`, `P`, `9`, and `0` are notes here, not shortcuts.
 

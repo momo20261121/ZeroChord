@@ -1,23 +1,24 @@
-# ZeroChord 2.0.0 release record
+# ZeroChord 2.0.1 release record
 
-Prepared on 2026-11-27. The installed candidate passed acceptance checks on the
-development CardputerZero. The previous release is `v1.4.0`, published on GitHub
-and in the CardputerZero Store.
+Prepared on 2026-11-28. The installed candidate passed acceptance checks on the
+development CardputerZero. The previous release is `v2.0.0`, published on GitHub
+and in the CardputerZero Store. 2.0.1 moves All front's octave shift from `Q`/`W`
+to `2`/`3`.
 
 ## Package
 
 | Field | Value |
 | --- | --- |
 | Package | `zerochord` |
-| Version | `2.0.0`, from [VERSION.txt](VERSION.txt) |
+| Version | `2.0.1`, from [VERSION.txt](VERSION.txt) |
 | Architecture | `arm64` |
-| Release file | `dist/zerochord_2.0.0_arm64.deb` |
-| Size | 828,912 bytes |
-| SHA-256 | `45d000d26b452696a8e62cfd292123e72e4815c270fd151a3129713b33f60b2c` |
-| Installed candidate SHA-256 | `162076e9e03689347a3987c961d1471b24b4fabe54155888659d143012ab37b0` |
-| Checksum file | `dist/zerochord_2.0.0_arm64.deb.sha256` |
-| Executable SHA-256 | `769af32732c78953bb34883eeff24e0188352cb48e3ea58655a65fb0f9f0313b` |
-| Installed-Size | 2329 KiB |
+| Release file | `dist/zerochord_2.0.1_arm64.deb` |
+| Size | 829,272 bytes |
+| SHA-256 | `1e32074ae5e49d27ccb75b694f0a1d40fe13855cec9a8f2a34ff2685fe1a3498` |
+| Installed candidate SHA-256 | `812279b5f281cccfb7fa3789cb4585e9e6208df67472646df3af1a452f86f6a1` |
+| Checksum file | `dist/zerochord_2.0.1_arm64.deb.sha256` |
+| Executable SHA-256 | `58dfdf65b0a9d5bd654d344f3d9ea5987540c0cd3f89920547c79e5660c4cd28` |
+| Installed-Size | 2331 KiB |
 | Maintainer configuration | Set `ZEROCHORD_MAINTAINER` locally before packaging |
 | Dependencies | `libc6 (>= 2.36), libpulse0, pulseaudio-utils, timgm6mb-soundfont` |
 | Source URL configuration | Optional `ZEROCHORD_HOMEPAGE`; see [.env.example](.env.example) |
@@ -25,11 +26,12 @@ and in the CardputerZero Store.
 
 The Debian VM cross-compiled the binary with Zig for Linux ARM64 and glibc 2.36.
 Debian supplies the runtime SoundFont as a dependency. The Grand Piano, Synths
-and Drums packs are separate downloads. The final package updates the bundled
-testing record only: outside `usr/share/doc/zerochord/` its files and modes match
-the installed candidate byte for byte, its executable is the tested one, and its
-control fields differ only in `Installed-Size` (2328 to 2329). The installed test
-ran on the candidate and was not repeated.
+and Drums packs are separate downloads. The final package differs from the
+installed candidate only in the bundled testing record and the refreshed All
+front screenshot: outside `usr/share/doc/zerochord/` its files and modes match
+byte for byte, its executable is the tested one, and its control fields differ
+only in `Installed-Size` (2329 to 2331). The installed test ran on the candidate
+and was not repeated.
 
 ## User-facing deliverables
 
@@ -58,7 +60,7 @@ See the [development notes](docs/DEVELOPMENT.md#releasing). To install manually
 on the device, copy over the package and run:
 
 ```sh
-sudo apt install ./zerochord_2.0.0_arm64.deb
+sudo apt install ./zerochord_2.0.1_arm64.deb
 systemctl --user restart APPLaunch.service
 ```
 
@@ -68,24 +70,20 @@ Its first launch moves an existing `~/.config/zerochord/` there.
 ## Validation
 
 - [x] Eight desktop suites, the same eight with ASan/UBSan (LeakSanitizer on), and
-  47 real-app flows passed, including the move to `~/ZeroChord/`.
+  47 real-app flows passed, including the All front flow with `2`/`3`.
 - [x] Privacy scan found zero failures, for the tree and the archive. Warnings
   identify the intentional public project account, repository URL and noreply
   commit identity.
 - [x] The device verified the archive checksum.
-- [x] `zerochord 2.0.0` (installed candidate `162076e9…`) installed on the CardputerZero over 1.4.0. `dpkg --verify`
-  was clean and the launcher resumed.
-- [x] The installed test passed on the candidate: evdev input, framebuffer readback, settings
-  persistence, a one-bar loop recorded through injected keys and saved, and clean
-  exit. Digital capture recorded 520,800 stereo frames with peak 29,164 and zero
-  queue overflows.
-- [x] The development build's first launch moved the device's settings, presets,
-  loop and three FluidR3 packs into `~/ZeroChord/`; a plain `.sf2` loaded and
-  appeared under Custom.
-- [x] Store screenshots reproduced byte for byte and inspected at native resolution.
-- [ ] A real USB MIDI keyboard (notes, pedal, pitch bend, mod wheel) on the device.
-- [ ] Hands-on playing of the looper, All front and 3/4 loops, and speaker/headphone
-  listening, accepted by the user.
+- [x] `zerochord 2.0.1` (installed candidate `812279b5…`) installed on the
+  CardputerZero over 2.0.0. `dpkg --verify` was clean and the launcher resumed.
+- [x] The installed test passed on the candidate: evdev input, framebuffer readback,
+  settings persistence, a one-bar loop recorded through injected keys and saved,
+  and clean exit. Digital capture recorded 523,200 stereo frames with peak 29,164
+  and zero queue overflows.
+- [x] Store screenshots regenerated; only the All front image changed (hint `2/3`),
+  inspected at native resolution.
+- [ ] Pressing `2`/`3` in All front on the physical keyboard, accepted by the user.
 
 Details and limits are in the [testing record](docs/TESTING.md).
 
@@ -124,7 +122,7 @@ The 1.2.0 submission is recorded in [CardputerZero/packages #712](https://github
 
 ## Git release
 
-The release tag is `v2.0.0` on `main`, pushed on 2026-11-28 with `main`. The
-GitHub Release for `v2.0.0` has the final package and checksum listed above, with
-notes from the tagged changelog; its downloaded package matches the final SHA-256,
-and its author and asset uploader are the project's account. `dev` stays local.
+`v2.0.1` will be tagged on `main` after approval. `dev` stays local.
+
+The `v2.0.0` tag was pushed on 2026-11-28 with `main`, and its GitHub Release has
+the 2.0.0 package and checksum, with notes from the tagged changelog.

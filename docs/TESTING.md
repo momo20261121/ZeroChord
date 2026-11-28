@@ -1,5 +1,27 @@
 # Testing ZeroChord
 
+## 2.0.1 release — 2026-11-28
+
+- **Change:** All front shifts the octave with `2`/`3` instead of `Q`/`W`.
+  `music_tests` presses `3` to go up, is refused one octave past MIDI 127, and presses `2`
+  to go down. The All front real-app flow presses `3` and `2`.
+- **Local:** all eight desktop suites, the same eight built with ASan/UBSan (Debug,
+  LeakSanitizer on) and all 47 real-app flows passed. Release screenshots were
+  regenerated: only the All front images changed (the hint reads `2/3`), checked at
+  320×170.
+- **Package:** the installed candidate `dist/zerochord_2.0.1_arm64.deb` was 828,972
+  bytes, SHA-256 `812279b5…f86f6a1`; executable SHA-256 `58dfdf65…c4cd28`. Privacy
+  scan: 0 FAIL for the tree and the archive. The final package was rebuilt after
+  the installed test only to bundle this record and the refreshed All front
+  screenshot. Outside `usr/share/doc/zerochord/`, its files and modes match the
+  tested archive, its control fields differ only in `Installed-Size` (2329 to 2331),
+  and its executable is the one tested, so the installed test was not repeated.
+- **Device:** installed over 2.0.0; `scripts/test_installed.py 2.0.1` passed: version
+  and `dpkg --verify`, launcher entry, evdev input, framebuffer readback matching the
+  app capture, isolated settings persistence with a one-bar loop, 523,200 stereo
+  frames of audio (peak 29,164), zero queue overflows and a clean long-Esc exit.
+- **Not validated:** pressing `2`/`3` on the physical keyboard and listening.
+
 ## 2.0.0 release — 2026-11-27
 
 - **Local:** all eight desktop suites, the same eight built with ASan/UBSan (Debug,
